@@ -1,0 +1,15 @@
+.last-message{
+    width: 7em; /* Set a fixed width for the element */
+    overflow: hidden; /* Hide the content that overflows */
+    white-space: nowrap; /* Prevent line breaks */
+    text-overflow: ellipsis; /* Add ellipsis at the end */
+}
+
+.sidebar {
+    overflow-y: auto; /* Enable vertical scrollbar */
+    max-height: 95vh; /* Set maximum height to full viewport height */
+}
+.fa-paper-plane:before {
+	padding-right: 5px;
+}
+

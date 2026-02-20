@@ -1,0 +1,6 @@
+{
+  "name": "Importar Clientes",
+  "author": "EREISE",
+  "version": "1.5",
+  "description": "Importa clientes a tblclients desde CSV o XLS/XLSX (sin encabezados) con vista previa, validaciones, mapeo de campos personalizados y modo actualizar."
+}

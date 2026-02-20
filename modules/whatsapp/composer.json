@@ -1,0 +1,16 @@
+{
+    "name": "mubashirriaz7/whatsapp",
+    "description": "WhatsApp Cloud API module",
+    "require": {
+        "rmccue/requests": "^2.0",
+        "firebase/php-jwt": "^6.10",
+        "openai-php/client": "^0.10.1",
+        "symfony/http-client": "^6.4",
+        "nyholm/psr7": "^1.8"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}

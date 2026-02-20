@@ -1,0 +1,97 @@
+
+/*@media screen and (max-width: 992px) {
+	.contact-left {
+		flex: 0 0 72px !important;
+		max-width: 72px !important;
+	}
+	.contact-infos {
+		flex: 0 0 calc( 100% - 72px ) !important;
+		max-width: calc( 100% - 72px ) !important;
+	}
+	.wrapper-discussion {
+	    z-index: 15 !important;
+	    position: fixed !important;
+	    background: #fff !important;
+	    width: 100% !important;
+	    height: 100% !important;
+	}
+}*/
+
+@media screen and (max-width: 992px) {
+	.contact-menu {
+		flex: 0 0 33.333333%;
+	    max-width: 33.333333%;
+	}
+}
+
+@media screen and (max-width: 767px) {
+		.contact-menu {
+		    position: fixed !important;
+		    bottom: 0 !important;
+		    z-index: 10 !important;
+		    background: white !important;
+		    flex: 0 0 100% !important;
+		    max-width: 100% !important;
+		}
+		.contact-list {
+		    height: calc(100vh - 170px) !important;
+		}
+		.infos-header{
+			height: 55px !important;
+		    line-height: 55px !important;
+		}
+		.logout {
+		    font-size: 27px !important;
+		    height: 55px !important;
+		    line-height: 55px !important;
+		}
+		.infos-search {
+			height: 55px !important;
+		    line-height: 55px !important;
+		}
+		.infos-search form {
+		    position: relative !important;
+		    top: 8.5px !important;
+		}
+		
+
+		.wrapper-discussion {
+		    z-index: 15 !important;
+		    position: fixed !important;
+		    background: #fff !important;
+		    width: 100% !important;
+		    height: 100% !important;
+		}
+		.d-message li{
+			width: 8%;
+		}
+		.message-block {
+		    width: 72% !important;
+		}
+		.discussion-message {
+			padding: 0 7px;
+			position: fixed;
+			bottom: 0;
+		}
+		.discussion h3{
+			color: #2a2a2a;
+		}
+		.pad35 {
+			padding-top: 15px;
+		}
+		.call-box{
+			width: 100% !important;
+		}
+		.login-box{
+			width: 100% !important;
+		}
+}
+
+.contact-left {
+			flex: 0 0 72px !important;
+			max-width: 72px !important;
+		}
+		.contact-infos {
+			flex: 0 0 calc( 100% - 72px ) !important;
+			max-width: calc( 100% - 72px ) !important;
+		}

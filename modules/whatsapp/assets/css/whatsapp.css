@@ -1,0 +1,35 @@
+.whatsapp-color {
+    color: #10f43e;
+}
+.wtc_image {
+    max-width: 100%;  /* Set maximum width to 500 pixels */
+    height: auto;      /* Maintain aspect ratio */
+    display: block;    /* Ensure the image is treated as a block element */
+    margin: 0 auto;   /* Center the image horizontally if needed */
+}
+
+.numbertext {
+    color: #ffffff;
+    text-align: center;
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    /* Adjust as needed for spacing */
+    transform: translateY(-50%);
+}
+
+.whatsapp_panel {
+    --tw-bg-opacity: 1;
+    border-radius: .375rem;
+    position: relative;
+    background-color: #ffffff;
+}
+
+.whatsapp_image {
+    border-radius: .250rem;
+    width: 100%;
+}
+
+.whatsapp_button {
+    margin-top:0px !important;
+}

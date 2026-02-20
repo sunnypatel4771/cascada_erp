@@ -1,0 +1,23 @@
+services:
+
+  db:
+    image: mysql:8.0.36
+    container_name: erp_db_container
+    restart: always
+    environment:
+      MYSQL_DATABASE: erp_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:
