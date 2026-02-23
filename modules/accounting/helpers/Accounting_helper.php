@@ -976,6 +976,9 @@ function acc_check_csrf_protection()
 function acc_get_currency_rate($from, $to)
 {
     $CI   = & get_instance();
+    if(empty($from) || empty($to)){
+        return 1;
+    }
     if($from == $to){
         return 1;
     }

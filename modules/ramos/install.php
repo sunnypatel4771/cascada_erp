@@ -95,6 +95,10 @@ if (!$CI->db->field_exists('supplier_id', db_prefix() . 'ramos_inventory_items')
     $CI->db->query('CREATE INDEX `idx_ramos_inventory_supplier` ON `' . db_prefix() . 'ramos_inventory_items` (`supplier_id`);');
 }
 
+if (!$CI->db->field_exists('image_path', db_prefix() . 'ramos_inventory_items')) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . "ramos_inventory_items` ADD `image_path` VARCHAR(255) NULL DEFAULT NULL AFTER `supplier_id`;");
+}
+
 if (!$CI->db->table_exists(db_prefix() . 'ramos_suppliers')) {
     [$charset, $collation] = ramos_install_charset_collation();
 

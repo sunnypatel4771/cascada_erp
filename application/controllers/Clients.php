@@ -131,6 +131,9 @@ class Clients extends ClientsController
         $discount_percent = is_numeric($discount_percent) ? floatval($discount_percent) : 0;
         $data['customer_discount_percent'] = $discount_percent;
 
+        // Customer markup percentage (purchase_price → selling price); 0 = use rate directly
+        $data['customer_markup_percent'] = 0;
+
         // Calculate discount amounts for previous order
         $data['previous_order_discount_amount'] = ($previous_order_total * $discount_percent) / 100;
         $data['previous_order_total_after_discount'] = $previous_order_total - $data['previous_order_discount_amount'];

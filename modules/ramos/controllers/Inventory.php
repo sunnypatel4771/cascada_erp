@@ -176,6 +176,90 @@ class Inventory extends AdminController
     }
 
     /**
+     * Upload product image for an inventory item (AJAX / POST).
+     *
+     * @param  int $id
+     * @return void
+     */
+    public function upload_image($id): void
+    {
+        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+            $this->output->set_status_header(403)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => _l('access_denied')]));
+            return;
+        }
+
+        $item = $this->inventory_model->get((int) $id);
+        if (empty($item)) {
+            $this->output->set_status_header(404)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['success' => false, 'message' => _l('ramos_inventory_not_found')]));
+            return;
+        }
+
+        if (empty($_FILES['image']['name'])) {
+            set_alert('danger', _l('ramos_inventory_image_no_file'));
+            redirect(admin_url('ramos/inventory'));
+            return;
+        }
+
+        $allowedMime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $finfo       = finfo_open(FILEINFO_MIME_TYPE);
+        $mime        = finfo_file($finfo, $_FILES['image']['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($mime, $allowedMime, true)) {
+            set_alert('danger', _l('ramos_inventory_image_invalid_type'));
+            redirect(admin_url('ramos/inventory'));
+            return;
+        }
+
+        $ext     = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+        $dir     = FCPATH . 'modules/ramos/uploads/item_img/' . (int) $id . '/';
+        $newName = 'product_' . (int) $id . '_' . time() . '.' . $ext;
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if (!@move_uploaded_file($_FILES['image']['tmp_name'], $dir . $newName)) {
+            set_alert('danger', _l('ramos_inventory_image_upload_failed'));
+            redirect(admin_url('ramos/inventory'));
+            return;
+        }
+
+        $relativePath = 'modules/ramos/uploads/item_img/' . (int) $id . '/' . $newName;
+        $this->inventory_model->save_image((int) $id, $relativePath);
+
+        set_alert('success', _l('ramos_inventory_image_saved'));
+        redirect(admin_url('ramos/inventory'));
+    }
+
+    /**
+     * Remove product image for an inventory item.
+     *
+     * @param  int $id
+     * @return void
+     */
+    public function remove_image($id): void
+    {
+        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+            access_denied();
+        }
+
+        $item = $this->inventory_model->get((int) $id);
+        if (empty($item)) {
+            show_404();
+        }
+
+        $this->inventory_model->remove_image((int) $id);
+
+        set_alert('success', _l('ramos_inventory_image_removed'));
+        redirect(admin_url('ramos/inventory'));
+    }
+
+    /**
      * Prepare payload from request.
      *
      * @return array

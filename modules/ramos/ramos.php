@@ -223,7 +223,8 @@ function ramos_run_initial_setup(): void
     // Check for automation tracking feature updates
     if (!$CI->db->table_exists(db_prefix() . 'ramos_automation_runs')
         || !$CI->db->field_exists('processed_for_purchase', db_prefix() . 'ramos_orders')
-        || !$CI->db->field_exists('priority', db_prefix() . 'ramos_suppliers')) {
+        || !$CI->db->field_exists('priority', db_prefix() . 'ramos_suppliers')
+        || !$CI->db->field_exists('image_path', db_prefix() . 'ramos_inventory_items')) {
         require_once(__DIR__ . '/install.php');
     }
 }

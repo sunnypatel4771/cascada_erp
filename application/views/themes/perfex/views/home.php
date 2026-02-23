@@ -737,6 +737,11 @@
                     console.log(response);
 
                     if (typeof response === 'string') {
+                        // Strip any PHP notices/warnings prepended before the JSON
+                        const jsonStart = response.lastIndexOf('{');
+                        if (jsonStart > 0) {
+                            response = response.substring(jsonStart);
+                        }
                         try { response = JSON.parse(response); } catch (e) {}
                     }
 

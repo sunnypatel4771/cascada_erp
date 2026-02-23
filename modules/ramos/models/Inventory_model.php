@@ -128,6 +128,58 @@ class Inventory_model extends App_Model
     }
 
     /**
+     * Persist an image path for an inventory item.
+     * Deletes the old file from disk if one already exists.
+     *
+     * @param  int    $id
+     * @param  string $relativePath  Path relative to FCPATH (e.g. modules/ramos/uploads/item_img/3/photo.jpg)
+     * @return bool
+     */
+    public function save_image(int $id, string $relativePath): bool
+    {
+        $existing = $this->get($id);
+        if (!empty($existing['image_path']) && $existing['image_path'] !== $relativePath) {
+            $oldFile = rtrim(FCPATH, '/') . '/' . ltrim($existing['image_path'], '/');
+            if (file_exists($oldFile)) {
+                @unlink($oldFile);
+            }
+        }
+
+        $this->db->where('id', $id);
+
+        return $this->db->update($this->table, [
+            'image_path' => $relativePath,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_by' => get_staff_user_id(),
+        ]);
+    }
+
+    /**
+     * Remove the image for an inventory item and delete the file.
+     *
+     * @param  int $id
+     * @return bool
+     */
+    public function remove_image(int $id): bool
+    {
+        $existing = $this->get($id);
+        if (!empty($existing['image_path'])) {
+            $file = rtrim(FCPATH, '/') . '/' . ltrim($existing['image_path'], '/');
+            if (file_exists($file)) {
+                @unlink($file);
+            }
+        }
+
+        $this->db->where('id', $id);
+
+        return $this->db->update($this->table, [
+            'image_path' => null,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_by' => get_staff_user_id(),
+        ]);
+    }
+
+    /**
      * Prepare payload for create/update.
      *
      * @param  array $data
@@ -181,6 +233,11 @@ class Inventory_model extends App_Model
             $payload['active'] = (int) (bool) $data['active'];
         } elseif ($isCreate) {
             $payload['active'] = 1;
+        }
+
+        if (array_key_exists('image_path', $data)) {
+            $value = $data['image_path'];
+            $payload['image_path'] = ($value === '' || $value === null) ? null : $value;
         }
 
         if ($isCreate) {

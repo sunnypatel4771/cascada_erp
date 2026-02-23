@@ -324,21 +324,21 @@ function omni_check_image_items($item_id, $file_name){
 	$check_img = false;
 	if(omni_get_status_modules('warehouse') == true){
 		$fp  = 'modules/warehouse/uploads/item_img/'.$item_id.'/'.$file_name;
-		if(file_exists(FCPATH.$file_path) ){
+		if(file_exists(FCPATH.$fp) ){
 			$file_path = $fp;
 			$check_img = true;
 		}
 	}
 	if(!$check_img && omni_get_status_modules('purchase') == true){
 		$fp  = 'modules/purchase/uploads/item_img/'.$item_id.'/'.$file_name;
-		if(file_exists(FCPATH.$file_path) ){
+		if(file_exists(FCPATH.$fp) ){
 			$file_path = $fp;
 			$check_img = true;
 		}
 	}
 	if(!$check_img && omni_get_status_modules('manufacturing') == true){
 		$fp  = 'modules/manufacturing/uploads/products/'.$item_id.'/'.$file_name;
-		if(file_exists(FCPATH.$file_path) ){
+		if(file_exists(FCPATH.$fp) ){
 			$file_path = $fp;
 			$check_img = true;
 		}

@@ -61,6 +61,7 @@ foreach ($suppliers as $supplier) {
                             <table class="table table-bordered table-hover">
                                 <thead>
                                     <tr>
+                                        <th style="width:56px"><?php echo _l('ramos_inventory_table_image'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_item'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_sku'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_supplier'); ?></th>
@@ -74,7 +75,7 @@ foreach ($suppliers as $supplier) {
                                 <tbody>
                                     <?php if (empty($items)) : ?>
                                         <tr>
-                                            <td colspan="8" class="text-center tw-text-slate-500">
+                                            <td colspan="9" class="text-center tw-text-slate-500">
                                                 <?php echo _l('ramos_inventory_empty_state'); ?>
                                             </td>
                                         </tr>
@@ -95,7 +96,17 @@ foreach ($suppliers as $supplier) {
                                                     'supplier_id'   => isset($item['supplier_id']) ? (int) $item['supplier_id'] : null,
                                                     'notes'         => $item['notes'],
                                                     'active'        => (int) $item['active'],
+                                                    'image_path'    => $item['image_path'] ?? null,
                                                 ], JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>'>
+                                                <td style="width:56px">
+                                                    <?php if (!empty($item['image_path'])) : ?>
+                                                        <img src="<?php echo site_url(html_escape($item['image_path'])); ?>" alt="" class="tw-w-10 tw-h-10 tw-object-cover tw-rounded tw-border tw-border-slate-200" style="width:40px;height:40px;object-fit:cover;border-radius:4px;">
+                                                    <?php else : ?>
+                                                        <span class="tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded tw-border tw-border-dashed tw-border-slate-300 tw-bg-slate-50 tw-text-slate-300" style="width:40px;height:40px;border-radius:4px;border:1px dashed #cbd5e1;display:inline-flex;align-items:center;justify-content:center;">
+                                                            <i class="fa-regular fa-image"></i>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td>
                                                     <strong><?php echo html_escape($item['item_name']); ?></strong>
                                                     <div class="tw-text-2xs tw-text-slate-400"><?php echo html_escape($item['unit']); ?></div>
@@ -126,6 +137,9 @@ foreach ($suppliers as $supplier) {
                                                         </button>
                                                         <button class="btn btn-info btn-icon ramos-adjust-item">
                                                             <i class="fa-regular fa-scale-balanced"></i>
+                                                        </button>
+                                                        <button class="btn btn-default btn-icon ramos-upload-image" title="<?php echo _l('ramos_inventory_image_upload_btn'); ?>">
+                                                            <i class="fa-regular fa-image"></i>
                                                         </button>
                                                     <?php endif; ?>
                                                     <?php if (staff_can('delete', RAMOS_MODULE_NAME)) : ?>
@@ -280,6 +294,39 @@ foreach ($suppliers as $supplier) {
     </div>
 <?php endif; ?>
 
+<?php if (staff_can('edit', RAMOS_MODULE_NAME)) : ?>
+<div class="modal fade" id="ramosImageModal" tabindex="-1" role="dialog" aria-labelledby="ramosImageModalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="ramosImageModalLabel"><?php echo _l('ramos_inventory_image_modal_title'); ?></h4>
+            </div>
+            <div class="modal-body">
+                <div id="ramos-current-image-wrap" class="tw-mb-3 tw-text-center" style="display:none;">
+                    <img id="ramos-current-image" src="" alt="" class="tw-max-w-full tw-rounded tw-border tw-border-slate-200" style="max-height:180px;">
+                    <div class="tw-mt-2">
+                        <a id="ramos-remove-image-link" href="#" class="tw-text-xs tw-text-red-500">
+                            <i class="fa-regular fa-trash tw-mr-1"></i><?php echo _l('ramos_inventory_image_remove'); ?>
+                        </a>
+                    </div>
+                </div>
+                <?php echo form_open_multipart('', ['id' => 'ramos-image-upload-form']); ?>
+                    <div class="form-group">
+                        <label class="control-label"><?php echo _l('ramos_inventory_image_file_label'); ?></label>
+                        <input type="file" name="image" id="ramos-image-file" accept="image/jpeg,image/png,image/gif,image/webp" class="form-control" required>
+                        <p class="tw-text-xs tw-text-slate-400 tw-mt-1"><?php echo _l('ramos_inventory_image_hint'); ?></p>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-regular fa-upload tw-mr-1"></i><?php echo _l('ramos_inventory_image_upload_btn'); ?>
+                    </button>
+                <?php echo form_close(); ?>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php init_tail(); ?>
 <script>
     (function() {
@@ -290,6 +337,8 @@ foreach ($suppliers as $supplier) {
         var $editForm = $('#ramos-inventory-edit-form');
         var $adjustModal = $('#ramosInventoryAdjustModal');
         var $adjustForm = $('#ramos-inventory-adjust-form');
+        var $imageModal = $('#ramosImageModal');
+        var $imageForm = $('#ramos-image-upload-form');
 
         $('.ramos-edit-item').on('click', function() {
             var $row = $(this).closest('tr');
@@ -320,6 +369,29 @@ foreach ($suppliers as $supplier) {
             $adjustForm.find('input[name="adjustment"]').val('0');
 
             $adjustModal.modal('show');
+        });
+
+        $('.ramos-upload-image').on('click', function() {
+            var $row = $(this).closest('tr');
+            var item = $row.data('item') || {};
+
+            $imageForm.attr('action', baseUrl + 'ramos/inventory/upload_image/' + item.id);
+            $('#ramos-image-file').val('');
+
+            var $wrap = $('#ramos-current-image-wrap');
+            var $img  = $('#ramos-current-image');
+            var $removeLink = $('#ramos-remove-image-link');
+
+            if (item.image_path) {
+                $img.attr('src', baseUrl.replace('/admin/', '/') + item.image_path);
+                $removeLink.attr('href', baseUrl + 'ramos/inventory/remove_image/' + item.id);
+                $wrap.show();
+            } else {
+                $wrap.hide();
+                $img.attr('src', '');
+            }
+
+            $imageModal.modal('show');
         });
     })();
 </script>
