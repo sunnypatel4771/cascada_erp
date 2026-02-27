@@ -99,6 +99,16 @@ function app_format_money($amount, $currency, $excludeSymbol = false)
     /**
      * Check if currency is passed as Object from database or just currency name e.q. USD
      */
+    if (is_null($currency) || (!is_string($currency) && !is_object($currency))) {
+        $currency = (object) [
+            'symbol'             => get_option('currency_symbol') ?: '$',
+            'name'               => get_option('currency_name') ?: '',
+            'placement'          => get_option('currency_placement') ?: 'before',
+            'decimal_separator'  => get_option('decimal_separator'),
+            'thousand_separator' => get_option('thousand_separator'),
+        ];
+    }
+
     if (is_string($currency)) {
         $dbCurrency = get_currency($currency);
 
