@@ -61,7 +61,7 @@ $statusLabel = ramos_purchase_statuses()[$batch['status']] ?? $batch['status'];
                                                 ?>
                                                 <tr>
                                                     <td>
-                                                        <strong><?php echo html_escape($item['item_name']); ?></strong>
+                                                        <strong><?php echo html_escape($item['inventory_name'] ?? $item['item_name'] ?? 'Unknown Item'); ?></strong>
                                                         <?php if ($item['unit']) : ?>
                                                             <div class="tw-text-2xs tw-text-slate-400"><?php echo html_escape($item['unit']); ?></div>
                                                         <?php endif; ?>
@@ -118,7 +118,7 @@ $statusLabel = ramos_purchase_statuses()[$batch['status']] ?? $batch['status'];
                                             ?>
                                             <div class="form-group tw-mb-3">
                                                 <label class="control-label">
-                                                    <?php echo html_escape($item['item_name']); ?>
+                                                    <?php echo html_escape($item['inventory_name'] ?? $item['item_name'] ?? 'Unknown Item'); ?>
                                                     <span class="tw-text-2xs tw-text-slate-500"><?php echo _l('ramos_purchases_receive_remaining', app_format_number($remaining)); ?></span>
                                                 </label>
                                                 <input type="hidden" name="item_id[]" value="<?php echo (int) $item['id']; ?>">

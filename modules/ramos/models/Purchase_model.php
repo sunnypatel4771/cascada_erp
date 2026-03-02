@@ -201,9 +201,13 @@ class Purchase_model extends App_Model
 
     public function get_batch_items($batchId): array
     {
-        $this->db->select('bi.*, inv.item_name as inventory_name, inv.unit');
+        // Try joining with ramos inventory items first, then fall back to main items table
+        $this->db->select('bi.*');
+        $this->db->select('COALESCE(inv.item_name, items.description) as inventory_name');
+        $this->db->select('COALESCE(inv.unit, items.unit_id) as unit');
         $this->db->from($this->batchItemsTable . ' bi');
         $this->db->join(db_prefix() . 'ramos_inventory_items inv', 'inv.id = bi.inventory_item_id', 'left');
+        $this->db->join(db_prefix() . 'items items', 'items.id = bi.inventory_item_id', 'left');
         $this->db->where('bi.batch_id', $batchId);
 
         return $this->db->get()->result_array();

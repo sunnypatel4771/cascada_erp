@@ -293,4 +293,120 @@ class Automation_model extends App_Model
 
         return $inventoryMap;
     }
+
+    /**
+     * Get unprocessed ERP portal orders
+     *
+     * ERP orders are distinguished by having clientnote like "portal"
+     * Filters for unpaid orders (status = 1) that haven't been processed yet
+     *
+     * @return array
+     */
+    public function get_unprocessed_erp_orders(): array
+    {
+        $this->db->select('i.id, i.clientid, i.date as datecreator, i.total, i.status');
+        $this->db->select('"invoice" as order_source'); // Mark as ERP
+        $this->db->from(db_prefix() . 'invoices i');
+        $this->db->where('i.status', 1); // Status 1 = sent/unpaid
+        $this->db->where('i.clientnote IS NOT NULL', null, false);
+        $this->db->where('i.clientnote LIKE "%portal%"', null, false); // Portal orders only
+        $this->db->where('i.recurring', 0); // Not recurring (recurring field is 0, not NULL)
+        $this->db->where('(i.processed_for_purchase IS NULL OR i.processed_for_purchase = 0)', null, false);
+        $this->db->order_by('i.date', 'ASC');
+
+        return $this->db->get()->result_array();
+    }
+
+    /**
+     * Count unprocessed ERP portal orders
+     *
+     * @return int
+     */
+    public function count_unprocessed_erp_orders(): int
+    {
+        $this->db->from(db_prefix() . 'invoices');
+        $this->db->where('status', 1); // Unpaid
+        $this->db->where('clientnote IS NOT NULL', null, false);
+        $this->db->where('clientnote LIKE "%portal%"', null, false);
+        $this->db->where('recurring', 0); // Not recurring
+        $this->db->where('(processed_for_purchase IS NULL OR processed_for_purchase = 0)', null, false);
+
+        return $this->db->count_all_results();
+    }
+
+    /**
+     * Get required quantities from ERP invoice items
+     *
+     * ERP invoices store line items in tblitemable with rel_type='invoice'
+     * Maps item descriptions to inventory items by matching descriptions
+     *
+     * @param  array $invoiceIds Array of invoice IDs
+     * @return array Keyed by inventory_item_id with quantities
+     */
+    public function get_required_quantities_from_erp_orders(array $invoiceIds): array
+    {
+        if (empty($invoiceIds)) {
+            return [];
+        }
+
+        // Get invoice items from tblitemable
+        // ERP portal invoices store items in tblitemable with rel_type='invoice'
+        $this->db->select('ia.description, SUM(ia.qty) as qty, i.id as inventory_item_id');
+        $this->db->from(db_prefix() . 'itemable ia');
+        $this->db->join(db_prefix() . 'items i', 'i.description = ia.description', 'left');
+        $this->db->where_in('ia.rel_id', $invoiceIds);
+        $this->db->where('ia.rel_type', 'invoice');
+        $this->db->where('ia.qty IS NOT NULL', null, false);
+        $this->db->where('ia.qty > 0', null, false);
+        $this->db->group_by('ia.description, i.id');
+
+        $results = $this->db->get()->result_array();
+
+        // Return quantities keyed by inventory_item_id
+        // Only include items that could be matched to inventory
+        $quantities = [];
+        foreach ($results as $row) {
+            if (!empty($row['inventory_item_id'])) {
+                $itemId = (int) $row['inventory_item_id'];
+                $qty = (float) $row['qty'];
+                if ($itemId > 0 && $qty > 0) {
+                    // Add quantities if same item appears multiple times
+                    if (isset($quantities[$itemId])) {
+                        $quantities[$itemId] += $qty;
+                    } else {
+                        $quantities[$itemId] = $qty;
+                    }
+                }
+            }
+        }
+
+        return $quantities;
+    }
+
+    /**
+     * Mark ERP orders as processed
+     *
+     * Updates processed_for_purchase flag in tblinvoices table
+     * Note: processed_for_purchase column must exist in tblinvoices
+     *
+     * @param  array $invoiceIds Array of invoice IDs
+     * @param  int   $automationRunId
+     * @return bool
+     */
+    public function mark_erp_orders_as_processed(array $invoiceIds, int $automationRunId): bool
+    {
+        if (empty($invoiceIds)) {
+            return false;
+        }
+
+        $updateData = [
+            'processed_for_purchase' => 1,
+            'automation_run_id'      => $automationRunId
+        ];
+
+        $this->db->where_in('id', $invoiceIds);
+        $this->db->update(db_prefix() . 'invoices', $updateData);
+
+        return $this->db->affected_rows() > 0;
+    }
 }

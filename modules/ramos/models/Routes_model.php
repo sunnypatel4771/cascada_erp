@@ -82,15 +82,45 @@ class Routes_model extends App_Model
         //     ->get()
         //     ->result_array();
 
-        // NEW: Using omni_sales orders (tblcart)
-        return $this->db
-            ->select('rs.*, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.duedate as delivery_datetime')
+        // NEW: Get route stops from both omni_sales (tblcart) and ERP portal (tblinvoices) orders
+        $stops = $this->db
+            ->select('rs.*')
             ->from($this->stopsTable . ' rs')
-            ->join(db_prefix() . 'cart c', 'c.id = rs.order_id', 'left')
             ->where('rs.route_id', (int) $routeId)
             ->order_by('rs.stop_number', 'ASC')
             ->get()
             ->result_array();
+
+        // For each stop, get the order details from the appropriate source
+        foreach ($stops as &$stop) {
+            // Try to get from omni_sales (tblcart) first
+            $omni_order = $this->db
+                ->select('c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.duedate as delivery_datetime')
+                ->from(db_prefix() . 'cart c')
+                ->where('c.id', (int) $stop['order_id'])
+                ->get()
+                ->row_array();
+
+            if ($omni_order) {
+                $stop = array_merge($stop, $omni_order);
+            } else {
+                // Fall back to ERP invoice (tblinvoices)
+                $erp_order = $this->db
+                    ->select('i.number as order_number, cl.company as customer_name, cl.shipping_street as delivery_address, i.duedate as delivery_datetime')
+                    ->from(db_prefix() . 'invoices i')
+                    ->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left')
+                    ->where('i.id', (int) $stop['order_id'])
+                    ->get()
+                    ->row_array();
+
+                if ($erp_order) {
+                    $stop = array_merge($stop, $erp_order);
+                }
+            }
+        }
+        unset($stop);
+
+        return $stops;
     }
 
     public function update_route_status($routeId, string $status): bool
@@ -160,10 +190,12 @@ class Routes_model extends App_Model
         //     ->get()
         //     ->result_array();
 
-        // NEW: Using omni_sales orders (tblcart)
-        // Get orders that have been picked (all pick items completed) but not yet in routes
+        // NEW: Combined query for both omni_sales (tblcart) and ERP portal (tblinvoices) orders
+        // Get orders that are not yet in routes and match the delivery date
         // Also get customer Zona for grouping routes by zone
-        $this->db->select('c.id, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.duedate as delivery_datetime, c.userid');
+        
+        // Query 1: Omni_sales orders (tblcart)
+        $this->db->select('c.id, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.duedate as delivery_datetime, c.userid, "omni_sales" as order_source');
         $this->db->select('cfv.value as zona', false);
         $this->db->from(db_prefix() . 'cart c');
         $this->db->join($this->stopsTable . ' rs', 'rs.order_id = c.id', 'left');
@@ -176,12 +208,52 @@ class Routes_model extends App_Model
             $this->db->where('c.duedate IS NULL', null, false);
             $this->db->or_where('DATE(c.duedate) = ' . $this->db->escape($date), null, false);
         $this->db->group_end();
-        $this->db->order_by('cfv.value', 'ASC'); // Group by zona first
-        $this->db->order_by('c.duedate IS NULL', 'ASC', false);
-        $this->db->order_by('c.duedate', 'ASC');
-        $this->db->order_by('c.id', 'ASC');
+        
+        $omni_orders = $this->db->get()->result_array();
 
-        $orders = $this->db->get()->result_array();
+        // Query 2: ERP portal orders (tblinvoices)
+        // Only include invoices that are unpaid/partially paid and have a due date matching the specified date
+        $this->db->select('i.id, i.number as order_number, cl.company as customer_name, cl.shipping_street as address, i.duedate as delivery_datetime, i.clientid as userid, "erp_invoice" as order_source');
+        $this->db->select('"' . _l('ramos_routes_no_zone') . '" as zona', false); // ERP orders assigned to "No Zone" by default
+        $this->db->from(db_prefix() . 'invoices i');
+        $this->db->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left');
+        $this->db->join($this->stopsTable . ' rs', 'rs.order_id = i.id', 'left');
+        $this->db->where('i.status', 1); // Unpaid invoices (status = 1 is unpaid)
+        $this->db->where('rs.id IS NULL', null, false); // Not already in routes
+        $this->db->where("i.clientnote LIKE '%portal%' OR i.clientnote LIKE '%customer%'", null, false); // Only portal-created invoices
+        $this->db->group_start();
+            $this->db->where('i.duedate IS NULL', null, false);
+            $this->db->or_where('DATE(i.duedate) = ' . $this->db->escape($date), null, false);
+        $this->db->group_end();
+        
+        $erp_orders = $this->db->get()->result_array();
+
+        // Combine both order sources
+        $orders = array_merge($omni_orders, $erp_orders);
+
+        // Sort combined orders by zona, duedate, and id
+        if (!empty($orders)) {
+            usort($orders, function($a, $b) {
+                // Sort by zona first
+                $zonaCompare = strcmp($a['zona'] ?? '', $b['zona'] ?? '');
+                if ($zonaCompare !== 0) {
+                    return $zonaCompare;
+                }
+                
+                // Then by duedate (nulls first)
+                $aHasDate = !empty($a['delivery_datetime']);
+                $bHasDate = !empty($b['delivery_datetime']);
+                if ($aHasDate && $bHasDate) {
+                    return strtotime($a['delivery_datetime']) <=> strtotime($b['delivery_datetime']);
+                }
+                if ($aHasDate !== $bHasDate) {
+                    return $bHasDate ? 1 : -1;
+                }
+                
+                // Finally by ID
+                return $a['id'] <=> $b['id'];
+            });
+        }
 
         if (empty($orders)) {
             return [];

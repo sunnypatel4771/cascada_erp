@@ -18,8 +18,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
 * environments.
 *
 */
-define('APP_BASE_URL', 'https://3ware.com.mx/ramos/ramos_staging/erp');
-
+// define('APP_BASE_URL', 'https://3ware.com.mx/ramos/ramos_staging/erp');
+define('APP_BASE_URL', 'http://erp.local');
 /*
 * --------------------------------------------------------------------------
 * Encryption Key
@@ -39,23 +39,24 @@ define('APP_ENC_KEY', '88cab9569aafa6e1a5e0dba6863bcedc');
  * Database Credentials
  * The hostname of your database server
  */
-define('APP_DB_HOSTNAME',  'localhost');
+define('APP_DB_HOSTNAME',  '127.0.0.1');
 
 /**
  * The username used to connect to the database
  */
-define('APP_DB_USERNAME',  'u447461315_ramos_staging');
+// define('APP_DB_USERNAME',  'u447461315_ramos_staging');
+ define('APP_DB_USERNAME',  'root');
 
 /**
  * The password used to connect to the database
  */
-define('APP_DB_PASSWORD',  '0Me$R@FU2:>');
-
+// define('APP_DB_PASSWORD',  '0Me$R@FU2:>');
+define('APP_DB_PASSWORD',  'root_password');
 /**
  * The name of the database you want to connect to
  */
-define('APP_DB_NAME', 'u447461315_ramos_staging');
-
+// define('APP_DB_NAME', 'u447461315_ramos_staging');
+define('APP_DB_NAME', 'erp_staging');
 /**
  * @since  2.3.0
  * Database charset

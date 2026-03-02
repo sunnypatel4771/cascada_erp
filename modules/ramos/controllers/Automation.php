@@ -45,12 +45,13 @@ class Automation extends AdminController
         // Get recent automation runs
         $data['recent_runs'] = $this->automation_model->get_recent_runs(10);
 
-        // Get count of unprocessed orders
-        // COMMENTED: Ramos orders - replaced with omni_sales orders
-        // $data['unprocessed_count'] = $this->orders_model->count_unprocessed_orders();
-
-        // NEW: Count unprocessed orders from omni_sales (tblcart)
-        $data['unprocessed_count'] = $this->automation_model->count_unprocessed_omni_orders();
+        // Get count of unprocessed orders from BOTH sources
+        $omniCount = $this->automation_model->count_unprocessed_omni_orders();
+        $erpCount = $this->automation_model->count_unprocessed_erp_orders();
+        
+        $data['unprocessed_count'] = $omniCount + $erpCount;
+        $data['omni_count'] = $omniCount;
+        $data['erp_count'] = $erpCount;
 
         $this->load->view('automation/index', $data);
     }
@@ -79,15 +80,12 @@ class Automation extends AdminController
         }
 
         try {
-            // Step 1: Get unprocessed orders
-            // COMMENTED: Ramos orders - replaced with omni_sales orders
-            // $unprocessedOrders = $this->orders_model->get_unprocessed_orders();
-
-            // NEW: Get unprocessed orders from omni_sales (tblcart)
-            // Includes all orders except cancelled (status 5) and return orders
+            // Step 1: Get unprocessed orders from BOTH sources
             $unprocessedOrders = $this->automation_model->get_unprocessed_omni_orders();
+            $erpOrders = $this->automation_model->get_unprocessed_erp_orders();
 
-            if (empty($unprocessedOrders)) {
+            // Check if there are ANY unprocessed orders from either source
+            if (empty($unprocessedOrders) && empty($erpOrders)) {
                 echo json_encode([
                     'success' => false,
                     'message' => _l('ramos_automation_no_orders')
@@ -102,14 +100,20 @@ class Automation extends AdminController
                 'status'   => 'running'
             ]);
 
-            // Step 3: Calculate required quantities from all unprocessed orders
-            $orderIds = array_column($unprocessedOrders, 'id');
-
-            // COMMENTED: Ramos order items - replaced with omni_sales cart_detailt
-            // $requiredQuantities = $this->order_items_model->get_required_quantities_by_orders($orderIds);
-
-            // NEW: Get required quantities from omni_sales cart detail items (tblcart_detailt)
-            $requiredQuantities = $this->automation_model->get_required_quantities_from_omni_orders($orderIds);
+            // Step 3: Calculate required quantities from all unprocessed orders (BOTH omni_sales AND ERP)
+            // Merge both order sources
+            $allOrders = array_merge($unprocessedOrders, $erpOrders);
+            
+            // Separate order IDs by source for processing
+            $omniOrderIds = array_column($unprocessedOrders, 'id');
+            $erpOrderIds = array_column($erpOrders, 'id');
+            
+            // Get required quantities from BOTH sources
+            $omniQuantities = $this->automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
+            $erpQuantities = $this->automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
+            
+            // Merge quantities from both sources
+            $requiredQuantities = $this->_merge_quantities($omniQuantities, $erpQuantities);
 
             // Step 4: Get current inventory
             // COMMENTED: Ramos inventory - replaced with warehouse module inventory
@@ -180,20 +184,25 @@ class Automation extends AdminController
                 }
             }
 
-            // Step 10: Mark orders as processed
-            // COMMENTED: Ramos orders - replaced with omni_sales orders
-            // $this->orders_model->mark_orders_as_processed($orderIds, $runId);
-
-            // NEW: Mark omni_sales orders (tblcart) as processed
-            $this->automation_model->mark_omni_orders_as_processed($orderIds, $runId);
+            // Step 10: Mark orders as processed (BOTH omni_sales AND ERP)
+            if (!empty($omniOrderIds)) {
+                $this->automation_model->mark_omni_orders_as_processed($omniOrderIds, $runId);
+            }
+            
+            if (!empty($erpOrderIds)) {
+                $this->automation_model->mark_erp_orders_as_processed($erpOrderIds, $runId);
+            }
 
             // Step 11: Complete automation run
+            $totalOrdersProcessed = count($omniOrderIds) + count($erpOrderIds);
             $this->automation_model->complete_run($runId, [
                 'status'  => 'completed',
-                'total_orders_processed' => count($orderIds),
+                'total_orders_processed' => $totalOrdersProcessed,
                 'total_purchase_orders_created' => count($createdBatches),
                 'summary' => json_encode([
-                    'orders_processed' => count($orderIds),
+                    'omni_orders_processed' => count($omniOrderIds),
+                    'erp_orders_processed' => count($erpOrderIds),
+                    'total_orders_processed' => $totalOrdersProcessed,
                     'purchase_orders_created' => count($createdBatches),
                     'batch_ids' => $createdBatches
                 ])
@@ -201,9 +210,9 @@ class Automation extends AdminController
 
             echo json_encode([
                 'success' => true,
-                'message' => _l('ramos_automation_success_message', count($orderIds), count($createdBatches)),
+                'message' => _l('ramos_automation_success_message', $totalOrdersProcessed, count($createdBatches)),
                 'run_id' => $runId,
-                'orders_processed' => count($orderIds),
+                'orders_processed' => $totalOrdersProcessed,
                 'purchase_orders_created' => count($createdBatches),
                 'batch_ids' => $createdBatches
             ]);
@@ -350,5 +359,32 @@ class Automation extends AdminController
                 'message' => $e->getMessage()
             ]);
         }
+    }
+
+    /**
+     * Merge quantities from multiple sources (omni_sales and ERP)
+     *
+     * Combines quantities from different order systems into a single array
+     * keyed by inventory item ID with aggregated quantities
+     *
+     * @param  array $omniQuantities Quantities from omni_sales orders
+     * @param  array $erpQuantities Quantities from ERP orders
+     * @return array Merged quantities array
+     */
+    private function _merge_quantities(array $omniQuantities, array $erpQuantities): array
+    {
+        $merged = $omniQuantities;
+        
+        foreach ($erpQuantities as $itemId => $quantity) {
+            if (isset($merged[$itemId])) {
+                // Add to existing quantity
+                $merged[$itemId] += $quantity;
+            } else {
+                // Add new item
+                $merged[$itemId] = $quantity;
+            }
+        }
+        
+        return $merged;
     }
 }
