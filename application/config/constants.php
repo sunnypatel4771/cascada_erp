@@ -201,3 +201,19 @@ define('APP_MODULES_PATH', FCPATH . 'modules/');
  * Helper libraries path
  */
 define('LIBSPATH', APPPATH . 'libraries/');
+
+/**
+ * Delivery Zones (used for route grouping and ERP order assignment)
+ */
+define('VALID_DELIVERY_ZONES', ['Minerva', 'Andares', 'Providencia', 'Plaza Sol', 'Sur']);
+
+/**
+ * Default Zone (used when customer has no zone assigned)
+ */
+define('DEFAULT_DELIVERY_ZONE', 'Minerva');
+
+/**
+ * Default Priority Level (1-9 scale, 5 = normal)
+ */
+define('DEFAULT_PRIORITY_LEVEL', 5);
+

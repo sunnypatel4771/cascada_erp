@@ -60,7 +60,9 @@ function create_directory_if_not_exists($path)
 
 
     require_once __DIR__ . '/install.php';
-    require_once __DIR__ . '/updates.php';
+    // NOTE: updates.php is disabled from running on every page load due to concurrent DDL issues
+    // Table schema updates should be managed via migration system instead
+    // require_once __DIR__ . '/updates.php';
 
 
 // Function to handle module activation

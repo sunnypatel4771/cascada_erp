@@ -4,6 +4,13 @@ defined('BASEPATH') or exit('No direct script access allowed');
 // Get CodeIgniter instance
 $CI = &get_instance();
 
+/**
+ * IMPORTANT: This file runs on every page load during module initialization.
+ * DDL operations (ALTER TABLE) must handle concurrent access gracefully.
+ * If a table is locked by another process, skip the operation - it will
+ * be retried on the next page load or via migration system.
+ */
+
 // Define table names with prefix
 $interaction_table = db_prefix() . 'whatsapp_interactions';
 $interaction_messages_table = db_prefix() . 'whatsapp_interaction_messages';
@@ -20,6 +27,33 @@ $whatsapp_contacts_table = db_prefix() . 'whatsapp_contacts';
 $groups_table = db_prefix() . 'whatsapp_groups';
 $contact_group_table = db_prefix() . 'whatsapp_contact_group';
 
+/**
+ * Safe DDL execution helper
+ * Executes ALTER TABLE queries and silently handles table locks from concurrent DDL.
+ * This is necessary because this file runs on every page load and multiple
+ * requests may try to alter the same table simultaneously.
+ */
+function safe_alter_table(&$db, $sql) {
+    try {
+        $db->query($sql);
+        return true;
+    } catch (Exception $e) {
+        // Check if error is due to concurrent DDL lock
+        $error_msg = $e->getMessage();
+        if (strpos($error_msg, 'skipped') !== false || 
+            strpos($error_msg, 'Concurrent') !== false ||
+            strpos($error_msg, 'lock') !== false ||
+            strpos($error_msg, 'Waiting for') !== false) {
+            // Table is being modified by another process, silently skip
+            // The change will be applied on next page load or via migration
+            log_message('debug', 'Skipping DDL on table (concurrent operation): ' . $error_msg);
+            return false;
+        } else {
+            // Re-throw other database errors
+            throw $e;
+        }
+    }
+}
 
 // Columns to be added with their respective SQL definitions
 $columnsToAdd = [

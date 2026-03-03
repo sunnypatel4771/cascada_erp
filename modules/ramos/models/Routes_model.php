@@ -214,7 +214,8 @@ class Routes_model extends App_Model
         // Query 2: ERP portal orders (tblinvoices)
         // Only include invoices that are unpaid/partially paid and have a due date matching the specified date
         $this->db->select('i.id, i.number as order_number, cl.company as customer_name, cl.shipping_street as address, i.duedate as delivery_datetime, i.clientid as userid, "erp_invoice" as order_source');
-        $this->db->select('"' . _l('ramos_routes_no_zone') . '" as zona', false); // ERP orders assigned to "No Zone" by default
+        $this->db->select('COALESCE(i.zone, "' . _l('ramos_routes_no_zone') . '") as zona', false); // Use ERP zone if set, otherwise "No Zone"
+        $this->db->select('COALESCE(i.priority, 5) as priority', false); // Use ERP priority if set, otherwise 5 (normal)
         $this->db->from(db_prefix() . 'invoices i');
         $this->db->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left');
         $this->db->join($this->stopsTable . ' rs', 'rs.order_id = i.id', 'left');
@@ -231,13 +232,20 @@ class Routes_model extends App_Model
         // Combine both order sources
         $orders = array_merge($omni_orders, $erp_orders);
 
-        // Sort combined orders by zona, duedate, and id
+        // Sort combined orders by zona, priority, duedate, and id
         if (!empty($orders)) {
             usort($orders, function($a, $b) {
                 // Sort by zona first
                 $zonaCompare = strcmp($a['zona'] ?? '', $b['zona'] ?? '');
                 if ($zonaCompare !== 0) {
                     return $zonaCompare;
+                }
+                
+                // Then by priority (lower number = higher priority)
+                $aPriority = (int) ($a['priority'] ?? 5);
+                $bPriority = (int) ($b['priority'] ?? 5);
+                if ($aPriority !== $bPriority) {
+                    return $aPriority <=> $bPriority;
                 }
                 
                 // Then by duedate (nulls first)

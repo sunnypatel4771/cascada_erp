@@ -248,14 +248,12 @@ class Automation extends AdminController
         }
 
         try {
-            // Get unprocessed orders
-            // COMMENTED: Ramos orders - replaced with omni_sales orders
-            // $unprocessedOrders = $this->orders_model->get_unprocessed_orders();
-
-            // NEW: Get unprocessed orders from omni_sales (tblcart)
+            // Get unprocessed orders from BOTH sources
             $unprocessedOrders = $this->automation_model->get_unprocessed_omni_orders();
+            $erpOrders = $this->automation_model->get_unprocessed_erp_orders();
 
-            if (empty($unprocessedOrders)) {
+            // Check if there are ANY unprocessed orders from either source
+            if (empty($unprocessedOrders) && empty($erpOrders)) {
                 echo json_encode([
                     'success' => false,
                     'message' => _l('ramos_automation_no_orders')
@@ -263,14 +261,19 @@ class Automation extends AdminController
                 return;
             }
 
-            // Calculate requirements
-            $orderIds = array_column($unprocessedOrders, 'id');
-
-            // COMMENTED: Ramos order items - replaced with omni_sales cart_detailt
-            // $requiredQuantities = $this->order_items_model->get_required_quantities_by_orders($orderIds);
-
-            // NEW: Get required quantities from omni_sales cart detail items (tblcart_detailt)
-            $requiredQuantities = $this->automation_model->get_required_quantities_from_omni_orders($orderIds);
+            // Merge both order sources
+            $allOrders = array_merge($unprocessedOrders, $erpOrders);
+            
+            // Separate order IDs by source for processing
+            $omniOrderIds = array_column($unprocessedOrders, 'id');
+            $erpOrderIds = array_column($erpOrders, 'id');
+            
+            // Get required quantities from BOTH sources
+            $omniQuantities = $this->automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
+            $erpQuantities = $this->automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
+            
+            // Merge quantities from both sources
+            $requiredQuantities = $this->_merge_quantities($omniQuantities, $erpQuantities);
 
             // Get inventory
             // COMMENTED: Ramos inventory - replaced with warehouse module inventory
@@ -350,7 +353,9 @@ class Automation extends AdminController
             echo json_encode([
                 'success'  => true,
                 'analysis' => $analysis,
-                'orders_count' => count($unprocessedOrders)
+                'omni_orders_count' => count($omniOrderIds),
+                'erp_orders_count' => count($erpOrderIds),
+                'orders_count' => count($omniOrderIds) + count($erpOrderIds)
             ]);
 
         } catch (Exception $e) {

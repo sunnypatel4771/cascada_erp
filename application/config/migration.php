@@ -69,7 +69,7 @@ $config['migration_auto_latest'] = true;
 | be upgraded / downgraded to.
 |
 */
-$config['migration_version'] = 331; // 3.3.1 - Added ERP order automation tracking
+$config['migration_version'] = 332; // 3.3.2 - Added priority and zone fields to invoices
 
 /*
 |--------------------------------------------------------------------------

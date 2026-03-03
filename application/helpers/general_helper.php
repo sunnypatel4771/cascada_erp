@@ -6,7 +6,9 @@ use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Collection;
 
 defined('BASEPATH') or exit('No direct script access allowed');
-header('Content-Type: text/html; charset=utf-8');
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=utf-8');
+}
 
 /**
  * Load custom lang for the given language
@@ -1095,6 +1097,83 @@ if (!function_exists('is_ai_provider_enabled')) {
     {
         $providers = \app\services\ai\AiProviderRegistry::getAllProviders();
         return  !empty($providers) && isset($providers[get_option('ai_provider')]);
+    }
+}
+
+/**
+ * Validate and get delivery zone from customer profile or use fallback
+ *
+ * @param int    $customer_id Customer/Client ID
+ * @param string $fallback    Fallback zone if customer has none
+ *
+ * @return string Valid zone name
+ */
+if (!function_exists('get_validated_customer_zone')) {
+    function get_validated_customer_zone($customer_id, $fallback = null)
+    {
+        if ($fallback === null) {
+            $fallback = DEFAULT_DELIVERY_ZONE;
+        }
+
+        // Fetch customer's zone from custom field (fieldid 3 = Zona)
+        $zone = get_custom_field_value($customer_id, 'customers_zona', 'customers', false);
+
+        // Validate zone against allowed zones
+        if (!empty($zone) && in_array($zone, VALID_DELIVERY_ZONES, true)) {
+            return $zone;
+        }
+
+        // Log if zone was invalid and we're using fallback
+        if (!empty($zone)) {
+            log_activity('Invalid zone [' . $zone . '] for customer ID ' . $customer_id . ', using fallback: ' . $fallback);
+        }
+
+        return $fallback;
+    }
+}
+
+/**
+ * Validate and get priority from customer profile or use default
+ *
+ * @param int $customer_id Customer/Client ID
+ * @param int $default     Default priority if invalid (1-9)
+ *
+ * @return int Valid priority (1-9)
+ */
+if (!function_exists('get_validated_customer_priority')) {
+    function get_validated_customer_priority($customer_id, $default = null)
+    {
+        if ($default === null) {
+            $default = DEFAULT_PRIORITY_LEVEL;
+        }
+
+        // Fetch customer's priority from custom field (fieldid 4 = Prioridad)
+        $priority = get_custom_field_value($customer_id, 'customers_prioridad', 'customers', false);
+
+        // Validate priority is numeric and within 1-9 range
+        if (!empty($priority)) {
+            $priority = (int) $priority;
+            if ($priority >= 1 && $priority <= 9) {
+                return $priority;
+            }
+            log_activity('Invalid priority [' . $priority . '] for customer ID ' . $customer_id . ', using default: ' . $default);
+        }
+
+        return $default;
+    }
+}
+
+/**
+ * Validate zone against allowed delivery zones
+ *
+ * @param string $zone Zone name to validate
+ *
+ * @return bool True if zone is valid
+ */
+if (!function_exists('is_valid_delivery_zone')) {
+    function is_valid_delivery_zone($zone)
+    {
+        return !empty($zone) && in_array($zone, VALID_DELIVERY_ZONES, true);
     }
 }
 ?>

@@ -185,6 +185,10 @@ class Clients extends ClientsController
         $discount_percent = get_custom_field_value($client_id, 'customers_descuento', 'customers', false);
         $discount_percent = is_numeric($discount_percent) ? floatval($discount_percent) : 0;
 
+        // Get customer's zone and priority from profile custom fields
+        $customer_zone = get_validated_customer_zone($client_id, DEFAULT_DELIVERY_ZONE);
+        $customer_priority = get_validated_customer_priority($client_id, DEFAULT_PRIORITY_LEVEL);
+
         // Prepare invoice data - include number field for proper invoice number assignment
         $invoice_data = [
             'clientid' => $client_id,
@@ -202,6 +206,8 @@ class Clients extends ClientsController
             'clientnote' => 'Order created from customer portal',
             'adminnote' => '',
             'sale_agent' => 0,
+            'priority' => $customer_priority, // From customer profile, defaults to 5 (normal)
+            'zone' => $customer_zone, // From customer profile, defaults to DEFAULT_DELIVERY_ZONE
             'billing_street' => $client->billing_street,
             'billing_city' => $client->billing_city,
             'billing_state' => $client->billing_state,

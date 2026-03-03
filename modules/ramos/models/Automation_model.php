@@ -409,4 +409,115 @@ class Automation_model extends App_Model
 
         return $this->db->affected_rows() > 0;
     }
+
+    /**
+     * Update ERP invoice priority and zone
+     *
+     * @param int $invoiceId Invoice ID
+     * @param int|null $priority Priority (1-9, null to not update)
+     * @param string|null $zone Zone name (null to not update)
+     * @return bool
+     */
+    public function update_erp_order_priority_zone(int $invoiceId, ?int $priority = null, ?string $zone = null): bool
+    {
+        $updateData = [];
+
+        if ($priority !== null) {
+            $priority = max(1, min(9, (int) $priority)); // Constrain to 1-9
+            $updateData['priority'] = $priority;
+        }
+
+        if ($zone !== null) {
+            $updateData['zone'] = trim((string) $zone) ?: null;
+        }
+
+        if (empty($updateData)) {
+            return false;
+        }
+
+        $this->db->where('id', (int) $invoiceId);
+        $this->db->update(db_prefix() . 'invoices', $updateData);
+
+        return $this->db->affected_rows() > 0;
+    }
+
+    /**
+     * Get ERP orders that need zone/priority assignment
+     * Used for admin dashboard to see which orders need setup before routing
+     *
+     * @return array
+     */
+    public function get_erp_orders_needing_zone_assignment(): array
+    {
+        return $this->db
+            ->select('i.id, i.number as order_number, cl.company as customer_name, i.date, i.duedate, i.priority, i.zone')
+            ->from(db_prefix() . 'invoices i')
+            ->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left')
+            ->where('i.status', 1) // Unpaid invoices
+            ->where('i.zone IS NULL', null, false) // No zone assigned
+            ->where("i.clientnote LIKE '%portal%'", null, false) // Portal orders only
+            ->order_by('i.date', 'DESC')
+            ->get()
+            ->result_array();
+    }
+
+    /**
+     * Backfill ERP orders with customer's zone and priority from profile custom fields
+     * Updates all unpaid ERP portal orders that have NULL zones or default priority
+     *
+     * @return array Summary of updated orders
+     */
+    public function backfill_erp_orders_from_customer_profile(): array
+    {
+        // Get all unpaid ERP portal orders
+        $orders = $this->db
+            ->select('i.id, i.clientid, i.zone, i.priority')
+            ->from(db_prefix() . 'invoices i')
+            ->where('i.status', 1) // Unpaid invoices
+            ->where("i.clientnote LIKE '%portal%'", null, false) // Portal orders only
+            ->get()
+            ->result_array();
+
+        $updated = 0;
+        $summary = [];
+
+        foreach ($orders as $order) {
+            // Get customer's zone and priority from custom fields
+            $customer_zone = get_validated_customer_zone($order['clientid'], DEFAULT_DELIVERY_ZONE);
+            $customer_priority = get_validated_customer_priority($order['clientid'], DEFAULT_PRIORITY_LEVEL);
+
+            // Check if update is needed (zone is NULL or priority is default and customer has custom priority)
+            $needs_update = false;
+            $update_data = [];
+
+            if ($order['zone'] !== $customer_zone) {
+                $update_data['zone'] = $customer_zone;
+                $needs_update = true;
+            }
+
+            if ((int) $order['priority'] !== $customer_priority) {
+                $update_data['priority'] = $customer_priority;
+                $needs_update = true;
+            }
+
+            if ($needs_update) {
+                $this->db->where('id', (int) $order['id']);
+                $this->db->update(db_prefix() . 'invoices', $update_data);
+                $updated++;
+
+                $summary[] = [
+                    'invoice_id' => $order['id'],
+                    'zone' => $customer_zone,
+                    'priority' => $customer_priority,
+                ];
+            }
+        }
+
+        return [
+            'total_orders' => count($orders),
+            'updated' => $updated,
+            'details' => $summary,
+        ];
+    }
 }
+
