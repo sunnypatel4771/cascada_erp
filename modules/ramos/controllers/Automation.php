@@ -79,161 +79,14 @@ class Automation extends AdminController
             return;
         }
 
-        try {
-            // Step 1: Get unprocessed orders from BOTH sources
-            $unprocessedOrders = $this->automation_model->get_unprocessed_omni_orders();
-            $erpOrders = $this->automation_model->get_unprocessed_erp_orders();
+        // Load the automation helper
+        $this->load->helper('ramos/ramos_automation');
 
-            // Check if there are ANY unprocessed orders from either source
-            if (empty($unprocessedOrders) && empty($erpOrders)) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => _l('ramos_automation_no_orders')
-                ]);
-                return;
-            }
+        // Execute automation with current staff user ID
+        $result = ramos_execute_automation(get_staff_user_id());
 
-            // Step 2: Create automation run record
-            $runId = $this->automation_model->create_run([
-                'run_type' => 'purchase_generation',
-                'run_by'   => get_staff_user_id(),
-                'status'   => 'running'
-            ]);
-
-            // Step 3: Calculate required quantities from all unprocessed orders (BOTH omni_sales AND ERP)
-            // Merge both order sources
-            $allOrders = array_merge($unprocessedOrders, $erpOrders);
-            
-            // Separate order IDs by source for processing
-            $omniOrderIds = array_column($unprocessedOrders, 'id');
-            $erpOrderIds = array_column($erpOrders, 'id');
-            
-            // Get required quantities from BOTH sources
-            $omniQuantities = $this->automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
-            $erpQuantities = $this->automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
-            
-            // Merge quantities from both sources
-            $requiredQuantities = $this->_merge_quantities($omniQuantities, $erpQuantities);
-
-            // Step 4: Get current inventory
-            // COMMENTED: Ramos inventory - replaced with warehouse module inventory
-            // $inventoryItems = $this->inventory_model->get();
-            // $inventoryMap = [];
-            // foreach ($inventoryItems as $item) {
-            //     $inventoryMap[$item['id']] = $item;
-            // }
-
-            // NEW: Get inventory from warehouse module (tblinventory_manage)
-            // Aggregate stock quantities by commodity_id (product_id)
-            $inventoryMap = $this->automation_model->get_warehouse_inventory_by_product();
-
-            // Step 5: Get open purchase quantities (items already ordered but not received)
-            $openPurchaseQuantities = $this->purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
-
-            // Step 6: Build deficit report grouped by supplier
-            $deficitGroups = $this->purchase_model->build_supplier_deficits(
-                $requiredQuantities,
-                $inventoryMap,
-                $openPurchaseQuantities
-            );
-
-            // Step 7: Get suppliers and add to groups
-            $suppliers = $this->suppliers_model->get();
-            $supplierMap = [];
-            foreach ($suppliers as $supplier) {
-                $supplierMap[$supplier['id']] = $supplier;
-            }
-
-            foreach ($deficitGroups as $supplierId => &$group) {
-                $group['supplier'] = $supplierId ? ($supplierMap[$supplierId] ?? null) : null;
-            }
-            unset($group);
-
-            // Step 8: Sort groups by supplier priority (lower number = higher priority)
-            uasort($deficitGroups, function($a, $b) {
-                $priorityA = isset($a['supplier']['priority']) ? (int) $a['supplier']['priority'] : 999;
-                $priorityB = isset($b['supplier']['priority']) ? (int) $b['supplier']['priority'] : 999;
-                return $priorityA <=> $priorityB;
-            });
-
-            // Step 9: Create draft purchase batches
-            $createdBatches = [];
-            foreach ($deficitGroups as $supplierId => $group) {
-                if (empty($group['items'])) {
-                    continue;
-                }
-
-                // Transform items to match create_batch expected format
-                $batchItems = [];
-                foreach ($group['items'] as $item) {
-                    $batchItems[] = [
-                        'inventory_item_id' => $item['inventory_item_id'],
-                        'requested_qty'     => $item['required_qty'],
-                        'current_stock'     => $item['current_stock'],
-                        'safety_stock'      => $item['safety_stock'],
-                    ];
-                }
-
-                $batchId = $this->purchase_model->create_batch(
-                    $supplierId ?: null,
-                    $batchItems
-                );
-
-                if ($batchId) {
-                    $createdBatches[] = $batchId;
-                }
-            }
-
-            // Step 10: Mark orders as processed (BOTH omni_sales AND ERP)
-            if (!empty($omniOrderIds)) {
-                $this->automation_model->mark_omni_orders_as_processed($omniOrderIds, $runId);
-            }
-            
-            if (!empty($erpOrderIds)) {
-                $this->automation_model->mark_erp_orders_as_processed($erpOrderIds, $runId);
-            }
-
-            // Step 11: Complete automation run
-            $totalOrdersProcessed = count($omniOrderIds) + count($erpOrderIds);
-            $this->automation_model->complete_run($runId, [
-                'status'  => 'completed',
-                'total_orders_processed' => $totalOrdersProcessed,
-                'total_purchase_orders_created' => count($createdBatches),
-                'summary' => json_encode([
-                    'omni_orders_processed' => count($omniOrderIds),
-                    'erp_orders_processed' => count($erpOrderIds),
-                    'total_orders_processed' => $totalOrdersProcessed,
-                    'purchase_orders_created' => count($createdBatches),
-                    'batch_ids' => $createdBatches
-                ])
-            ]);
-
-            echo json_encode([
-                'success' => true,
-                'message' => _l('ramos_automation_success_message', $totalOrdersProcessed, count($createdBatches)),
-                'run_id' => $runId,
-                'orders_processed' => $totalOrdersProcessed,
-                'purchase_orders_created' => count($createdBatches),
-                'batch_ids' => $createdBatches
-            ]);
-
-        } catch (Exception $e) {
-            // Mark run as failed
-            if (isset($runId)) {
-                $this->automation_model->complete_run($runId, [
-                    'status' => 'failed',
-                    'notes'  => $e->getMessage()
-                ]);
-            }
-
-            log_activity('Ramos Automation Error: ' . $e->getMessage());
-
-            echo json_encode([
-                'success' => false,
-                'message' => _l('ramos_automation_failed'),
-                'error'   => $e->getMessage()
-            ]);
-        }
+        // Return result as JSON
+        echo json_encode($result);
     }
 
     /**
@@ -246,6 +99,9 @@ class Automation extends AdminController
             show_404();
             return;
         }
+
+        // Load the automation helper for quantity merging
+        $this->load->helper('ramos/ramos_automation');
 
         try {
             // Get unprocessed orders from BOTH sources
@@ -272,15 +128,10 @@ class Automation extends AdminController
             $omniQuantities = $this->automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
             $erpQuantities = $this->automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
             
-            // Merge quantities from both sources
-            $requiredQuantities = $this->_merge_quantities($omniQuantities, $erpQuantities);
+            // Merge quantities from both sources using helper
+            $requiredQuantities = _ramos_merge_quantities($omniQuantities, $erpQuantities);
 
             // Get inventory
-            // COMMENTED: Ramos inventory - replaced with warehouse module inventory
-            // $inventoryItems = $this->inventory_model->get();
-
-            // NEW: Get inventory from warehouse module (tblinventory_manage)
-            // Aggregate stock quantities by commodity_id (product_id)
             $inventoryMap = $this->automation_model->get_warehouse_inventory_by_product();
 
             // Get open purchases
@@ -365,31 +216,5 @@ class Automation extends AdminController
             ]);
         }
     }
-
-    /**
-     * Merge quantities from multiple sources (omni_sales and ERP)
-     *
-     * Combines quantities from different order systems into a single array
-     * keyed by inventory item ID with aggregated quantities
-     *
-     * @param  array $omniQuantities Quantities from omni_sales orders
-     * @param  array $erpQuantities Quantities from ERP orders
-     * @return array Merged quantities array
-     */
-    private function _merge_quantities(array $omniQuantities, array $erpQuantities): array
-    {
-        $merged = $omniQuantities;
-        
-        foreach ($erpQuantities as $itemId => $quantity) {
-            if (isset($merged[$itemId])) {
-                // Add to existing quantity
-                $merged[$itemId] += $quantity;
-            } else {
-                // Add new item
-                $merged[$itemId] = $quantity;
-            }
-        }
-        
-        return $merged;
-    }
 }
+

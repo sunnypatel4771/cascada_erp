@@ -17,6 +17,7 @@ hooks()->add_action('admin_init', 'ramos_register_permissions');
 hooks()->add_action('admin_init', 'ramos_init_admin_menu');
 hooks()->add_action('admin_init', 'ramos_run_initial_setup');
 hooks()->add_action('clients_init', 'ramos_init_client_portal');
+hooks()->add_action('after_cron_run', 'ramos_scheduled_automation_and_routes');
 
 register_activation_hook(RAMOS_MODULE_NAME, 'ramos_module_activation_hook');
 register_language_files(RAMOS_MODULE_NAME, [RAMOS_MODULE_NAME]);
@@ -392,4 +393,59 @@ function ramos_route_status_badge_class(string $status): string
     ];
 
     return $map[$status] ?? 'label-default';
+}
+
+/**
+ * Scheduled automation and route generation via cron
+ *
+ * Runs at configured hours (e.g., 8am, 2pm, 6pm) to:
+ * 1. Execute automation to generate purchase orders
+ * 2. On success, immediately generate routes for today
+ *
+ * @param bool $manually Whether cron was triggered manually
+ * @return void
+ */
+function ramos_scheduled_automation_and_routes($manually = false): void
+{
+    // Load automation helper
+    $CI = &get_instance();
+    $CI->load->helper('ramos/ramos_automation');
+
+    // Check if scheduled automation should run
+    if (!ramos_should_run_scheduled_automation()) {
+        return;
+    }
+
+    // Execute automation
+    $automationResult = ramos_execute_automation(0); // 0 = system/cron
+
+    // Check if automation succeeded
+    if (!$automationResult['success']) {
+        log_activity('[RAMOS CRON] Automation failed: ' . ($automationResult['message'] ?? 'Unknown error'));
+        return;
+    }
+
+    // Log automation success
+    log_activity('[RAMOS CRON] Automation successful: ' . $automationResult['orders_processed'] . ' orders processed, ' . $automationResult['batches_created'] . ' purchase batches created');
+
+    // Check if routes should be auto-generated on success
+    if (get_option('ramos_route_generate_on_success') !== '1') {
+        return;
+    }
+
+    // Generate routes for today
+    $routeResult = ramos_generate_routes_for_today();
+
+    if ($routeResult['success']) {
+        // Update automation run record with routes count
+        $CI->load->model('ramos/automation_model');
+        $CI->automation_model->update_run_routes($automationResult['run_id'], $routeResult['routes_count']);
+
+        log_activity('[RAMOS CRON] Routes generated successfully: ' . $routeResult['routes_count'] . ' routes created');
+    } else {
+        log_activity('[RAMOS CRON] Route generation failed: ' . ($routeResult['error'] ?? 'Unknown error'));
+    }
+
+    // Mark automation as completed for today
+    update_option('ramos_last_automation_run_date', date('Y-m-d'));
 }

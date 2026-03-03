@@ -533,3 +533,24 @@ $lang['ramos_facturacion_total_products']    = 'Total Products';
 $lang['ramos_facturacion_remision_note']     = 'This document serves as proof of delivery. Please verify quantities and sign upon receipt.';
 $lang['ramos_facturacion_delivered_by']      = 'Delivered By';
 $lang['ramos_facturacion_received_by']       = 'Received By';
+
+// Scheduled Automation & Route Generation Settings
+$lang['ramos_settings_automation_schedule_title'] = 'Scheduled Automation';
+$lang['ramos_settings_automation_schedule_subtitle'] = 'Configure automatic purchase order generation and route creation.';
+$lang['ramos_settings_automation_enabled'] = 'Enable Scheduled Automation';
+$lang['ramos_settings_enable_scheduled_automation'] = 'Automatically run automation at configured times';
+$lang['ramos_settings_schedule_hours'] = 'Automation Schedule Hours';
+$lang['ramos_settings_schedule_hours_help'] = 'Select which hours each day the automation should run (e.g., 8am, 2pm, 6pm). Automation will only run once per day at the first matching hour.';
+$lang['ramos_settings_select_hours'] = 'Select hours...';
+$lang['ramos_settings_last_run'] = 'Last Automation Run';
+$lang['ramos_settings_never_run'] = 'Never run';
+$lang['ramos_settings_route_generation'] = 'Route Generation';
+$lang['ramos_settings_auto_generate_routes'] = 'Auto-generate routes after successful automation';
+$lang['ramos_settings_auto_generate_routes_help'] = 'When enabled, routes for today will automatically be generated immediately after automation succeeds.';
+$lang['ramos_settings_default_max_stops'] = 'Default Max Stops Per Route';
+$lang['ramos_settings_default_max_stops_help'] = 'Maximum number of customer stops to include in each route (1-100). Default: 10.';
+$lang['ramos_settings_default_route_prefix'] = 'Default Route Name Prefix';
+$lang['ramos_settings_default_route_start_time'] = 'Default Route Start Time';
+$lang['ramos_settings_default_route_start_time_help'] = 'Time when the first route starts (default: 08:00).';
+$lang['ramos_settings_saved_successfully'] = 'Automation schedule settings saved successfully.';
+$lang['ramos_settings_save_error'] = 'Error saving automation schedule settings.';

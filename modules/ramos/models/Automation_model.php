@@ -76,6 +76,22 @@ class Automation_model extends App_Model
     }
 
     /**
+     * Update the routes generated count for an automation run
+     *
+     * @param  int $runId
+     * @param  int $routesCount
+     * @return bool
+     */
+    public function update_run_routes(int $runId, int $routesCount): bool
+    {
+        $this->db->where('id', $runId);
+
+        return $this->db->update($this->table, [
+            'routes_generated_count' => max(0, (int) $routesCount)
+        ]);
+    }
+
+    /**
      * Get recent automation runs
      *
      * @param  int $limit
