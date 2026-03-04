@@ -234,6 +234,7 @@
 <?php init_tail(); ?>
 
 <script>
+alert('Script is running');
 $(function() {
     console.log('Settings page loaded');
 
