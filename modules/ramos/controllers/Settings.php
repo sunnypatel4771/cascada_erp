@@ -19,6 +19,14 @@ class Settings extends AdminController
     }
 
     /**
+     * Default index - redirect to automation schedule
+     */
+    public function index(): void
+    {
+        redirect(admin_url('ramos/settings/automation_schedule'));
+    }
+
+    /**
      * Scheduled automation settings page
      */
     public function automation_schedule(): void
