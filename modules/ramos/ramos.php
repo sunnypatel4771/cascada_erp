@@ -158,6 +158,13 @@ function ramos_init_admin_menu(): void
         'href'     => admin_url('ramos/automation'),
         'position' => 11,
     ]);
+
+    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+        'slug'     => 'ramos-settings',
+        'name'     => _l('ramos_settings_menu_label'),
+        'href'     => admin_url('ramos/settings'),
+        'position' => 12,
+    ]);
 }
 
 /**

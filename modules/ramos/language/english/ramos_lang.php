@@ -446,6 +446,7 @@ $lang['ramos_purchases_receive_closed']      = 'This batch is already completed.
 $lang['ramos_automation_menu_label']         = 'Automation';
 $lang['ramos_automation_title']              = 'Purchase Order Automation';
 $lang['ramos_automation_subtitle']           = 'Automatically analyze orders and generate purchase orders based on inventory deficits.';
+$lang['ramos_settings_menu_label']           = 'Settings';
 $lang['ramos_automation_trigger_button']     = 'Run Automation';
 $lang['ramos_automation_analyze_button']     = 'Preview Analysis';
 $lang['ramos_automation_unprocessed_label']  = 'Unprocessed Orders';
