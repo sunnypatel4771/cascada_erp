@@ -234,47 +234,34 @@
 <?php init_tail(); ?>
 
 <script>
-alert('Script is running');
-$(function() {
-    console.log('Settings page loaded');
-
-    // Initialize select2 for multiple selection
+jQuery(document).ready(function($) {
+    // Initialize select2
     $('#schedule_hours').select2({
         allowClear: true,
         placeholder: '<?php echo _l("ramos_settings_select_hours"); ?>'
     });
 
-    // Toggle schedule hours visibility based on enabled state
-    function toggleScheduleHours() {
-        const isEnabled = $('#automation_enabled').is(':checked');
-        $('#schedule-hours-group').slideToggle(isEnabled);
-    }
-
-    $('#automation_enabled').on('change', toggleScheduleHours);
+    // Toggle schedule hours
+    $('#automation_enabled').on('change', function() {
+        $('#schedule-hours-group').slideToggle($(this).is(':checked'));
+    });
     
-    // Set initial visibility
     if (!$('#automation_enabled').is(':checked')) {
         $('#schedule-hours-group').hide();
     }
 
-    // Button click handler - manually trigger AJAX submission
-    $('#save-settings-btn').on('click', function(e) {
+    // Save button click
+    $('#save-settings-btn').click(function(e) {
         e.preventDefault();
-        console.log('Save button clicked');
-
-        // Collect selected hours
-        const selectedHours = $('#schedule_hours').val() || [];
-
-        const formData = {
+        
+        var formData = {
             automation_enabled: $('#automation_enabled').is(':checked') ? 'on' : 'off',
-            schedule_hours: selectedHours.join(','),
+            schedule_hours: ($('#schedule_hours').val() || []).join(','),
             route_generation_auto: $('#route_generation_auto').is(':checked') ? 'on' : 'off',
             default_max_stops: $('#default_max_stops').val(),
             default_route_prefix: $('#default_route_prefix').val(),
             default_route_start_time: $('#default_route_start_time').val() + ':00'
         };
-
-        console.log('Form data:', formData);
 
         $.ajax({
             url: '<?php echo admin_url("ramos/automation/settings"); ?>',
@@ -284,30 +271,17 @@ $(function() {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
             },
-            beforeSend: function() {
-                console.log('Sending AJAX request to:', '<?php echo admin_url("ramos/automation/settings"); ?>');
-            },
             success: function(response) {
-                console.log('AJAX success response:', response);
-                
                 if (response.success) {
-                    // Show success toast
                     toastr.success(response.message || '<?php echo _l("ramos_settings_saved_successfully"); ?>', '<?php echo _l("success"); ?>');
                 } else {
-                    // Show error toast
                     toastr.error(response.message || '<?php echo _l("ramos_settings_save_error"); ?>', '<?php echo _l("error"); ?>');
                 }
             },
             error: function(xhr, status, error) {
-                console.error('AJAX error:', status, error);
-                console.error('Response:', xhr.responseText);
-                
-                // Show error toast
-                toastr.error('<?php echo _l("ramos_settings_save_error"); ?>' + ' (' + status + ')', '<?php echo _l("error"); ?>');
+                toastr.error('Error saving settings', '<?php echo _l("error"); ?>');
             }
         });
-
-        return false;
     });
 });
 </script>
