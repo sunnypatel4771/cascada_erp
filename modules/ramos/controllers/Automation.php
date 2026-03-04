@@ -61,12 +61,22 @@ class Automation extends AdminController
      */
     public function settings(): void
     {
-        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+        if (!staff_can('view', RAMOS_MODULE_NAME)) {
             access_denied();
         }
+        
+        // Check for edit permission to allow saving
+        $canEdit = staff_can('edit', RAMOS_MODULE_NAME);
 
         // Handle form submission
         if ($this->input->post()) {
+            if (!$canEdit) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => _l('access_denied')
+                ]);
+                return;
+            }
             $this->_save_automation_schedule_settings();
             return;
         }
@@ -74,6 +84,7 @@ class Automation extends AdminController
         // Load current settings
         $data['title']    = _l('ramos_settings_automation_schedule_title');
         $data['subtitle'] = _l('ramos_settings_automation_schedule_subtitle');
+        $data['can_edit'] = $canEdit;
 
         // Automation schedule settings
         $data['automation_enabled'] = get_option('ramos_automation_schedule_enabled') === '1';
@@ -105,11 +116,16 @@ class Automation extends AdminController
     private function _save_automation_schedule_settings(): void
     {
         if (!staff_can('edit', RAMOS_MODULE_NAME)) {
-            access_denied();
+            echo json_encode([
+                'success' => false,
+                'message' => _l('access_denied')
+            ]);
+            return;
         }
 
         if (!$this->input->is_ajax_request()) {
-            show_error(_l('access_denied'));
+            // Log for debugging
+            log_activity('Settings form submission attempt without AJAX header');
         }
 
         try {

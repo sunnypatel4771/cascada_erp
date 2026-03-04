@@ -275,6 +275,9 @@ $(function() {
             type: 'POST',
             data: formData,
             dataType: 'json',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             success: function(response) {
                 if (response.success) {
                     alert_float('success', response.message);
