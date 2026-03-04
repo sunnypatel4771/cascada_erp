@@ -107,7 +107,7 @@
                                 </label>
                                 <div class="col-sm-9">
                                     <p class="form-control-static">
-                                        <strong><?php echo $last_automation_run_date; ?></strong>
+                                        <?php echo $last_automation_run_date; ?>
                                     </p>
                                 </div>
                             </div>

@@ -269,3 +269,37 @@ function _ramos_merge_quantities($omniQuantities, $erpQuantities)
 
     return $merged;
 }
+
+/**
+ * Get the last automation run date formatted for display
+ *
+ * @return string Formatted last run date or message if never run
+ */
+function ramos_get_last_run_display()
+{
+    $lastRunDate = get_option('ramos_last_automation_run_date');
+    
+    if (!$lastRunDate) {
+        return '<span class="text-danger"><i class="fa fa-times-circle"></i> ' . _l('ramos_settings_never_run') . '</span>';
+    }
+    
+    // Parse the date and show how long ago
+    $lastRunDateTime = strtotime($lastRunDate);
+    $now = time();
+    $diffSeconds = $now - $lastRunDateTime;
+    
+    if ($diffSeconds < 60) {
+        $ago = _l('ramos_settings_just_now');
+    } elseif ($diffSeconds < 3600) {
+        $minutes = floor($diffSeconds / 60);
+        $ago = sprintf(_l('ramos_settings_minutes_ago'), $minutes);
+    } elseif ($diffSeconds < 86400) {
+        $hours = floor($diffSeconds / 3600);
+        $ago = sprintf(_l('ramos_settings_hours_ago'), $hours);
+    } else {
+        $days = floor($diffSeconds / 86400);
+        $ago = sprintf(_l('ramos_settings_days_ago'), $days);
+    }
+    
+    return '<span class="text-success"><i class="fa fa-check-circle"></i> ' . date('Y-m-d H:i:s', $lastRunDateTime) . '</span> <small class="text-muted">(' . $ago . ')</small>';
+}

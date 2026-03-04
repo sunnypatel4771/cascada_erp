@@ -108,7 +108,8 @@ class Automation extends AdminController
         $data['default_route_start_time'] = get_option('ramos_default_route_start_time', '08:00:00');
 
         // Last run info
-        $data['last_automation_run_date'] = get_option('ramos_last_automation_run_date') ?: _l('ramos_settings_never_run');
+        $this->load->helper('ramos/ramos_automation');
+        $data['last_automation_run_date'] = ramos_get_last_run_display();
 
         // Available hours for selection
         $data['available_hours'] = array_combine(range(0, 23), range(0, 23));
