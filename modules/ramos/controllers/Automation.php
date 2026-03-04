@@ -95,6 +95,12 @@ class Automation extends AdminController
             $data['schedule_hours'] = [8, 14, 18];
         }
 
+        $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
+        $data['schedule_minutes'] = json_decode($minutesJson, true);
+        if (!is_array($data['schedule_minutes'])) {
+            $data['schedule_minutes'] = [0];
+        }
+
         // Route generation settings
         $data['route_generation_auto'] = get_option('ramos_route_generate_on_success') === '1';
         $data['default_max_stops'] = (int)get_option('ramos_default_max_stops', 10);
@@ -151,6 +157,24 @@ class Automation extends AdminController
                 }
 
                 update_option('ramos_automation_schedule_hours', json_encode(array_values($hours)));
+
+                // Schedule minutes - comma-separated values converted to JSON array
+                $minutesInput = $this->input->post('schedule_minutes');
+                if (is_string($minutesInput)) {
+                    $minutesInput = explode(',', $minutesInput);
+                }
+                
+                // Validate and convert to integers
+                $minutes = array_filter(array_map(function ($m) {
+                    $m = (int)trim($m);
+                    return ($m >= 0 && $m < 60) ? $m : null;
+                }, $minutesInput));
+
+                if (empty($minutes)) {
+                    $minutes = [0]; // Default to :00
+                }
+
+                update_option('ramos_automation_schedule_minutes', json_encode(array_values($minutes)));
             }
 
             // Route generation auto-generate on success
@@ -167,14 +191,14 @@ class Automation extends AdminController
             $routePrefix = $routePrefix ?: 'Route';
             update_option('ramos_default_route_prefix', $routePrefix);
 
-            // Default route start time
-            $startTime = trim((string)$this->input->post('default_route_start_time'));
-            if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $startTime)) {
+            // Default route start time - combine hour, minute, second
+            $hour = sprintf('%02d', (int)$this->input->post('route_start_hour'));
+            $minute = sprintf('%02d', (int)$this->input->post('route_start_minute'));
+            $second = sprintf('%02d', (int)$this->input->post('route_start_second'));
+            $startTime = "{$hour}:{$minute}:{$second}";
+            
+            if (!preg_match('/^\d{2}:\d{2}:\d{2}$/', $startTime)) {
                 $startTime = '08:00:00';
-            } else {
-                // Ensure HH:MM:SS format
-                $parts = explode(':', $startTime);
-                $startTime = sprintf('%02d:%02d:%02d', (int)$parts[0], (int)$parts[1], isset($parts[2]) ? (int)$parts[2] : 0);
             }
             update_option('ramos_default_route_start_time', $startTime);
 

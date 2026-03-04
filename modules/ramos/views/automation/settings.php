@@ -64,20 +64,36 @@
 
                             <hr>
 
-                            <!-- Schedule Hours -->
+                            <!-- Schedule Hours and Minutes -->
                             <div class="form-group" id="schedule-hours-group">
                                 <label class="col-sm-3 control-label">
                                     <?php echo _l('ramos_settings_schedule_hours'); ?>
                                 </label>
                                 <div class="col-sm-9">
-                                    <select id="schedule_hours" name="schedule_hours[]" class="form-control select-multiple" multiple="multiple" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                        <?php foreach ($available_hours as $hour => $label): ?>
-                                            <option value="<?php echo $hour; ?>" 
-                                                    <?php if (in_array($hour, $schedule_hours)) echo 'selected'; ?>>
-                                                <?php echo sprintf('%02d:00 (%s)', $hour, $hour < 12 ? 'AM' : 'PM'); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <div class="row">
+                                        <div class="col-xs-6">
+                                            <label class="small text-muted">Hour(s)</label>
+                                            <select id="schedule_hours" name="schedule_hours[]" class="form-control select-multiple" multiple="multiple" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
+                                                <?php foreach ($available_hours as $hour => $label): ?>
+                                                    <option value="<?php echo $hour; ?>" 
+                                                            <?php if (in_array($hour, $schedule_hours)) echo 'selected'; ?>>
+                                                        <?php echo sprintf('%02d:00 (%s)', $hour, $hour < 12 ? 'AM' : 'PM'); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-xs-6">
+                                            <label class="small text-muted">Minute(s)</label>
+                                            <select id="schedule_minutes" name="schedule_minutes[]" class="form-control select-multiple" multiple="multiple" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
+                                                <?php for ($min = 0; $min < 60; $min += 5): ?>
+                                                    <option value="<?php echo $min; ?>" 
+                                                            <?php if (in_array($min, $schedule_minutes)) echo 'selected'; ?>>
+                                                        <?php echo sprintf('%02d', $min); ?>
+                                                    </option>
+                                                <?php endfor; ?>
+                                            </select>
+                                        </div>
+                                    </div>
                                     <p class="help-block">
                                         <?php echo _l('ramos_settings_schedule_hours_help'); ?>
                                     </p>
@@ -160,9 +176,37 @@
                                 <label class="col-sm-3 control-label">
                                     <?php echo _l('ramos_settings_default_route_start_time'); ?>
                                 </label>
-                                <div class="col-sm-4">
-                                    <input type="time" id="default_route_start_time" name="default_route_start_time" 
-                                           class="form-control" value="<?php echo substr($default_route_start_time, 0, 5); ?>" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
+                                <div class="col-sm-9">
+                                    <div class="row">
+                                        <div class="col-xs-4">
+                                            <label class="small text-muted">Hour</label>
+                                            <select id="route_start_hour" name="route_start_hour" class="form-control" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
+                                                <?php for ($h = 0; $h < 24; $h++): ?>
+                                                    <option value="<?php echo sprintf('%02d', $h); ?>" 
+                                                            <?php if ($h == intval(substr($default_route_start_time, 0, 2))) echo 'selected'; ?>>
+                                                        <?php echo sprintf('%02d:00 (%s)', $h, $h < 12 ? 'AM' : 'PM'); ?>
+                                                    </option>
+                                                <?php endfor; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-xs-4">
+                                            <label class="small text-muted">Minute</label>
+                                            <select id="route_start_minute" name="route_start_minute" class="form-control" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
+                                                <?php for ($min = 0; $min < 60; $min += 5): ?>
+                                                    <option value="<?php echo sprintf('%02d', $min); ?>" 
+                                                            <?php if ($min == intval(substr($default_route_start_time, 3, 2))) echo 'selected'; ?>>
+                                                        <?php echo sprintf('%02d', $min); ?>
+                                                    </option>
+                                                <?php endfor; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-xs-4">
+                                            <label class="small text-muted">Second</label>
+                                            <select id="route_start_second" name="route_start_second" class="form-control" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
+                                                <option value="00" selected>00</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                     <p class="help-block">
                                         <?php echo _l('ramos_settings_default_route_start_time_help'); ?>
                                     </p>
@@ -251,10 +295,13 @@ jQuery(document).ready(function($) {
         var formData = {
             automation_enabled: $('#automation_enabled').is(':checked') ? 'on' : 'off',
             schedule_hours: ($('#schedule_hours').val() || []).join(','),
+            schedule_minutes: ($('#schedule_minutes').val() || []).join(','),
             route_generation_auto: $('#route_generation_auto').is(':checked') ? 'on' : 'off',
             default_max_stops: $('#default_max_stops').val(),
             default_route_prefix: $('#default_route_prefix').val(),
-            default_route_start_time: $('#default_route_start_time').val() + ':00'
+            route_start_hour: $('#route_start_hour').val(),
+            route_start_minute: $('#route_start_minute').val(),
+            route_start_second: $('#route_start_second').val()
         };
 
         $.ajax({
