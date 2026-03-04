@@ -235,12 +235,6 @@
 
 <script>
 jQuery(document).ready(function($) {
-    // Initialize select2
-    $('#schedule_hours').select2({
-        allowClear: true,
-        placeholder: '<?php echo _l("ramos_settings_select_hours"); ?>'
-    });
-
     // Toggle schedule hours
     $('#automation_enabled').on('change', function() {
         $('#schedule-hours-group').slideToggle($(this).is(':checked'));
