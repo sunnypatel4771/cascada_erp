@@ -175,7 +175,7 @@
                     <?php if (isset($can_edit) && $can_edit): ?>
                         <div class="form-group mtop20">
                             <div class="col-sm-12">
-                                <button type="submit" id="save-settings-btn" class="btn btn-primary btn-lg">
+                                <button type="button" id="save-settings-btn" class="btn btn-primary btn-lg">
                                     <i class="fa fa-save"></i>
                                     <?php echo _l('save'); ?>
                                 </button>
@@ -256,16 +256,10 @@ $(function() {
         $('#schedule-hours-group').hide();
     }
 
-    // Button click logging
+    // Button click handler - manually trigger AJAX submission
     $('#save-settings-btn').on('click', function(e) {
-        console.log('Save button clicked');
-    });
-
-    // Form submission handler
-    $('#automation-settings-form').on('submit', function(e) {
         e.preventDefault();
-
-        console.log('Form submitted');
+        console.log('Save button clicked');
 
         // Collect selected hours
         const selectedHours = $('#schedule_hours').val() || [];
