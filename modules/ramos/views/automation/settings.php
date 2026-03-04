@@ -175,7 +175,7 @@
                     <?php if (isset($can_edit) && $can_edit): ?>
                         <div class="form-group mtop20">
                             <div class="col-sm-12">
-                                <button type="submit" class="btn btn-primary btn-lg">
+                                <button type="submit" id="save-settings-btn" class="btn btn-primary btn-lg">
                                     <i class="fa fa-save"></i>
                                     <?php echo _l('save'); ?>
                                 </button>
@@ -235,6 +235,8 @@
 
 <script>
 $(function() {
+    console.log('Settings page loaded');
+
     // Initialize select2 for multiple selection
     $('#schedule_hours').select2({
         allowClear: true,
@@ -254,9 +256,16 @@ $(function() {
         $('#schedule-hours-group').hide();
     }
 
+    // Button click logging
+    $('#save-settings-btn').on('click', function(e) {
+        console.log('Save button clicked');
+    });
+
     // Form submission handler
     $('#automation-settings-form').on('submit', function(e) {
         e.preventDefault();
+
+        console.log('Form submitted');
 
         // Collect selected hours
         const selectedHours = $('#schedule_hours').val() || [];
@@ -270,6 +279,8 @@ $(function() {
             default_route_start_time: $('#default_route_start_time').val() + ':00'
         };
 
+        console.log('Form data:', formData);
+
         $.ajax({
             url: '<?php echo admin_url("ramos/automation/settings"); ?>',
             type: 'POST',
@@ -278,22 +289,30 @@ $(function() {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
             },
+            beforeSend: function() {
+                console.log('Sending AJAX request to:', '<?php echo admin_url("ramos/automation/settings"); ?>');
+            },
             success: function(response) {
+                console.log('AJAX success response:', response);
+                
                 if (response.success) {
-                    alert_float('success', response.message);
-                    // Optionally reload to reflect changes
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1500);
+                    // Show success toast
+                    toastr.success(response.message || '<?php echo _l("ramos_settings_saved_successfully"); ?>', '<?php echo _l("success"); ?>');
                 } else {
-                    alert_float('danger', response.message || '<?php echo _l("ramos_settings_save_error"); ?>');
+                    // Show error toast
+                    toastr.error(response.message || '<?php echo _l("ramos_settings_save_error"); ?>', '<?php echo _l("error"); ?>');
                 }
             },
             error: function(xhr, status, error) {
-                alert_float('danger', '<?php echo _l("ramos_settings_save_error"); ?>');
-                console.error('AJAX Error:', error);
+                console.error('AJAX error:', status, error);
+                console.error('Response:', xhr.responseText);
+                
+                // Show error toast
+                toastr.error('<?php echo _l("ramos_settings_save_error"); ?>' + ' (' + status + ')', '<?php echo _l("error"); ?>');
             }
         });
+
+        return false;
     });
 });
 </script>
