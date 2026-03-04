@@ -267,13 +267,13 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    toastr.success(response.message || '<?php echo _l("ramos_settings_saved_successfully"); ?>', '<?php echo _l("success"); ?>');
+                    alert_float('success', response.message || '<?php echo _l("ramos_settings_saved_successfully"); ?>');
                 } else {
-                    toastr.error(response.message || '<?php echo _l("ramos_settings_save_error"); ?>', '<?php echo _l("error"); ?>');
+                    alert_float('danger', response.message || '<?php echo _l("ramos_settings_save_error"); ?>');
                 }
             },
             error: function(xhr, status, error) {
-                toastr.error('Error saving settings', '<?php echo _l("error"); ?>');
+                alert_float('danger', 'Error saving settings');
             }
         });
     });
