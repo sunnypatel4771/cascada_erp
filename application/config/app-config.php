@@ -36,6 +36,13 @@ define('APP_BASE_URL', 'http://erp.local');
 define('APP_ENC_KEY', '88cab9569aafa6e1a5e0dba6863bcedc');
 
 /**
+ * Disable Cron Lock
+ * Set to true to disable the file lock mechanism for cron jobs
+ * Useful when cron fails to acquire the lock file
+ */
+define('APP_DISABLE_CRON_LOCK', true);
+
+/**
  * Database Credentials
  * The hostname of your database server
  */
