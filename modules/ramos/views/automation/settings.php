@@ -336,7 +336,7 @@ jQuery(document).ready(function($) {
         var $btn = $(this);
         var originalText = $btn.html();
         
-        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> <?php echo _l("ramos_running_automation"); ?>');
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Running...');
 
         $.ajax({
             url: '<?php echo admin_url("ramos/automation/run"); ?>',
@@ -347,21 +347,22 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    alert_float('success', '<?php echo _l("ramos_automation_completed"); ?> - ' + response.orders_processed + ' <?php echo _l("ramos_orders_processed"); ?>, ' + response.batches_created + ' <?php echo _l("ramos_batches_created"); ?>');
+                    alert_float('success', 'Automation completed - ' + response.orders_processed + ' orders processed, ' + response.batches_created + ' batches created');
                     
                     // Reload page to show updated last run time
                     setTimeout(function() {
                         location.reload();
                     }, 2000);
                 } else {
-                    alert_float('danger', response.message || '<?php echo _l("ramos_automation_failed"); ?>');
+                    alert_float('danger', response.message || 'Automation failed');
                     $btn.prop('disabled', false).html(originalText);
                 }
             },
             error: function(xhr, status, error) {
-                alert_float('danger', '<?php echo _l("ramos_automation_error"); ?>');
+                alert_float('danger', 'Error running automation');
                 $btn.prop('disabled', false).html(originalText);
             }
         });
     });
+});
 </script>
