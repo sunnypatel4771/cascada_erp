@@ -222,14 +222,19 @@ function ramos_generate_routes_for_today()
  */
 function ramos_should_run_scheduled_automation()
 {
+    $currentTime = date('H:i:s');
+    
     // Check if automation is enabled
-    if (get_option('ramos_automation_schedule_enabled') !== '1') {
+    $enabledValue = get_option('ramos_automation_schedule_enabled');
+    if ($enabledValue !== '1') {
+        log_activity('[RAMOS DEBUG] Automation disabled. enabled=' . $enabledValue);
         return false;
     }
 
     // Check if already ran today
     $lastRunDate = get_option('ramos_last_automation_run_date');
     if ($lastRunDate === date('Y-m-d')) {
+        log_activity('[RAMOS DEBUG] Already ran today at ' . $lastRunDate);
         return false;
     }
 
@@ -243,12 +248,14 @@ function ramos_should_run_scheduled_automation()
     $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
     $minutes = json_decode($minutesJson, true);
     if (!is_array($minutes)) {
-        $minutes = [0]; // Default to top of the hour
+        $minutes = [0];
     }
 
     // Get current time
     $currentHour = (int)date('H');
     $currentMinute = (int)date('i');
+
+    log_activity('[RAMOS DEBUG] Time check - Current: ' . $currentHour . ':' . sprintf('%02d', $currentMinute) . ', Configured hours: [' . implode(',', $hours) . '], minutes: [' . implode(',', $minutes) . ']');
 
     // Check each configured hour:minute pair
     foreach ($hours as $scheduledHour) {
@@ -261,13 +268,17 @@ function ramos_should_run_scheduled_automation()
         foreach ($minutes as $scheduledMinute) {
             $timeDiff = abs($currentMinute - $scheduledMinute);
             
+            log_activity('[RAMOS DEBUG] Hour match! Checking minute: current=' . $currentMinute . ', scheduled=' . $scheduledMinute . ', diff=' . $timeDiff);
+            
             // Allow 2-minute tolerance window (e.g., if scheduled for :00, run between :00-:02)
             if ($timeDiff <= 2) {
+                log_activity('[RAMOS DEBUG] MATCH FOUND! Will run automation');
                 return true;
             }
         }
     }
 
+    log_activity('[RAMOS DEBUG] No time match found');
     return false;
 }
 
