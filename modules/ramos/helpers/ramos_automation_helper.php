@@ -233,33 +233,42 @@ function ramos_should_run_scheduled_automation()
         return false;
     }
 
-    // Check if this is a configured hour
+    // Get configured hours and minutes
     $hoursJson = get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18]));
     $hours = json_decode($hoursJson, true);
-
     if (!is_array($hours)) {
         $hours = [8, 14, 18];
     }
 
-    $currentHour = (int)date('H');
-
-    // If current hour doesn't match any configured hour, don't run
-    if (!in_array($currentHour, $hours)) {
-        return false;
-    }
-
-    // Check if minutes match configured minutes
     $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
     $minutes = json_decode($minutesJson, true);
-
     if (!is_array($minutes)) {
         $minutes = [0]; // Default to top of the hour
     }
 
+    // Get current time
+    $currentHour = (int)date('H');
     $currentMinute = (int)date('i');
 
-    // Run if current minute matches any configured minute
-    return in_array($currentMinute, $minutes);
+    // Check each configured hour:minute pair
+    foreach ($hours as $scheduledHour) {
+        // Only check if current hour matches
+        if ($currentHour !== $scheduledHour) {
+            continue;
+        }
+
+        // For this hour, check if current minute is within tolerance of any scheduled minute
+        foreach ($minutes as $scheduledMinute) {
+            $timeDiff = abs($currentMinute - $scheduledMinute);
+            
+            // Allow 2-minute tolerance window (e.g., if scheduled for :00, run between :00-:02)
+            if ($timeDiff <= 2) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /**

@@ -418,10 +418,19 @@ function ramos_scheduled_automation_and_routes($manually = false): void
     $CI = &get_instance();
     $CI->load->helper('ramos/ramos_automation');
 
+    // Log cron call for debugging
+    $enabled = get_option('ramos_automation_schedule_enabled');
+    $hours = json_decode(get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18])), true);
+    $minutes = json_decode(get_option('ramos_automation_schedule_minutes', json_encode([0])), true);
+    log_activity('[RAMOS CRON] Cron called - Enabled: ' . ($enabled === '1' ? 'Yes' : 'No') . ', Hours: ' . implode(',', $hours) . ', Minutes: ' . implode(',', $minutes) . ', Current: ' . date('H:i'));
+
     // Check if scheduled automation should run
     if (!ramos_should_run_scheduled_automation()) {
+        log_activity('[RAMOS CRON] Conditions not met to run automation');
         return;
     }
+
+    log_activity('[RAMOS CRON] Running automation...');
 
     // Execute automation
     $automationResult = ramos_execute_automation(0); // 0 = system/cron
@@ -454,5 +463,5 @@ function ramos_scheduled_automation_and_routes($manually = false): void
     }
 
     // Mark automation as completed for today
-    update_option('ramos_last_automation_run_date', date('Y-m-d'));
+    update_option('ramos_last_automation_run_date', date('Y-m-d H:i:s'));
 }
