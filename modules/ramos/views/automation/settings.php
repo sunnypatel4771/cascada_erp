@@ -223,6 +223,10 @@
                                     <i class="fa fa-save"></i>
                                     <?php echo _l('save'); ?>
                                 </button>
+                                <button type="button" id="run-automation-btn" class="btn btn-success btn-lg">
+                                    <i class="fa fa-play"></i>
+                                    <?php echo _l('ramos_run_automation_now'); ?>
+                                </button>
                                 <a href="<?php echo admin_url('ramos/automation'); ?>" class="btn btn-default btn-lg">
                                     <i class="fa fa-arrow-left"></i>
                                     <?php echo _l('back'); ?>
@@ -324,5 +328,40 @@ jQuery(document).ready(function($) {
             }
         });
     });
-});
+
+    // Run automation button click
+    $('#run-automation-btn').click(function(e) {
+        e.preventDefault();
+        
+        var $btn = $(this);
+        var originalText = $btn.html();
+        
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> <?php echo _l("ramos_running_automation"); ?>');
+
+        $.ajax({
+            url: '<?php echo admin_url("ramos/automation/run"); ?>',
+            type: 'POST',
+            dataType: 'json',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert_float('success', '<?php echo _l("ramos_automation_completed"); ?> - ' + response.orders_processed + ' <?php echo _l("ramos_orders_processed"); ?>, ' + response.batches_created + ' <?php echo _l("ramos_batches_created"); ?>');
+                    
+                    // Reload page to show updated last run time
+                    setTimeout(function() {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    alert_float('danger', response.message || '<?php echo _l("ramos_automation_failed"); ?>');
+                    $btn.prop('disabled', false).html(originalText);
+                }
+            },
+            error: function(xhr, status, error) {
+                alert_float('danger', '<?php echo _l("ramos_automation_error"); ?>');
+                $btn.prop('disabled', false).html(originalText);
+            }
+        });
+    });
 </script>
