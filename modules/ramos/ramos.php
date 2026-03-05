@@ -414,6 +414,9 @@ function ramos_route_status_badge_class(string $status): string
  */
 function ramos_scheduled_automation_and_routes($manually = false): void
 {
+    // Log that this function was called
+    log_activity('[RAMOS CRON] ramos_scheduled_automation_and_routes called, time: ' . date('Y-m-d H:i:s'));
+    
     // Load automation helper
     $CI = &get_instance();
     $CI->load->helper('ramos/ramos_automation');
