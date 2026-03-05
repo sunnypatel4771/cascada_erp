@@ -243,7 +243,23 @@ function ramos_should_run_scheduled_automation()
 
     $currentHour = (int)date('H');
 
-    return in_array($currentHour, $hours);
+    // If current hour doesn't match any configured hour, don't run
+    if (!in_array($currentHour, $hours)) {
+        return false;
+    }
+
+    // Check if minutes match configured minutes
+    $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
+    $minutes = json_decode($minutesJson, true);
+
+    if (!is_array($minutes)) {
+        $minutes = [0]; // Default to top of the hour
+    }
+
+    $currentMinute = (int)date('i');
+
+    // Run if current minute matches any configured minute
+    return in_array($currentMinute, $minutes);
 }
 
 /**
