@@ -10,14 +10,14 @@ Requires at least: 3.0.*
 Author: Sanjay Kumar
 */
 
-define('RAMOS_MODULE_NAME', 'ramos');
-define('RAMOS_MODULE_ICON', 'fa-solid fa-truck-fast');
+defined('RAMOS_MODULE_NAME') || define('RAMOS_MODULE_NAME', 'ramos');
+defined('RAMOS_MODULE_ICON') || define('RAMOS_MODULE_ICON', 'fa-solid fa-truck-fast');
 
 hooks()->add_action('admin_init', 'ramos_register_permissions');
 hooks()->add_action('admin_init', 'ramos_init_admin_menu');
 hooks()->add_action('admin_init', 'ramos_run_initial_setup');
 hooks()->add_action('clients_init', 'ramos_init_client_portal');
-hooks()->add_action('after_cron_run', 'ramos_scheduled_automation_and_routes');
+hooks()->add_action('after_cron_run', 'ramos_maybe_run_scheduled_automation');
 
 register_activation_hook(RAMOS_MODULE_NAME, 'ramos_module_activation_hook');
 register_language_files(RAMOS_MODULE_NAME, [RAMOS_MODULE_NAME]);
@@ -32,6 +32,41 @@ define('RAMOS_PRIORITY_HIGH', 'high');
 
 define('RAMOS_ROUTE_DELAY_THRESHOLD_MINUTES', 30);
 define('RAMOS_PURCHASE_DELAY_THRESHOLD_HOURS', 6);
+
+/**
+ * Called on every cron run (after_cron_run hook).
+ * Checks if it is time to run scheduled automation and executes if so.
+ *
+ * @return void
+ */
+function ramos_maybe_run_scheduled_automation(): void
+{
+    // Load the helper that contains ramos_should_run_scheduled_automation()
+    // and ramos_execute_automation()
+    $CI = &get_instance();
+    $CI->load->helper('ramos/ramos_automation');
+
+    if (!ramos_should_run_scheduled_automation()) {
+        return;
+    }
+
+    log_activity('[RAMOS CRON] Starting scheduled automation at ' . date('Y-m-d H:i:s'));
+
+    $result = ramos_execute_automation(0); // 0 = system/cron user
+
+    if ($result['success']) {
+        // Generate routes if enabled
+        if (get_option('ramos_route_generate_on_success') === '1') {
+            $routeResult = ramos_generate_routes_for_today();
+            $routeCount  = $routeResult['routes_count'];
+            log_activity('[RAMOS CRON] Automation successful: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches, ' . $routeCount . ' routes generated');
+        } else {
+            log_activity('[RAMOS CRON] Automation successful: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches');
+        }
+    } else {
+        log_activity('[RAMOS CRON] Automation failed: ' . $result['message']);
+    }
+}
 
 /**
  * Run on module activation.
@@ -125,45 +160,24 @@ function ramos_init_admin_menu(): void
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
-        'slug'     => 'ramos-facturacion',
-        'name'     => _l('ramos_facturacion_menu_label'),
-        'href'     => admin_url('ramos/facturacion'),
-        'position' => 7,
-    ]);
-
-    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-routes',
         'name'     => _l('ramos_routes_menu_label'),
         'href'     => admin_url('ramos/routes'),
-        'position' => 8,
+        'position' => 7,
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-routes-board',
         'name'     => _l('ramos_routes_board_menu_label'),
         'href'     => admin_url('ramos/routes/board'),
-        'position' => 9,
+        'position' => 8,
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-pricing',
         'name'     => _l('ramos_pricing_menu_label'),
         'href'     => admin_url('ramos/pricing'),
-        'position' => 10,
-    ]);
-
-    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
-        'slug'     => 'ramos-automation',
-        'name'     => _l('ramos_automation_menu_label'),
-        'href'     => admin_url('ramos/automation'),
-        'position' => 11,
-    ]);
-
-    $CI->app_menu->add_sidebar_children_item('ramos-automation', [
-        'slug'     => 'ramos-automation-settings',
-        'name'     => _l('ramos_settings_menu_label'),
-        'href'     => admin_url('ramos/automation/settings'),
-        'position' => 1,
+        'position' => 9,
     ]);
 }
 
@@ -225,14 +239,6 @@ function ramos_run_initial_setup(): void
         || !$CI->db->table_exists(db_prefix() . 'ramos_module_staff')
         || !$CI->db->table_exists(db_prefix() . 'ramos_pick_items')
         || !$CI->db->field_exists('supplier_id', db_prefix() . 'ramos_inventory_items')) {
-        require_once(__DIR__ . '/install.php');
-    }
-
-    // Check for automation tracking feature updates
-    if (!$CI->db->table_exists(db_prefix() . 'ramos_automation_runs')
-        || !$CI->db->field_exists('processed_for_purchase', db_prefix() . 'ramos_orders')
-        || !$CI->db->field_exists('priority', db_prefix() . 'ramos_suppliers')
-        || !$CI->db->field_exists('image_path', db_prefix() . 'ramos_inventory_items')) {
         require_once(__DIR__ . '/install.php');
     }
 }
@@ -400,71 +406,4 @@ function ramos_route_status_badge_class(string $status): string
     ];
 
     return $map[$status] ?? 'label-default';
-}
-
-/**
- * Scheduled automation and route generation via cron
- *
- * Runs at configured hours (e.g., 8am, 2pm, 6pm) to:
- * 1. Execute automation to generate purchase orders
- * 2. On success, immediately generate routes for today
- *
- * @param bool $manually Whether cron was triggered manually
- * @return void
- */
-function ramos_scheduled_automation_and_routes($manually = false): void
-{
-    // Log that this function was called
-    log_activity('[RAMOS CRON] ramos_scheduled_automation_and_routes called, time: ' . date('Y-m-d H:i:s'));
-    
-    // Load automation helper
-    $CI = &get_instance();
-    $CI->load->helper('ramos/ramos_automation');
-
-    // Log cron call for debugging
-    $enabled = get_option('ramos_automation_schedule_enabled');
-    $hours = json_decode(get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18])), true);
-    $minutes = json_decode(get_option('ramos_automation_schedule_minutes', json_encode([0])), true);
-    log_activity('[RAMOS CRON] Cron called - Enabled: ' . ($enabled === '1' ? 'Yes' : 'No') . ', Hours: ' . implode(',', $hours) . ', Minutes: ' . implode(',', $minutes) . ', Current: ' . date('H:i'));
-
-    // Check if scheduled automation should run
-    if (!ramos_should_run_scheduled_automation()) {
-        log_activity('[RAMOS CRON] Conditions not met to run automation');
-        return;
-    }
-
-    log_activity('[RAMOS CRON] Running automation...');
-
-    // Execute automation
-    $automationResult = ramos_execute_automation(0); // 0 = system/cron
-
-    // Check if automation succeeded
-    if (!$automationResult['success']) {
-        log_activity('[RAMOS CRON] Automation failed: ' . ($automationResult['message'] ?? 'Unknown error'));
-        return;
-    }
-
-    // Log automation success
-    log_activity('[RAMOS CRON] Automation successful: ' . $automationResult['orders_processed'] . ' orders processed, ' . $automationResult['batches_created'] . ' purchase batches created');
-
-    // Check if routes should be auto-generated on success
-    if (get_option('ramos_route_generate_on_success') !== '1') {
-        return;
-    }
-
-    // Generate routes for today
-    $routeResult = ramos_generate_routes_for_today();
-
-    if ($routeResult['success']) {
-        // Update automation run record with routes count
-        $CI->load->model('ramos/automation_model');
-        $CI->automation_model->update_run_routes($automationResult['run_id'], $routeResult['routes_count']);
-
-        log_activity('[RAMOS CRON] Routes generated successfully: ' . $routeResult['routes_count'] . ' routes created');
-    } else {
-        log_activity('[RAMOS CRON] Route generation failed: ' . ($routeResult['error'] ?? 'Unknown error'));
-    }
-
-    // Mark automation as completed for today
-    update_option('ramos_last_automation_run_date', date('Y-m-d H:i:s'));
 }

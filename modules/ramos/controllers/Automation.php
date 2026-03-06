@@ -11,6 +11,11 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * 3. Generates draft purchase orders grouped by supplier priority
  * 4. Tracks which orders have been processed
  */
+
+if (!defined('RAMOS_MODULE_NAME')) {
+    define('RAMOS_MODULE_NAME', 'ramos');
+}
+
 class Automation extends AdminController
 {
     public function __construct()
@@ -30,7 +35,7 @@ class Automation extends AdminController
 
         $this->load->model('ramos/inventory_model', 'inventory_model');
         $this->load->model('ramos/suppliers_model', 'suppliers_model');
-        $this->load->model('ramos/purchase_model', 'purchase_model');
+        $this->load->model('ramos/purchase_model', 'ramos_purchase_model');
         $this->load->model('ramos/automation_model', 'automation_model');
     }
 
@@ -70,7 +75,13 @@ class Automation extends AdminController
 
         // Handle form submission
         if ($this->input->post()) {
+            // Log the POST request for debugging
+            $postData = $this->input->post();
+            error_log('DEBUG: Settings form submitted - POST data: ' . json_encode($postData));
+            log_activity('DEBUG: Settings form submitted - canEdit=' . ($canEdit ? 'true' : 'false'));
+            
             if (!$canEdit) {
+                error_log('DEBUG: User does not have edit permission');
                 echo json_encode([
                     'success' => false,
                     'message' => _l('access_denied')
@@ -89,6 +100,13 @@ class Automation extends AdminController
         // Automation schedule settings
         $data['automation_enabled'] = get_option('ramos_automation_schedule_enabled') === '1';
         
+        // NEW: Load individual schedule settings
+        $data['schedule_run_daily'] = get_option('ramos_automation_schedule_run_daily') === '1';
+        $data['schedule_date'] = get_option('ramos_automation_schedule_date', '');
+        $data['schedule_hour'] = (int)get_option('ramos_automation_schedule_hour', 8);
+        $data['schedule_minutes'] = (int)get_option('ramos_automation_schedule_minutes', 0);
+        
+        // OLD: Load array format for backward compatibility
         $hoursJson = get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18]));
         $data['schedule_hours'] = json_decode($hoursJson, true);
         if (!is_array($data['schedule_hours'])) {
@@ -96,9 +114,9 @@ class Automation extends AdminController
         }
 
         $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
-        $data['schedule_minutes'] = json_decode($minutesJson, true);
-        if (!is_array($data['schedule_minutes'])) {
-            $data['schedule_minutes'] = [0];
+        $data['schedule_minutes_array'] = json_decode($minutesJson, true);
+        if (!is_array($data['schedule_minutes_array'])) {
+            $data['schedule_minutes_array'] = [0];
         }
 
         // Route generation settings
@@ -108,8 +126,7 @@ class Automation extends AdminController
         $data['default_route_start_time'] = get_option('ramos_default_route_start_time', '08:00:00');
 
         // Last run info
-        $this->load->helper('ramos/ramos_automation');
-        $data['last_automation_run_date'] = ramos_get_last_run_display();
+        $data['last_automation_run_date'] = get_option('ramos_last_automation_run_date') ?: _l('ramos_settings_never_run');
 
         // Available hours for selection
         $data['available_hours'] = array_combine(range(0, 23), range(0, 23));
@@ -122,7 +139,10 @@ class Automation extends AdminController
      */
     private function _save_automation_schedule_settings(): void
     {
+        error_log('DEBUG: _save_automation_schedule_settings called');
+        
         if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+            error_log('DEBUG: User does not have edit permission in save method');
             echo json_encode([
                 'success' => false,
                 'message' => _l('access_denied')
@@ -130,52 +150,57 @@ class Automation extends AdminController
             return;
         }
 
-        if (!$this->input->is_ajax_request()) {
-            // Log for debugging
-            log_activity('Settings form submission attempt without AJAX header');
-        }
-
         try {
+            error_log('DEBUG: Starting to save settings');
+            
             // Automation enabled/disabled
             $automationEnabled = $this->input->post('automation_enabled') === 'on' ? '1' : '0';
-            update_option('ramos_automation_schedule_enabled', $automationEnabled);
+            error_log('DEBUG: automationEnabled=' . $automationEnabled);
+            
+            $updateResult = update_option('ramos_automation_schedule_enabled', $automationEnabled);
+            error_log('DEBUG: update_option result=' . ($updateResult ? 'true' : 'false'));
+            error_log('DEBUG: Saved ramos_automation_schedule_enabled');
 
-            // Schedule hours - comma-separated values converted to JSON array
             if ($automationEnabled === '1') {
-                $hoursInput = $this->input->post('schedule_hours');
-                if (is_string($hoursInput)) {
-                    $hoursInput = explode(',', $hoursInput);
-                }
-                
-                // Validate and convert to integers
-                $hours = array_filter(array_map(function ($h) {
-                    $h = (int)trim($h);
-                    return ($h >= 0 && $h <= 23) ? $h : null;
-                }, $hoursInput));
+                // Get settings from new form
+                $runDaily = $this->input->post('schedule_run_daily') === 'on' ? '1' : '0';
+                $selectedDate = trim((string)$this->input->post('schedule_date'));
+                $selectedHour = (int)$this->input->post('schedule_hour');
+                $selectedMinutes = (int)$this->input->post('schedule_minutes');
 
-                if (empty($hours)) {
-                    $hours = [8, 14, 18]; // Default if empty
-                }
-
-                update_option('ramos_automation_schedule_hours', json_encode(array_values($hours)));
-
-                // Schedule minutes - comma-separated values converted to JSON array
-                $minutesInput = $this->input->post('schedule_minutes');
-                if (is_string($minutesInput)) {
-                    $minutesInput = explode(',', $minutesInput);
-                }
-                
-                // Validate and convert to integers
-                $minutes = array_filter(array_map(function ($m) {
-                    $m = (int)trim($m);
-                    return ($m >= 0 && $m < 60) ? $m : null;
-                }, $minutesInput));
-
-                if (empty($minutes)) {
-                    $minutes = [0]; // Default to :00
+                // Validate
+                if ($selectedHour < 0 || $selectedHour > 23) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Invalid hour selected'
+                    ]);
+                    return;
                 }
 
-                update_option('ramos_automation_schedule_minutes', json_encode(array_values($minutes)));
+                if ($selectedMinutes < 0 || $selectedMinutes > 59) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Invalid minutes selected'
+                    ]);
+                    return;
+                }
+
+                if (!$runDaily && empty($selectedDate)) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Please select a day or enable "Run Daily"'
+                    ]);
+                    return;
+                }
+
+                // Save settings
+                update_option('ramos_automation_schedule_run_daily', $runDaily);
+                update_option('ramos_automation_schedule_date', $selectedDate);
+                update_option('ramos_automation_schedule_hour', (string)$selectedHour);
+                update_option('ramos_automation_schedule_minutes', (string)$selectedMinutes);
+
+                // For backward compatibility, also save as hours array (but NOT minutes - keep minutes as integer)
+                update_option('ramos_automation_schedule_hours', json_encode([$selectedHour]));
             }
 
             // Route generation auto-generate on success
@@ -192,31 +217,23 @@ class Automation extends AdminController
             $routePrefix = $routePrefix ?: 'Route';
             update_option('ramos_default_route_prefix', $routePrefix);
 
-            // Default route start time - combine hour, minute, second
-            $hour = sprintf('%02d', (int)$this->input->post('route_start_hour'));
-            $minute = sprintf('%02d', (int)$this->input->post('route_start_minute'));
-            $second = sprintf('%02d', (int)$this->input->post('route_start_second'));
-            $startTime = "{$hour}:{$minute}:{$second}";
-            
-            if (!preg_match('/^\d{2}:\d{2}:\d{2}$/', $startTime)) {
-                $startTime = '08:00:00';
+            // Default route start time
+            $startTime = trim((string)$this->input->post('default_route_start_time'));
+            if ($startTime && preg_match('/^\d{2}:\d{2}$/', $startTime)) {
+                update_option('ramos_default_route_start_time', $startTime . ':00');
             }
-            update_option('ramos_default_route_start_time', $startTime);
 
             log_activity('Ramos scheduled automation settings updated');
 
             echo json_encode([
                 'success' => true,
-                'message' => _l('ramos_settings_saved_successfully')
+                'message' => _l('settings_updated_successfully')
             ]);
-
         } catch (Exception $e) {
-            log_activity('Error saving ramos settings: ' . $e->getMessage());
-
+            log_activity('Error saving automation settings: ' . $e->getMessage());
             echo json_encode([
                 'success' => false,
-                'message' => _l('ramos_settings_save_error'),
-                'error'   => $e->getMessage()
+                'message' => 'Error saving settings: ' . $e->getMessage()
             ]);
         }
     }
@@ -300,10 +317,10 @@ class Automation extends AdminController
             $inventoryMap = $this->automation_model->get_warehouse_inventory_by_product();
 
             // Get open purchases
-            $openPurchaseQuantities = $this->purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
+            $openPurchaseQuantities = $this->ramos_purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
 
             // Build deficit report
-            $deficitGroups = $this->purchase_model->build_supplier_deficits(
+            $deficitGroups = $this->ramos_purchase_model->build_supplier_deficits(
                 $requiredQuantities,
                 $inventoryMap,
                 $openPurchaseQuantities

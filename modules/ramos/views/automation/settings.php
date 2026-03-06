@@ -2,367 +2,566 @@
 <?php init_head(); ?>
 <div id="wrapper">
     <div class="content">
-
         <!-- Page Header -->
-        <div class="row">
+        <div class="row tw-mb-6">
             <div class="col-md-12">
-                <div class="tw-flex tw-flex-col md:tw-flex-row tw-justify-between tw-items-start md:tw-items-center tw-gap-4 tw-mb-4">
+                <div class="tw-flex tw-flex-col md:tw-flex-row tw-justify-between tw-items-start md:tw-items-center tw-gap-4">
                     <div>
-                        <h4 class="tw-text-2xl tw-font-semibold tw-text-slate-900 tw-mb-1">
-                            <?php echo html_escape($title); ?>
+                        <h4 class="tw-text-3xl tw-font-bold tw-text-slate-900 tw-mb-2">
+                            <i class="fa-solid fa-sliders tw-mr-2 tw-text-primary"></i><?php echo html_escape($title); ?>
                         </h4>
-                        <p class="tw-text-slate-500 tw-mb-0">
+                        <p class="tw-text-slate-600 tw-mb-0">
                             <?php echo html_escape($subtitle); ?>
                         </p>
                     </div>
+                    <?php if (!$can_edit) : ?>
+                        <div class="tw-flex tw-items-center tw-gap-2 tw-px-4 tw-py-2 tw-bg-amber-50 tw-border tw-border-amber-200 tw-rounded-lg">
+                            <i class="fa-solid fa-lock tw-text-amber-600"></i>
+                            <span class="tw-text-sm tw-text-amber-800 tw-font-medium"><?php echo _l('view_only'); ?></span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        <!-- Permission Alert -->
-        <?php if (!isset($can_edit) || !$can_edit): ?>
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="alert alert-warning">
-                        <i class="fa fa-lock"></i>
-                        <strong><?php echo _l('access_denied'); ?></strong><br>
-                        <?php echo _l('access_denied_description'); ?>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
-
         <!-- Settings Form -->
-        <form id="automation-settings-form" class="form-horizontal">
+        <form id="automation-settings-form" method="post" action="<?php echo admin_url('ramos/automation/settings'); ?>">
+            <?php echo form_hidden($this->security->get_csrf_token_name(), $this->security->get_csrf_hash()); ?>
             <div class="row">
-                <div class="col-md-8">
-
-                    <!-- Automation Schedule Section -->
-                    <div class="panel_s">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">
-                                <i class="fa fa-clock-o"></i>
-                                <?php echo _l('ramos_settings_automation_enabled'); ?>
-                            </h3>
+                <div class="col-lg-8">
+                    <!-- Automation Schedule Card -->
+                    <div class="panel_s tw-mb-6 tw-shadow-sm hover:tw-shadow-md tw-transition-shadow">
+                        <div class="panel-heading tw-bg-gradient-to-r tw-from-blue-50 tw-to-blue-25 tw-border-b tw-border-blue-100">
+                            <h4 class="tw-mb-0 tw-text-slate-900">
+                                <i class="fa-solid fa-clock tw-mr-2 tw-text-blue-600"></i>
+                                <span class="tw-font-semibold"><?php echo _l('ramos_settings_automation_schedule'); ?></span>
+                                <span class="tw-text-xs tw-font-normal tw-text-slate-500 tw-ml-2">
+                                    (<?php echo $automation_enabled ? '<span class="tw-text-green-600"><i class="fa-solid fa-check-circle tw-mr-1"></i>Active</span>' : '<span class="tw-text-slate-400"><i class="fa-solid fa-circle tw-mr-1"></i>Inactive</span>'; ?>)
+                                </span>
+                            </h4>
                         </div>
-                        <div class="panel-body">
+                        <div class="panel-body tw-space-y-5">
                             <!-- Enable/Disable Toggle -->
-                            <div class="form-group">
-                                <div class="col-sm-12">
-                                    <div class="checkbox checkbox-primary checkbox-inline">
-                                        <input type="checkbox" id="automation_enabled" name="automation_enabled" 
-                                               value="on" <?php if ($automation_enabled) echo 'checked'; ?> <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                        <label for="automation_enabled">
-                                            <?php echo _l('ramos_settings_enable_scheduled_automation'); ?>
-                                        </label>
+                            <div class="tw-relative tw-p-4 tw-bg-slate-50 tw-rounded-lg tw-border tw-border-slate-200 <?php echo $can_edit ? 'hover:tw-bg-slate-75 tw-cursor-pointer tw-transition-colors' : ''; ?>">
+                                <label class="tw-flex tw-items-center tw-gap-4 tw-cursor-pointer <?php echo !$can_edit ? 'tw-opacity-75' : ''; ?>">
+                                    <div class="tw-relative tw-flex tw-items-center">
+                                        <input 
+                                            type="checkbox" 
+                                            name="automation_enabled" 
+                                            id="automation_enabled"
+                                            <?php echo $automation_enabled ? 'checked' : ''; ?>
+                                            <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                            class="tw-rounded tw-w-5 tw-h-5 tw-cursor-pointer tw-accent-blue-600"
+                                        />
                                     </div>
-                                    <p class="help-block">
-                                        <?php echo _l('ramos_settings_automation_enabled_help'); ?>
-                                    </p>
-                                </div>
+                                    <div>
+                                        <span class="tw-text-slate-900 tw-font-semibold tw-block">
+                                            <?php echo _l('ramos_settings_enable_automation'); ?>
+                                        </span>
+                                        <small class="tw-text-slate-500 tw-block tw-mt-1">
+                                            <?php echo _l('ramos_settings_automation_description'); ?>
+                                        </small>
+                                    </div>
+                                </label>
                             </div>
 
-                            <hr>
+                            <!-- Simple Time Settings with Dropdowns -->
+                            <div id="schedule-time-picker" style="<?php echo !$automation_enabled ? 'display: none;' : ''; ?>" class="tw-mt-6 tw-transition-all tw-duration-300">
+                                <div class="tw-bg-blue-50 tw-border tw-border-blue-200 tw-rounded-lg tw-p-5">
+                                    <label class="tw-text-slate-900 tw-font-semibold tw-block tw-mb-4">
+                                        <i class="fa-solid fa-calendar-clock tw-mr-2 tw-text-blue-600"></i>Schedule Settings
+                                    </label>
 
-                            <!-- Schedule Hours and Minutes -->
-                            <div class="form-group" id="schedule-hours-group">
-                                <label class="col-sm-3 control-label">
-                                    <?php echo _l('ramos_settings_schedule_hours'); ?>
-                                </label>
-                                <div class="col-sm-9">
-                                    <div class="row">
-                                        <div class="col-xs-6">
-                                            <label class="small text-muted">Hour(s)</label>
-                                            <select id="schedule_hours" name="schedule_hours[]" class="form-control select-multiple" multiple="multiple" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                                <?php foreach ($available_hours as $hour => $label): ?>
-                                                    <option value="<?php echo $hour; ?>" 
-                                                            <?php if (in_array($hour, $schedule_hours)) echo 'selected'; ?>>
-                                                        <?php echo sprintf('%02d:00 (%s)', $hour, $hour < 12 ? 'AM' : 'PM'); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
+                                    <!-- Run Daily Option -->
+                                    <div class="tw-mb-4 tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
+                                        <label class="tw-flex tw-items-center tw-gap-3 tw-cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                name="schedule_run_daily" 
+                                                id="schedule_run_daily"
+                                                class="tw-w-5 tw-h-5 tw-cursor-pointer tw-accent-blue-600 tw-rounded"
+                                                <?php echo $schedule_run_daily ? 'checked' : ''; ?>
+                                                <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                            />
+                                            <span class="tw-text-slate-900 tw-font-semibold">
+                                                <i class="fa-solid fa-repeat tw-mr-2 tw-text-blue-600"></i>Run Daily
+                                            </span>
+                                        </label>
+                                        <small class="tw-text-slate-500 tw-block tw-mt-2 tw-ml-8">
+                                            Enable to run automation every day at the same time
+                                        </small>
+                                    </div>
+
+                                    <!-- Three Dropdowns Layout -->
+                                    <div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-3 tw-gap-4">
+                                        <!-- Date/Day Dropdown -->
+                                        <div class="tw-space-y-2">
+                                            <label for="schedule_date" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
+                                                <i class="fa-solid fa-calendar tw-mr-2 tw-text-blue-600"></i>Date/Day
+                                            </label>
+                                            <select name="schedule_date" id="schedule_date" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                <option value="">Select Day...</option>
+                                                <option value="monday" <?php echo $schedule_date === 'monday' ? 'selected' : ''; ?>>Monday</option>
+                                                <option value="tuesday" <?php echo $schedule_date === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
+                                                <option value="wednesday" <?php echo $schedule_date === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
+                                                <option value="thursday" <?php echo $schedule_date === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
+                                                <option value="friday" <?php echo $schedule_date === 'friday' ? 'selected' : ''; ?>>Friday</option>
+                                                <option value="saturday" <?php echo $schedule_date === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
+                                                <option value="sunday" <?php echo $schedule_date === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
                                             </select>
+                                            <small class="tw-text-slate-500 tw-text-xs tw-block">Which day to run</small>
                                         </div>
-                                        <div class="col-xs-6">
-                                            <label class="small text-muted">Minute(s)</label>
-                                            <select id="schedule_minutes" name="schedule_minutes[]" class="form-control select-multiple" multiple="multiple" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                                <?php for ($min = 0; $min < 60; $min += 5): ?>
-                                                    <option value="<?php echo $min; ?>" 
-                                                            <?php if (in_array($min, $schedule_minutes)) echo 'selected'; ?>>
-                                                        <?php echo sprintf('%02d', $min); ?>
+
+                                        <!-- Hour Dropdown -->
+                                        <div class="tw-space-y-2">
+                                            <label for="schedule_hour" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
+                                                <i class="fa-solid fa-hourglass-start tw-mr-2 tw-text-blue-600"></i>Hour
+                                            </label>
+                                            <select name="schedule_hour" id="schedule_hour" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                <option value="">Select Hour...</option>
+                                                <?php for ($h = 0; $h < 24; $h++) : ?>
+                                                    <option value="<?php echo $h; ?>" <?php echo $schedule_hour == $h ? 'selected' : ''; ?>>
+                                                        <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00 (<?php echo $h < 12 ? 'AM' : 'PM'; ?>)
                                                     </option>
                                                 <?php endfor; ?>
                                             </select>
+                                            <small class="tw-text-slate-500 tw-text-xs tw-block">Hour of the day</small>
+                                        </div>
+
+                                        <!-- Minutes Dropdown -->
+                                        <div class="tw-space-y-2">
+                                            <label for="schedule_minutes" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
+                                                <i class="fa-solid fa-timer tw-mr-2 tw-text-blue-600"></i>Minutes
+                                            </label>
+                                            <select name="schedule_minutes" id="schedule_minutes" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                <option value="0" <?php echo $schedule_minutes == 0 ? 'selected' : ''; ?>>00 minutes</option>
+                                                <option value="10" <?php echo $schedule_minutes == 10 ? 'selected' : ''; ?>>10 minutes</option>
+                                                <option value="20" <?php echo $schedule_minutes == 20 ? 'selected' : ''; ?>>20 minutes</option>
+                                                <option value="30" <?php echo $schedule_minutes == 30 ? 'selected' : ''; ?>>30 minutes</option>
+                                                <option value="40" <?php echo $schedule_minutes == 40 ? 'selected' : ''; ?>>40 minutes</option>
+                                                <option value="50" <?php echo $schedule_minutes == 50 ? 'selected' : ''; ?>>50 minutes</option>
+                                            </select>
+                                            <small class="tw-text-slate-500 tw-text-xs tw-block">Minutes offset in hour</small>
                                         </div>
                                     </div>
-                                    <p class="help-block">
-                                        <?php echo _l('ramos_settings_schedule_hours_help'); ?>
-                                    </p>
+
+                                    <!-- Time Summary -->
+                                    <div class="tw-mt-4 tw-p-3 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
+                                        <p class="tw-text-sm tw-text-slate-700">
+                                            <i class="fa-solid fa-info-circle tw-mr-2 tw-text-blue-600"></i>
+                                            <strong>Next Run:</strong> 
+                                            <span id="schedule-summary" class="tw-font-mono tw-text-blue-600">
+                                                Select day, hour, and seconds
+                                            </span>
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Last Run Info -->
-                            <div class="form-group">
-                                <label class="col-sm-3 control-label">
-                                    <?php echo _l('ramos_settings_last_run'); ?>
-                                </label>
-                                <div class="col-sm-9">
-                                    <p class="form-control-static">
-                                        <?php echo $last_automation_run_date; ?>
-                                    </p>
+                            <div class="tw-relative tw-p-4 tw-bg-gradient-to-r tw-from-emerald-50 tw-to-emerald-25 tw-rounded-lg tw-border tw-border-emerald-200">
+                                <div class="tw-flex tw-items-start tw-gap-3">
+                                    <i class="fa-solid fa-circle-check tw-text-emerald-600 tw-mt-0.5 tw-text-lg"></i>
+                                    <div>
+                                        <small class="tw-text-slate-900 tw-font-semibold tw-block">
+                                            <?php echo _l('ramos_settings_last_automation_run'); ?>
+                                        </small>
+                                        <span class="tw-font-mono tw-text-sm tw-text-slate-600 tw-block tw-mt-1">
+                                            <?php echo html_escape($last_automation_run_date); ?>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Route Generation Section -->
-                    <div class="panel_s">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">
-                                <i class="fa fa-road"></i>
-                                <?php echo _l('ramos_settings_route_generation'); ?>
-                            </h3>
+                    <!-- Route Generation Card -->
+                    <div class="panel_s tw-shadow-sm hover:tw-shadow-md tw-transition-shadow">
+                        <div class="panel-heading tw-bg-gradient-to-r tw-from-purple-50 tw-to-purple-25 tw-border-b tw-border-purple-100">
+                            <h4 class="tw-mb-0 tw-text-slate-900">
+                                <i class="fa-solid fa-map tw-mr-2 tw-text-purple-600"></i>
+                                <span class="tw-font-semibold"><?php echo _l('ramos_settings_route_generation'); ?></span>
+                                <span class="tw-text-xs tw-font-normal tw-text-slate-500 tw-ml-2">
+                                    (<?php echo $route_generation_auto ? '<span class="tw-text-green-600"><i class="fa-solid fa-check-circle tw-mr-1"></i>Enabled</span>' : '<span class="tw-text-slate-400"><i class="fa-solid fa-circle tw-mr-1"></i>Disabled</span>'; ?>)
+                                </span>
+                            </h4>
                         </div>
-                        <div class="panel-body">
-                            <!-- Auto-Generate Routes Toggle -->
-                            <div class="form-group">
-                                <div class="col-sm-12">
-                                    <div class="checkbox checkbox-primary checkbox-inline">
-                                        <input type="checkbox" id="route_generation_auto" name="route_generation_auto" 
-                                               value="on" <?php if ($route_generation_auto) echo 'checked'; ?> <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                        <label for="route_generation_auto">
+                        <div class="panel-body tw-space-y-5">
+                            <!-- Auto-Generate Routes -->
+                            <div class="tw-relative tw-p-4 tw-bg-slate-50 tw-rounded-lg tw-border tw-border-slate-200 <?php echo $can_edit ? 'hover:tw-bg-slate-75 tw-cursor-pointer tw-transition-colors' : ''; ?>">
+                                <label class="tw-flex tw-items-center tw-gap-4 tw-cursor-pointer <?php echo !$can_edit ? 'tw-opacity-75' : ''; ?>">
+                                    <div class="tw-relative tw-flex tw-items-center">
+                                        <input 
+                                            type="checkbox" 
+                                            name="route_generation_auto" 
+                                            id="route_generation_auto"
+                                            <?php echo $route_generation_auto ? 'checked' : ''; ?>
+                                            <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                            class="tw-rounded tw-w-5 tw-h-5 tw-cursor-pointer tw-accent-purple-600"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span class="tw-text-slate-900 tw-font-semibold tw-block">
                                             <?php echo _l('ramos_settings_auto_generate_routes'); ?>
-                                        </label>
+                                        </span>
+                                        <small class="tw-text-slate-500 tw-block tw-mt-1">
+                                            <?php echo _l('ramos_settings_auto_generate_routes_description'); ?>
+                                        </small>
                                     </div>
-                                    <p class="help-block">
-                                        <?php echo _l('ramos_settings_auto_generate_routes_help'); ?>
-                                    </p>
-                                </div>
+                                </label>
                             </div>
 
-                            <hr>
-
-                            <!-- Max Stops Per Route -->
-                            <div class="form-group">
-                                <label class="col-sm-3 control-label">
-                                    <?php echo _l('ramos_settings_default_max_stops'); ?>
-                                </label>
-                                <div class="col-sm-4">
-                                    <input type="number" id="default_max_stops" name="default_max_stops" 
-                                           class="form-control" value="<?php echo $default_max_stops; ?>"
-                                           min="1" max="100" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                    <p class="help-block">
-                                        <?php echo _l('ramos_settings_default_max_stops_help'); ?>
-                                    </p>
+                            <!-- Route Configuration Grid -->
+                            <div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
+                                <!-- Max Stops -->
+                                <div class="tw-space-y-2">
+                                    <label for="default_max_stops" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
+                                        <i class="fa-solid fa-square-list tw-mr-2 tw-text-purple-600"></i><?php echo _l('ramos_settings_default_max_stops'); ?>
+                                    </label>
+                                    <input 
+                                        type="number" 
+                                        name="default_max_stops" 
+                                        id="default_max_stops"
+                                        value="<?php echo $default_max_stops; ?>"
+                                        min="1" 
+                                        max="100"
+                                        class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-purple-500 focus:tw-border-transparent tw-transition-all"
+                                        <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                    />
+                                    <small class="tw-text-slate-500 tw-text-xs tw-block">
+                                        <?php echo _l('ramos_settings_default_max_stops_description'); ?>
+                                    </small>
                                 </div>
-                            </div>
 
-                            <!-- Route Name Prefix -->
-                            <div class="form-group">
-                                <label class="col-sm-3 control-label">
-                                    <?php echo _l('ramos_settings_default_route_prefix'); ?>
-                                </label>
-                                <div class="col-sm-4">
-                                    <input type="text" id="default_route_prefix" name="default_route_prefix" 
-                                           class="form-control" value="<?php echo $default_route_prefix; ?>"
-                                           placeholder="Route" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                    <p class="help-block">
-                                        <?php echo _l('ramos_settings_default_route_prefix_help'); ?>
-                                    </p>
+                                <!-- Route Prefix -->
+                                <div class="tw-space-y-2">
+                                    <label for="default_route_prefix" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
+                                        <i class="fa-solid fa-tag tw-mr-2 tw-text-purple-600"></i><?php echo _l('ramos_settings_default_route_prefix'); ?>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="default_route_prefix" 
+                                        id="default_route_prefix"
+                                        value="<?php echo html_escape($default_route_prefix); ?>"
+                                        class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-purple-500 focus:tw-border-transparent tw-transition-all"
+                                        placeholder="e.g., Route, Delivery, R-"
+                                        <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                    />
+                                    <small class="tw-text-slate-500 tw-text-xs tw-block">
+                                        <?php echo _l('ramos_settings_default_route_prefix_description'); ?>
+                                    </small>
                                 </div>
-                            </div>
 
-                            <!-- Route Start Time -->
-                            <div class="form-group">
-                                <label class="col-sm-3 control-label">
-                                    <?php echo _l('ramos_settings_default_route_start_time'); ?>
-                                </label>
-                                <div class="col-sm-9">
-                                    <div class="row">
-                                        <div class="col-xs-4">
-                                            <label class="small text-muted">Hour</label>
-                                            <select id="route_start_hour" name="route_start_hour" class="form-control" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                                <?php for ($h = 0; $h < 24; $h++): ?>
-                                                    <option value="<?php echo sprintf('%02d', $h); ?>" 
-                                                            <?php if ($h == intval(substr($default_route_start_time, 0, 2))) echo 'selected'; ?>>
-                                                        <?php echo sprintf('%02d:00 (%s)', $h, $h < 12 ? 'AM' : 'PM'); ?>
-                                                    </option>
-                                                <?php endfor; ?>
-                                            </select>
-                                        </div>
-                                        <div class="col-xs-4">
-                                            <label class="small text-muted">Minute</label>
-                                            <select id="route_start_minute" name="route_start_minute" class="form-control" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                                <?php for ($min = 0; $min < 60; $min += 5): ?>
-                                                    <option value="<?php echo sprintf('%02d', $min); ?>" 
-                                                            <?php if ($min == intval(substr($default_route_start_time, 3, 2))) echo 'selected'; ?>>
-                                                        <?php echo sprintf('%02d', $min); ?>
-                                                    </option>
-                                                <?php endfor; ?>
-                                            </select>
-                                        </div>
-                                        <div class="col-xs-4">
-                                            <label class="small text-muted">Second</label>
-                                            <select id="route_start_second" name="route_start_second" class="form-control" <?php if (!isset($can_edit) || !$can_edit) echo 'disabled'; ?>>
-                                                <option value="00" selected>00</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <p class="help-block">
-                                        <?php echo _l('ramos_settings_default_route_start_time_help'); ?>
-                                    </p>
+                                <!-- Start Time -->
+                                <div class="tw-space-y-2">
+                                    <label for="default_route_start_time" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
+                                        <i class="fa-solid fa-clock tw-mr-2 tw-text-purple-600"></i><?php echo _l('ramos_settings_default_route_start_time'); ?>
+                                    </label>
+                                    <input 
+                                        type="time" 
+                                        name="default_route_start_time" 
+                                        id="default_route_start_time"
+                                        value="<?php echo html_escape(substr($default_route_start_time, 0, 5)); ?>"
+                                        class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-purple-500 focus:tw-border-transparent tw-transition-all"
+                                        <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                    />
+                                    <small class="tw-text-slate-500 tw-text-xs tw-block">
+                                        <?php echo _l('ramos_settings_default_route_start_time_description'); ?>
+                                    </small>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Submit Button -->
-                    <?php if (isset($can_edit) && $can_edit): ?>
-                        <div class="form-group mtop20">
-                            <div class="col-sm-12">
-                                <button type="button" id="save-settings-btn" class="btn btn-primary btn-lg">
-                                    <i class="fa fa-save"></i>
-                                    <?php echo _l('save'); ?>
-                                </button>
-                                <button type="button" id="run-automation-btn" class="btn btn-success btn-lg">
-                                    <i class="fa fa-play"></i>
-                                    <?php echo _l('ramos_run_automation_now'); ?>
-                                </button>
-                                <a href="<?php echo admin_url('ramos/automation'); ?>" class="btn btn-default btn-lg">
-                                    <i class="fa fa-arrow-left"></i>
-                                    <?php echo _l('back'); ?>
-                                </a>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <div class="form-group mtop20">
-                            <div class="col-sm-12">
-                                <a href="<?php echo admin_url('ramos/automation'); ?>" class="btn btn-default btn-lg">
-                                    <i class="fa fa-arrow-left"></i>
-                                    <?php echo _l('back'); ?>
-                                </a>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
                 </div>
 
-                <!-- Sidebar Info -->
-                <div class="col-md-4">
-                    <div class="panel_s">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">
-                                <i class="fa fa-info-circle"></i>
-                                <?php echo _l('information'); ?>
-                            </h3>
+                <!-- Sidebar - Quick Stats & Info -->
+                <div class="col-lg-4">
+                    <!-- Status Card -->
+                    <div class="panel_s tw-mb-4 tw-shadow-sm">
+                        <div class="panel-heading tw-bg-gradient-to-r tw-from-slate-50 tw-to-slate-25 tw-border-b tw-border-slate-200">
+                            <h4 class="tw-mb-0 tw-text-slate-900">
+                                <i class="fa-solid fa-info-circle tw-mr-2 tw-text-slate-600"></i>
+                                <span class="tw-font-semibold"><?php echo _l('status'); ?></span>
+                            </h4>
+                        </div>
+                        <div class="panel-body tw-space-y-3">
+                            <div class="tw-flex tw-items-center tw-justify-between tw-p-3 tw-bg-blue-50 tw-rounded-lg tw-border tw-border-blue-100">
+                                <span class="tw-text-slate-700 tw-font-medium tw-text-sm">Automation</span>
+                                <span class="tw-px-3 tw-py-1 tw-rounded-full tw-text-xs tw-font-semibold <?php echo $automation_enabled ? 'tw-bg-green-100 tw-text-green-800' : 'tw-bg-slate-100 tw-text-slate-700'; ?>">
+                                    <?php echo $automation_enabled ? 'Active' : 'Inactive'; ?>
+                                </span>
+                            </div>
+                            <div class="tw-flex tw-items-center tw-justify-between tw-p-3 tw-bg-purple-50 tw-rounded-lg tw-border tw-border-purple-100">
+                                <span class="tw-text-slate-700 tw-font-medium tw-text-sm">Routes</span>
+                                <span class="tw-px-3 tw-py-1 tw-rounded-full tw-text-xs tw-font-semibold <?php echo $route_generation_auto ? 'tw-bg-green-100 tw-text-green-800' : 'tw-bg-slate-100 tw-text-slate-700'; ?>">
+                                    <?php echo $route_generation_auto ? 'Auto' : 'Manual'; ?>
+                                </span>
+                            </div>
+                            <div class="tw-flex tw-items-center tw-justify-between tw-p-3 tw-bg-emerald-50 tw-rounded-lg tw-border tw-border-emerald-100">
+                                <span class="tw-text-slate-700 tw-font-medium tw-text-sm">Max Stops</span>
+                                <span class="tw-px-3 tw-py-1 tw-rounded-full tw-text-xs tw-font-semibold tw-bg-slate-100 tw-text-slate-700">
+                                    <?php echo (int)$default_max_stops; ?>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Help Card -->
+                    <div class="panel_s tw-shadow-sm">
+                        <div class="panel-heading tw-bg-gradient-to-r tw-from-slate-50 tw-to-slate-25 tw-border-b tw-border-slate-200">
+                            <h4 class="tw-mb-0 tw-text-slate-900">
+                                <i class="fa-solid fa-lightbulb tw-mr-2 tw-text-amber-500"></i>
+                                <span class="tw-font-semibold"><?php echo _l('help'); ?></span>
+                            </h4>
                         </div>
                         <div class="panel-body">
-                            <p><strong><?php echo _l('ramos_settings_how_it_works'); ?></strong></p>
-                            <ol class="small">
-                                <li><?php echo _l('ramos_settings_info_step1'); ?></li>
-                                <li><?php echo _l('ramos_settings_info_step2'); ?></li>
-                                <li><?php echo _l('ramos_settings_info_step3'); ?></li>
-                            </ol>
-
-                            <hr>
-
-                            <p class="small text-muted">
-                                <i class="fa fa-clock-o"></i>
-                                <?php echo _l('ramos_settings_info_cron'); ?>
-                            </p>
+                            <div class="tw-space-y-4 tw-text-sm tw-text-slate-600">
+                                <div>
+                                    <p class="tw-font-semibold tw-text-slate-700 tw-mb-1">
+                                        <i class="fa-solid fa-clock tw-mr-2 tw-text-blue-600"></i>Schedule Hours
+                                    </p>
+                                    <p>Select hours when automation should run automatically.</p>
+                                </div>
+                                <hr class="tw-border-slate-200" />
+                                <div>
+                                    <p class="tw-font-semibold tw-text-slate-700 tw-mb-1">
+                                        <i class="fa-solid fa-map tw-mr-2 tw-text-purple-600"></i>Route Generation
+                                    </p>
+                                    <p>Automatically create optimized delivery routes after processing orders.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- Save Button Section -->
+            <?php if ($can_edit) : ?>
+                <div class="row tw-mt-6">
+                    <div class="col-lg-8">
+                        <div class="tw-flex tw-items-center tw-gap-3 tw-p-4 tw-bg-slate-50 tw-rounded-lg tw-border tw-border-slate-200">
+                            <button type="submit" class="btn btn-primary btn-lg tw-flex tw-items-center tw-gap-2">
+                                <i class="fa-solid fa-check-circle"></i>
+                                <span><?php echo _l('save'); ?></span>
+                            </button>
+                            <span id="save-status" class="tw-text-sm tw-font-medium tw-text-slate-500" style="display: none;"></span>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </form>
-
-    </div><!-- .content -->
-</div><!-- #wrapper -->
+    </div>
+</div>
 
 <?php init_tail(); ?>
 
 <script>
-jQuery(document).ready(function($) {
-    // Toggle schedule hours
-    $('#automation_enabled').on('change', function() {
-        $('#schedule-hours-group').slideToggle($(this).is(':checked'));
+    $(function() {
+        var $automationToggle = $('#automation_enabled');
+        var $scheduleContainer = $('#schedule-hours-container');
+        var $scheduleTimeContainer = $('#schedule-time-picker');
+        var $runDailyCheckbox = $('#schedule_run_daily');
+        var $dateDropdown = $('#schedule_date');
+        var $hourDropdown = $('#schedule_hour');
+        var $minutesDropdown = $('#schedule_minutes');
+        var $saveBtn = $('#automation-settings-form').find('button[type="submit"]');
+        var $statusEl = $('#save-status');
+        var formChanged = false;
+
+        // Track form changes
+        $('#automation-settings-form').on('change input', function() {
+            formChanged = true;
+            if ($saveBtn.length) {
+                $saveBtn.addClass('tw-ring-2 tw-ring-offset-2 tw-ring-blue-400');
+            }
+        });
+
+        // Toggle schedule visibility
+        $automationToggle.on('change', function() {
+            if (this.checked) {
+                $scheduleContainer.slideDown(300);
+                $scheduleTimeContainer.slideDown(400);
+            } else {
+                $scheduleContainer.slideUp(300);
+                $scheduleTimeContainer.slideUp(300);
+            }
+        });
+
+        // Handle "Run Daily" checkbox
+        $runDailyCheckbox.on('change', function() {
+            if (this.checked) {
+                // Disable date dropdown when run daily is enabled
+                $dateDropdown.prop('disabled', true).val('').css('opacity', '0.6');
+                // Keep hour and minutes enabled
+                $hourDropdown.prop('disabled', false).css('opacity', '1');
+                $minutesDropdown.prop('disabled', false).css('opacity', '1');
+            } else {
+                // Enable all dropdowns
+                $dateDropdown.prop('disabled', false).css('opacity', '1');
+                $hourDropdown.prop('disabled', false).css('opacity', '1');
+                $minutesDropdown.prop('disabled', false).css('opacity', '1');
+            }
+            updateScheduleSummary();
+        });
+
+        // Update summary on dropdown changes
+        $dateDropdown.on('change', updateScheduleSummary);
+        $hourDropdown.on('change', updateScheduleSummary);
+        $minutesDropdown.on('change', updateScheduleSummary);
+        $runDailyCheckbox.on('change', updateScheduleSummary);
+
+        function updateScheduleSummary() {
+            var runDaily = $runDailyCheckbox.is(':checked');
+            var selectedDay = $dateDropdown.val();
+            var selectedHour = $hourDropdown.val();
+            var selectedMinutes = $minutesDropdown.val();
+
+            var summary = '';
+
+            if (!selectedHour) {
+                summary = 'Select hour to schedule';
+            } else {
+                var hour = parseInt(selectedHour);
+                var ampm = hour < 12 ? 'AM' : 'PM';
+                var displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+
+                if (runDaily) {
+                    summary = 'Every day at ' + 
+                        str_pad(displayHour) + ':' + str_pad(selectedMinutes) + ' ' + ampm;
+                } else if (selectedDay) {
+                    var dayName = capitalizeDay(selectedDay);
+                    summary = dayName + 's at ' + 
+                        str_pad(displayHour) + ':' + str_pad(selectedMinutes) + ' ' + ampm;
+                } else {
+                    summary = 'Select a day or enable "Run Daily"';
+                }
+            }
+
+            $('#schedule-summary').text(summary);
+        }
+
+        function str_pad(num) {
+            return ('0' + num).slice(-2);
+        }
+
+        function capitalizeDay(day) {
+            return day.charAt(0).toUpperCase() + day.slice(1);
+        }
+
+        // Handle form submission
+        $('#automation-settings-form').on('submit', function(e) {
+            e.preventDefault();
+            console.log('Form submit handler triggered');
+
+            var $form = $(this);
+            var $submitBtn = $form.find('button[type="submit"]');
+            var originalBtnText = $submitBtn.html();
+
+            // Validate
+            if ($('#automation_enabled').is(':checked')) {
+                var hour = $hourDropdown.val();
+                var runDaily = $runDailyCheckbox.is(':checked');
+                var selectedDay = $dateDropdown.val();
+
+                if (!hour) {
+                    alert_float('warning', 'Please select an hour for automation to run');
+                    return;
+                }
+
+                if (!runDaily && !selectedDay) {
+                    alert_float('warning', 'Please select a day or enable "Run Daily"');
+                    return;
+                }
+            }
+
+            // Disable button and show loading state
+            $submitBtn.prop('disabled', true)
+                      .html('<i class="fa-solid fa-spinner fa-spin tw-mr-2"></i><?php echo _l("saving"); ?>');
+
+            console.log('Form data:', $form.serialize());
+            
+            $.ajax({
+                url: $form.attr('action') || '',
+                type: 'POST',
+                data: $form.serialize(),
+                dataType: 'json',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    '<?php echo $this->security->get_csrf_token_name(); ?>': '<?php echo $this->security->get_csrf_hash(); ?>'
+                },
+                success: function(response) {
+                    console.log('AJAX Success Response:', response);
+                    if (response.success) {
+                        alert_float('success', response.message || '<?php echo _l("settings_updated_successfully"); ?>');
+                        
+                        formChanged = false;
+                        $submitBtn.removeClass('tw-ring-2 tw-ring-offset-2 tw-ring-blue-400');
+                        
+                        $statusEl.html('<i class="fa-solid fa-check-circle tw-mr-2 tw-text-green-600"></i><?php echo _l("saved"); ?>')
+                                .show()
+                                .delay(3000)
+                                .fadeOut(300);
+                    } else {
+                        alert_float('danger', response.message || '<?php echo _l("problem_updating_settings"); ?>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX Error:', error);
+                    console.error('Status:', status);
+                    console.error('XHR:', xhr);
+                    alert_float('danger', '<?php echo _l("problem_updating_settings"); ?>: ' + error);
+                },
+                complete: function() {
+                    $submitBtn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
+
+        // Add fade-in animation
+        $('.panel_s').each(function() {
+            $(this).addClass('tw-fade-in');
+        });
+
+        // Initialize summary on page load
+        updateScheduleSummary();
     });
-    
-    if (!$('#automation_enabled').is(':checked')) {
-        $('#schedule-hours-group').hide();
+</script>
+
+<style>
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
-    // Save button click
-    $('#save-settings-btn').click(function(e) {
-        e.preventDefault();
-        
-        var formData = {
-            automation_enabled: $('#automation_enabled').is(':checked') ? 'on' : 'off',
-            schedule_hours: ($('#schedule_hours').val() || []).join(','),
-            schedule_minutes: ($('#schedule_minutes').val() || []).join(','),
-            route_generation_auto: $('#route_generation_auto').is(':checked') ? 'on' : 'off',
-            default_max_stops: $('#default_max_stops').val(),
-            default_route_prefix: $('#default_route_prefix').val(),
-            route_start_hour: $('#route_start_hour').val(),
-            route_start_minute: $('#route_start_minute').val(),
-            route_start_second: $('#route_start_second').val()
-        };
+    .tw-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
 
-        $.ajax({
-            url: '<?php echo admin_url("ramos/automation/settings"); ?>',
-            type: 'POST',
-            data: formData,
-            dataType: 'json',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            success: function(response) {
-                if (response.success) {
-                    alert_float('success', response.message || '<?php echo _l("ramos_settings_saved_successfully"); ?>');
-                } else {
-                    alert_float('danger', response.message || '<?php echo _l("ramos_settings_save_error"); ?>');
-                }
-            },
-            error: function(xhr, status, error) {
-                alert_float('danger', 'Error saving settings');
-            }
-        });
-    });
+    /* Improved focus states for inputs */
+    .form-control:focus {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        border-color: #3b82f6;
+    }
 
-    // Run automation button click
-    $('#run-automation-btn').click(function(e) {
-        e.preventDefault();
-        
-        var $btn = $(this);
-        var originalText = $btn.html();
-        
-        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Running...');
+    /* Better checkbox styling */
+    input[type="checkbox"]:focus {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+    }
 
-        $.ajax({
-            url: '<?php echo admin_url("ramos/automation/run"); ?>',
-            type: 'POST',
-            dataType: 'json',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            success: function(response) {
-                if (response.success) {
-                    alert_float('success', 'Automation completed - ' + response.orders_processed + ' orders processed, ' + response.batches_created + ' batches created');
-                    
-                    // Reload page to show updated last run time
-                    setTimeout(function() {
-                        location.reload();
-                    }, 2000);
-                } else {
-                    alert_float('danger', response.message || 'Automation failed');
-                    $btn.prop('disabled', false).html(originalText);
-                }
-            },
-            error: function(xhr, status, error) {
-                alert_float('danger', 'Error running automation');
-                $btn.prop('disabled', false).html(originalText);
-            }
-        });
-    });
-});
-</script>
+    /* Smooth transitions for all interactive elements */
+    button, input, select, textarea {
+        transition: all 0.2s ease-in-out;
+    }
+
+    /* Hour selection button hover effect */
+    label .peer:checked ~ div {
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+    }
+</style>

@@ -15,14 +15,14 @@ class Purchases extends AdminController
         $this->load->model('ramos/order_items_model', 'order_items_model');
         $this->load->model('ramos/inventory_model', 'inventory_model');
         $this->load->model('ramos/suppliers_model', 'suppliers_model');
-        $this->load->model('ramos/purchase_model', 'purchase_model');
+        $this->load->model('ramos/purchase_model', 'ramos_purchase_model');
     }
 
     public function index(): void
     {
         $requiredQuantities     = $this->order_items_model->get_required_quantities([RAMOS_ORDER_STATUS_NEW, RAMOS_ORDER_STATUS_PROCESSING]);
         $inventoryList          = $this->inventory_model->get();
-        $openPurchaseQuantities = $this->purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
+        $openPurchaseQuantities = $this->ramos_purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
         $suppliers             = $this->suppliers_model->get();
 
         $inventoryMap = [];
@@ -35,7 +35,7 @@ class Purchases extends AdminController
             $supplierMap[$supplier['id']] = $supplier;
         }
 
-        $deficitGroups = $this->purchase_model->build_supplier_deficits($requiredQuantities, $inventoryMap, $openPurchaseQuantities);
+        $deficitGroups = $this->ramos_purchase_model->build_supplier_deficits($requiredQuantities, $inventoryMap, $openPurchaseQuantities);
 
         foreach ($deficitGroups as $supplierId => &$group) {
             $group['supplier'] = $supplierId ? ($supplierMap[$supplierId] ?? null) : null;
@@ -47,8 +47,8 @@ class Purchases extends AdminController
         $data['subtitle']       = _l('ramos_purchases_subtitle');
         $data['deficit_groups'] = $deficitGroups;
         $data['suppliers']      = $supplierMap;
-        $data['recent_batches'] = $this->purchase_model->get_recent_batches();
-        $data['all_batches']    = $this->purchase_model->get_batches();
+        $data['recent_batches'] = $this->ramos_purchase_model->get_recent_batches();
+        $data['all_batches']    = $this->ramos_purchase_model->get_batches();
 
         $this->load->view('purchases/planner', $data);
     }
@@ -94,7 +94,7 @@ class Purchases extends AdminController
             redirect(admin_url('ramos/purchases'));
         }
 
-        $batchId = $this->purchase_model->create_batch($supplierId ? (int) $supplierId : null, $normalized);
+        $batchId = $this->ramos_purchase_model->create_batch($supplierId ? (int) $supplierId : null, $normalized);
 
         if ($batchId) {
             set_alert('success', _l('ramos_purchases_batch_created'));
@@ -107,13 +107,13 @@ class Purchases extends AdminController
 
     public function batch($batchId): void
     {
-        $batch = $this->purchase_model->get_batch($batchId);
+        $batch = $this->ramos_purchase_model->get_batch($batchId);
 
         if (empty($batch)) {
             show_404();
         }
 
-        $items = $this->purchase_model->get_batch_items($batchId);
+        $items = $this->ramos_purchase_model->get_batch_items($batchId);
 
         $data['title']     = _l('ramos_purchases_batch_title', html_escape($batch['batch_code']));
         $data['batch']     = $batch;
@@ -129,7 +129,7 @@ class Purchases extends AdminController
             access_denied();
         }
 
-        $batch = $this->purchase_model->get_batch($batchId);
+        $batch = $this->ramos_purchase_model->get_batch($batchId);
         if (empty($batch)) {
             show_404();
         }
@@ -140,7 +140,7 @@ class Purchases extends AdminController
         }
 
         $notes = $this->input->post('notes');
-        $this->purchase_model->mark_sent($batchId, $notes);
+        $this->ramos_purchase_model->mark_sent($batchId, $notes);
 
         set_alert('success', _l('ramos_purchases_marked_sent'));
 
@@ -153,7 +153,7 @@ class Purchases extends AdminController
             access_denied();
         }
 
-        $batch = $this->purchase_model->get_batch($batchId);
+        $batch = $this->ramos_purchase_model->get_batch($batchId);
         if (empty($batch)) {
             show_404();
         }
@@ -187,7 +187,7 @@ class Purchases extends AdminController
             redirect(admin_url('ramos/purchases/batch/' . $batchId));
         }
 
-        $applied = $this->purchase_model->record_receipts($batchId, $receipts);
+        $applied = $this->ramos_purchase_model->record_receipts($batchId, $receipts);
 
         if (empty($applied)) {
             set_alert('warning', _l('ramos_purchases_receive_nothing'));
@@ -195,7 +195,7 @@ class Purchases extends AdminController
         }
 
         if (!empty($applied)) {
-            $items = $this->purchase_model->get_batch_items($batchId);
+            $items = $this->ramos_purchase_model->get_batch_items($batchId);
             $itemMap = [];
             foreach ($items as $item) {
                 $itemMap[$item['id']] = $item;
@@ -212,7 +212,7 @@ class Purchases extends AdminController
             }
         }
 
-        $status = $this->purchase_model->refresh_batch_status($batchId);
+        $status = $this->ramos_purchase_model->refresh_batch_status($batchId);
 
         if ($status === 'received') {
             set_alert('success', _l('ramos_purchases_batch_completed'));

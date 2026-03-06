@@ -3,339 +3,289 @@
 defined('BASEPATH') or exit('No direct script access allowed');
 
 /**
- * Ramos Automation Helper Functions
+ * Ramos Automation Helper
  *
- * Provides reusable functions for running automation and generating routes,
- * callable from both AJAX (Automation controller) and scheduled cron jobs.
+ * Provides standalone functions for scheduled and manual automation execution.
+ * These are called by:
+ *   - The after_cron_run hook in ramos.php  (scheduled runs)
+ *   - Automation::run() controller           (manual AJAX runs)
+ *   - Scheduler::_execute_automation()       (legacy scheduler controller)
  */
 
 /**
- * Execute automation process: analyze inventory, generate purchase orders
+ * Check if scheduled automation should run right now.
  *
- * @param int $run_by_id Staff user ID (0 = system/cron)
- * @return array Result array with keys: success, run_id, orders_processed, batches_created
+ * Conditions:
+ *  1. Automation is enabled
+ *  2. Current hour & minute match configured schedule
+ *  3. Has not already run today
+ *  4. If not "run daily", today's weekday must match configured day
+ *
+ * @return bool
  */
-function ramos_execute_automation($run_by_id = 0)
+function ramos_should_run_scheduled_automation(): bool
+{
+    if (get_option('ramos_automation_schedule_enabled') !== '1') {
+        return false;
+    }
+
+    $scheduledHour    = (int) get_option('ramos_automation_schedule_hour', 8);
+    $scheduledMinutes = (int) get_option('ramos_automation_schedule_minutes', 0);
+    $runDaily         = get_option('ramos_automation_schedule_run_daily') === '1';
+    $scheduledDate    = strtolower(trim((string) get_option('ramos_automation_schedule_date', '')));
+
+    // Use the app's configured timezone (same as what the user sees in the UI)
+    $appTimezone = get_option('default_timezone');
+    if (!empty($appTimezone)) {
+        $now = new DateTime('now', new DateTimeZone($appTimezone));
+    } else {
+        $now = new DateTime('now');
+    }
+    $currentHour   = (int) $now->format('G'); // 0-23
+    $currentMinute = (int) $now->format('i'); // 0-59
+
+    // Must be within a 6-minute window after the scheduled time.
+    // The cron throttle fires every ~5 minutes, so we use 6 minutes to ensure
+    // the boundary cron tick (at exactly scheduled+5) is also included.
+    $scheduledTotalMins = $scheduledHour * 60 + $scheduledMinutes;
+    $currentTotalMins   = $currentHour   * 60 + $currentMinute;
+    if ($currentTotalMins < $scheduledTotalMins || $currentTotalMins > $scheduledTotalMins + 5) {
+        return false;
+    }
+
+    // If not daily, check day of week
+    if (!$runDaily && !empty($scheduledDate)) {
+        $todayName = strtolower(date('l')); // e.g. "friday"
+        if ($todayName !== $scheduledDate) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Execute the full automation process.
+ *
+ * Loads all required models via the CI instance, runs the purchase order
+ * generation pipeline, and returns a result array.
+ *
+ * @param  int $runById  Staff ID triggering the run; 0 for cron/system.
+ * @return array{success: bool, run_id: int|null, orders_processed: int, batches_created: int, message: string}
+ */
+function ramos_execute_automation(int $runById = 0): array
 {
     $CI = &get_instance();
-    $CI->load->model('ramos/automation_model');
-    $CI->load->model('ramos/suppliers_model');
-    $CI->load->model('ramos/purchase_model');
+
+    // Load required models
+    $CI->load->model('ramos/automation_model', 'ramos_automation_model');
+    $CI->load->model('ramos/ramos_purchase_model', 'ramos_purchase_model');
+    $CI->load->model('ramos/suppliers_model',  'ramos_suppliers_model');
+
+    // Create the run record
+    $runId = $CI->ramos_automation_model->create_run([
+        'run_type' => 'purchase_generation',
+        'run_by'   => $runById,
+        'status'   => 'running',
+    ]);
 
     try {
-        // Step 1: Get unprocessed orders from BOTH sources
-        $unprocessedOrders = $CI->automation_model->get_unprocessed_omni_orders();
-        $erpOrders = $CI->automation_model->get_unprocessed_erp_orders();
+        // ── 1. Collect unprocessed orders from both sources ──────────────
+        $omniOrders = $CI->ramos_automation_model->get_unprocessed_omni_orders();
+        $erpOrders  = $CI->ramos_automation_model->get_unprocessed_erp_orders();
 
-        // Check if there are ANY unprocessed orders from either source
-        if (empty($unprocessedOrders) && empty($erpOrders)) {
+        if (empty($omniOrders) && empty($erpOrders)) {
+            $CI->ramos_automation_model->complete_run($runId, [
+                'status'                       => 'completed',
+                'total_orders_processed'       => 0,
+                'total_purchase_orders_created'=> 0,
+                'notes'                        => 'No unprocessed orders found.',
+            ]);
+
             return [
-                'success'               => false,
-                'run_id'                => null,
-                'orders_processed'      => 0,
-                'batches_created'       => 0,
-                'message'               => _l('ramos_automation_no_orders')
+                'success'          => false,
+                'run_id'           => $runId,
+                'orders_processed' => 0,
+                'batches_created'  => 0,
+                'message'          => 'No unprocessed orders found.',
             ];
         }
 
-        // Step 2: Create automation run record
-        $runData = [
-            'run_type' => 'purchase_generation',
-            'run_by'   => $run_by_id,
-            'status'   => 'running'
-        ];
+        $omniOrderIds = array_column($omniOrders, 'id');
+        $erpOrderIds  = array_column($erpOrders,  'id');
 
-        // Mark as cron-scheduled if run_by_id is 0 (system)
-        if ($run_by_id === 0) {
-            $runData['cron_scheduled'] = 1;
+        // ── 2. Aggregate required quantities from both sources ────────────
+        $omniQuantities = $CI->ramos_automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
+        $erpQuantities  = $CI->ramos_automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
+        $requiredQtys   = _ramos_merge_quantities($omniQuantities, $erpQuantities);
+
+        if (empty($requiredQtys)) {
+            $CI->ramos_automation_model->complete_run($runId, [
+                'status'                       => 'completed',
+                'total_orders_processed'       => count($omniOrderIds) + count($erpOrderIds),
+                'total_purchase_orders_created'=> 0,
+                'notes'                        => 'Orders found but no matching inventory items.',
+            ]);
+
+            return [
+                'success'          => false,
+                'run_id'           => $runId,
+                'orders_processed' => count($omniOrderIds) + count($erpOrderIds),
+                'batches_created'  => 0,
+                'message'          => 'Orders found but no matching inventory items.',
+            ];
         }
 
-        $runId = $CI->automation_model->create_run($runData);
+        // ── 3. Get current inventory & open purchase orders ───────────────
+        $inventoryMap          = $CI->ramos_automation_model->get_warehouse_inventory_by_product();
+        $openPurchaseQuantities = $CI->ramos_purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
 
-        // Step 3: Calculate required quantities from all unprocessed orders (BOTH omni_sales AND ERP)
-        $omniOrderIds = array_column($unprocessedOrders, 'id');
-        $erpOrderIds = array_column($erpOrders, 'id');
-
-        // Get required quantities from BOTH sources
-        $omniQuantities = $CI->automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
-        $erpQuantities = $CI->automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
-
-        // Merge quantities from both sources
-        $requiredQuantities = _ramos_merge_quantities($omniQuantities, $erpQuantities);
-
-        // Step 4: Get current inventory from warehouse module
-        $inventoryMap = $CI->automation_model->get_warehouse_inventory_by_product();
-
-        // Step 5: Get open purchase quantities (items already ordered but not received)
-        $openPurchaseQuantities = $CI->purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
-
-        // Step 6: Build deficit report grouped by supplier
-        $deficitGroups = $CI->purchase_model->build_supplier_deficits(
-            $requiredQuantities,
+        // ── 4. Calculate deficits per supplier ────────────────────────────
+        $deficitGroups = $CI->ramos_purchase_model->build_supplier_deficits(
+            $requiredQtys,
             $inventoryMap,
             $openPurchaseQuantities
         );
 
-        // Step 7: Get suppliers and add to groups
-        $suppliers = $CI->suppliers_model->get();
-        $supplierMap = [];
-        foreach ($suppliers as $supplier) {
-            $supplierMap[$supplier['id']] = $supplier;
-        }
-
-        foreach ($deficitGroups as $supplierId => &$group) {
-            $group['supplier'] = $supplierId ? ($supplierMap[$supplierId] ?? null) : null;
-        }
-        unset($group);
-
-        // Step 8: Sort groups by supplier priority (lower number = higher priority)
-        uasort($deficitGroups, function ($a, $b) {
-            $priorityA = isset($a['supplier']['priority']) ? (int)$a['supplier']['priority'] : 999;
-            $priorityB = isset($b['supplier']['priority']) ? (int)$b['supplier']['priority'] : 999;
-            return $priorityA <=> $priorityB;
-        });
-
-        // Step 9: Create draft purchase batches
-        $createdBatches = [];
-        foreach ($deficitGroups as $supplierId => $group) {
-            if (empty($group['items'])) {
-                continue;
-            }
-
-            // Transform items to match create_batch expected format
-            $batchItems = [];
-            foreach ($group['items'] as $item) {
-                $batchItems[] = [
-                    'inventory_item_id' => $item['inventory_item_id'],
-                    'requested_qty'     => $item['required_qty'],
-                    'current_stock'     => $item['current_stock'],
-                    'safety_stock'      => $item['safety_stock'],
-                ];
-            }
-
-            $batchId = $CI->purchase_model->create_batch(
-                $supplierId ?: null,
-                $batchItems
-            );
-
-            if ($batchId) {
-                $createdBatches[] = $batchId;
-            }
-        }
-
-        // Step 10: Mark orders as processed (BOTH omni_sales AND ERP)
+        // ── 5. Mark all orders as processed (regardless of stock) ─────────
         if (!empty($omniOrderIds)) {
-            $CI->automation_model->mark_omni_orders_as_processed($omniOrderIds, $runId);
+            $CI->ramos_automation_model->mark_omni_orders_as_processed($omniOrderIds, $runId);
         }
-
         if (!empty($erpOrderIds)) {
-            $CI->automation_model->mark_erp_orders_as_processed($erpOrderIds, $runId);
+            $CI->ramos_automation_model->mark_erp_orders_as_processed($erpOrderIds, $runId);
         }
 
-        // Step 11: Complete automation run
         $totalOrdersProcessed = count($omniOrderIds) + count($erpOrderIds);
-        $CI->automation_model->complete_run($runId, [
-            'status'  => 'completed',
-            'total_orders_processed' => $totalOrdersProcessed,
-            'total_purchase_orders_created' => count($createdBatches),
-            'summary' => json_encode([
-                'omni_orders_processed' => count($omniOrderIds),
-                'erp_orders_processed' => count($erpOrderIds),
-                'total_orders_processed' => $totalOrdersProcessed,
-                'purchase_orders_created' => count($createdBatches),
-                'batch_ids' => $createdBatches
-            ])
+
+        // ── 6. Create purchase batch for each supplier with deficits ──────
+        $batchesCreated = 0;
+
+        if (!empty($deficitGroups)) {
+            // Get supplier map for enriching groups
+            $suppliers   = $CI->ramos_suppliers_model->get();
+            $supplierMap = [];
+            foreach ($suppliers as $supplier) {
+                $supplierMap[$supplier['id']] = $supplier;
+            }
+
+            // Sort groups by supplier priority (lower number = higher priority)
+            uasort($deficitGroups, function ($a, $b) use ($supplierMap) {
+                $suppA = isset($a['supplier_id']) ? ($supplierMap[$a['supplier_id']] ?? null) : null;
+                $suppB = isset($b['supplier_id']) ? ($supplierMap[$b['supplier_id']] ?? null) : null;
+                $prioA = isset($suppA['priority']) ? (int) $suppA['priority'] : 999;
+                $prioB = isset($suppB['priority']) ? (int) $suppB['priority'] : 999;
+                return $prioA <=> $prioB;
+            });
+
+            foreach ($deficitGroups as $supplierId => $group) {
+                if (empty($group['items'])) {
+                    continue;
+                }
+
+                // Map items to the format expected by create_batch
+                $batchItems = [];
+                foreach ($group['items'] as $item) {
+                    $batchItems[] = [
+                        'inventory_item_id' => $item['inventory_item_id'],
+                        'requested_qty'     => $item['required_qty'],
+                        'current_stock'     => $item['current_stock'],
+                        'safety_stock'      => $item['safety_stock'],
+                    ];
+                }
+
+                $CI->ramos_purchase_model->create_batch($supplierId ?: null, $batchItems);
+                $batchesCreated++;
+            }
+        }
+
+        // ── 7. Complete the run record ─────────────────────────────────────
+        $CI->ramos_automation_model->complete_run($runId, [
+            'status'                       => 'completed',
+            'total_orders_processed'       => $totalOrdersProcessed,
+            'total_purchase_orders_created'=> $batchesCreated,
+            'notes'                        => $batchesCreated > 0
+                ? "Created {$batchesCreated} purchase batch(es) from {$totalOrdersProcessed} order(s)."
+                : "Sufficient stock — no purchase orders needed. Processed {$totalOrdersProcessed} order(s).",
         ]);
 
         return [
-            'success'               => true,
-            'run_id'                => $runId,
-            'orders_processed'      => $totalOrdersProcessed,
-            'batches_created'       => count($createdBatches),
-            'batch_ids'             => $createdBatches
+            'success'          => true,
+            'run_id'           => $runId,
+            'orders_processed' => $totalOrdersProcessed,
+            'batches_created'  => $batchesCreated,
+            'message'          => "Processed {$totalOrdersProcessed} order(s), created {$batchesCreated} purchase batch(es).",
         ];
 
     } catch (Exception $e) {
-        // Mark run as failed
-        if (isset($runId)) {
-            $CI->automation_model->complete_run($runId, [
-                'status' => 'failed',
-                'notes'  => $e->getMessage()
-            ]);
-        }
-
-        log_activity('Ramos Automation Error: ' . $e->getMessage());
+        $CI->ramos_automation_model->complete_run($runId, [
+            'status' => 'failed',
+            'notes'  => $e->getMessage(),
+        ]);
 
         return [
-            'success'               => false,
-            'run_id'                => $runId ?? null,
-            'orders_processed'      => 0,
-            'batches_created'       => 0,
-            'message'               => _l('ramos_automation_failed'),
-            'error'                 => $e->getMessage()
+            'success'          => false,
+            'run_id'           => $runId,
+            'orders_processed' => 0,
+            'batches_created'  => 0,
+            'message'          => $e->getMessage(),
         ];
     }
 }
 
 /**
- * Generate routes for today based on automation success
+ * Generate delivery routes for today using configured defaults.
  *
- * @return array Result array with keys: success, route_ids, routes_count
+ * @return array{success: bool, route_ids: array, routes_count: int, message: string}
  */
-function ramos_generate_routes_for_today()
+function ramos_generate_routes_for_today(): array
 {
     $CI = &get_instance();
-    $CI->load->model('ramos/routes_model');
+    $CI->load->model('ramos/routes_model', 'routes_model');
+
+    $appTimezone = get_option('default_timezone');
+    $tz          = !empty($appTimezone) ? new DateTimeZone($appTimezone) : null;
+    $date        = $tz ? (new DateTime('now', $tz))->format('Y-m-d') : date('Y-m-d');
+    $startTime = get_option('ramos_default_route_start_time') ?: '08:00:00';
+    $maxStops  = (int) get_option('ramos_default_max_stops') ?: 10;
+    $prefix    = get_option('ramos_default_route_prefix') ?: 'Route';
 
     try {
-        $today = date('Y-m-d');
-        $startTime = get_option('ramos_default_route_start_time', '08:00:00');
-        $maxStops = (int)get_option('ramos_default_max_stops', 10);
-        $prefix = get_option('ramos_default_route_prefix', 'Route');
+        $routeIds = $CI->routes_model->generate_routes($date, $startTime, $maxStops, $prefix);
 
-        $routes = $CI->routes_model->generate_routes($today, $startTime, $maxStops, $prefix);
-
-        log_activity('[RAMOS CRON] Generated ' . count($routes) . ' routes for ' . $today);
+        $count = is_array($routeIds) ? count($routeIds) : 0;
 
         return [
-            'success'       => true,
-            'route_ids'     => $routes,
-            'routes_count'  => count($routes)
+            'success'      => true,
+            'route_ids'    => is_array($routeIds) ? $routeIds : [],
+            'routes_count' => $count,
+            'message'      => "Generated {$count} route(s) for {$date}.",
         ];
-
     } catch (Exception $e) {
-        log_activity('[RAMOS CRON] Route generation error: ' . $e->getMessage());
-
         return [
-            'success'       => false,
-            'route_ids'     => [],
-            'routes_count'  => 0,
-            'error'         => $e->getMessage()
+            'success'      => false,
+            'route_ids'    => [],
+            'routes_count' => 0,
+            'message'      => $e->getMessage(),
         ];
     }
 }
 
 /**
- * Check if scheduled automation should run at this time
+ * Merge two quantity arrays, summing values for matching item IDs.
  *
- * @return bool True if should run, false otherwise
+ * @param  array $a  Keyed by inventory_item_id => qty
+ * @param  array $b  Keyed by inventory_item_id => qty
+ * @return array
  */
-function ramos_should_run_scheduled_automation()
+function _ramos_merge_quantities(array $a, array $b): array
 {
-    $currentTime = date('H:i:s');
-    
-    // Check if automation is enabled
-    $enabledValue = get_option('ramos_automation_schedule_enabled');
-    if ($enabledValue !== '1') {
-        log_activity('[RAMOS DEBUG] Automation disabled. enabled=' . $enabledValue);
-        return false;
-    }
-
-    // Check if already ran today
-    $lastRunDate = get_option('ramos_last_automation_run_date');
-    if ($lastRunDate === date('Y-m-d')) {
-        log_activity('[RAMOS DEBUG] Already ran today at ' . $lastRunDate);
-        return false;
-    }
-
-    // Get configured hours and minutes
-    $hoursJson = get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18]));
-    $hours = json_decode($hoursJson, true);
-    if (!is_array($hours)) {
-        $hours = [8, 14, 18];
-    }
-
-    $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
-    $minutes = json_decode($minutesJson, true);
-    if (!is_array($minutes)) {
-        $minutes = [0];
-    }
-
-    // Get current time
-    $currentHour = (int)date('H');
-    $currentMinute = (int)date('i');
-
-    log_activity('[RAMOS DEBUG] Time check - Current: ' . $currentHour . ':' . sprintf('%02d', $currentMinute) . ', Configured hours: [' . implode(',', $hours) . '], minutes: [' . implode(',', $minutes) . ']');
-
-    // Check each configured hour:minute pair
-    foreach ($hours as $scheduledHour) {
-        // Only check if current hour matches
-        if ($currentHour !== $scheduledHour) {
-            continue;
-        }
-
-        // For this hour, check if current minute is within tolerance of any scheduled minute
-        foreach ($minutes as $scheduledMinute) {
-            $timeDiff = abs($currentMinute - $scheduledMinute);
-            
-            log_activity('[RAMOS DEBUG] Hour match! Checking minute: current=' . $currentMinute . ', scheduled=' . $scheduledMinute . ', diff=' . $timeDiff);
-            
-            // Allow 2-minute tolerance window (e.g., if scheduled for :00, run between :00-:02)
-            if ($timeDiff <= 2) {
-                log_activity('[RAMOS DEBUG] MATCH FOUND! Will run automation');
-                return true;
-            }
-        }
-    }
-
-    log_activity('[RAMOS DEBUG] No time match found');
-    return false;
-}
-
-/**
- * Merge quantities from multiple sources (omni_sales and ERP)
- *
- * @param array $omniQuantities Quantities from omni_sales orders
- * @param array $erpQuantities Quantities from ERP orders
- * @return array Merged quantities array
- */
-function _ramos_merge_quantities($omniQuantities, $erpQuantities)
-{
-    $merged = $omniQuantities;
-
-    foreach ($erpQuantities as $itemId => $quantity) {
+    $merged = $a;
+    foreach ($b as $itemId => $qty) {
         if (isset($merged[$itemId])) {
-            // Add to existing quantity
-            $merged[$itemId] += $quantity;
+            $merged[$itemId] += (float) $qty;
         } else {
-            // Add new item
-            $merged[$itemId] = $quantity;
+            $merged[$itemId] = (float) $qty;
         }
     }
-
     return $merged;
-}
-
-/**
- * Get the last automation run date formatted for display
- *
- * @return string Formatted last run date or message if never run
- */
-function ramos_get_last_run_display()
-{
-    $lastRunDate = get_option('ramos_last_automation_run_date');
-    
-    if (!$lastRunDate) {
-        return '<span class="text-danger"><i class="fa fa-times-circle"></i> ' . _l('ramos_settings_never_run') . '</span>';
-    }
-    
-    // Parse the date and show how long ago
-    $lastRunDateTime = strtotime($lastRunDate);
-    $now = time();
-    $diffSeconds = $now - $lastRunDateTime;
-    
-    if ($diffSeconds < 60) {
-        $ago = _l('ramos_settings_just_now');
-    } elseif ($diffSeconds < 3600) {
-        $minutes = floor($diffSeconds / 60);
-        $ago = sprintf(_l('ramos_settings_minutes_ago'), $minutes);
-    } elseif ($diffSeconds < 86400) {
-        $hours = floor($diffSeconds / 3600);
-        $ago = sprintf(_l('ramos_settings_hours_ago'), $hours);
-    } else {
-        $days = floor($diffSeconds / 86400);
-        $ago = sprintf(_l('ramos_settings_days_ago'), $days);
-    }
-    
-    return '<span class="text-success"><i class="fa fa-check-circle"></i> ' . date('Y-m-d H:i:s', $lastRunDateTime) . '</span> <small class="text-muted">(' . $ago . ')</small>';
 }

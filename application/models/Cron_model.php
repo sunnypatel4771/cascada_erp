@@ -53,10 +53,7 @@ class Cron_model extends App_Model
 
     public function run($manually = false)
     {
-        log_activity('[CRON_MODEL] run() called, manually=' . ($manually ? 'true' : 'false') . ', can_cron_run=' . ($this->can_cron_run() ? 'true' : 'false'));
-        
         if ($this->can_cron_run()) {
-            log_activity('[CRON_MODEL] Running cron tasks');
             hooks()->do_action('before_cron_run', $manually);
 
             update_option('last_cron_run', time());

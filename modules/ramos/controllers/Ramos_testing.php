@@ -22,7 +22,7 @@ class Ramos_testing extends CI_Controller
 
         $this->load->model('ramos/dashboard_model', 'dashboard_model');
         $this->load->model('ramos/orders_model', 'orders_model');
-        $this->load->model('ramos/purchase_model', 'purchase_model');
+        $this->load->model('ramos/purchase_model', 'ramos_purchase_model');
         $this->load->model('ramos/routes_model', 'routes_model');
     }
 
