@@ -92,56 +92,84 @@
                                         </small>
                                     </div>
 
-                                    <!-- Three Dropdowns Layout -->
-                                    <div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-3 tw-gap-4">
-                                        <!-- Date/Day Dropdown -->
-                                        <div class="tw-space-y-2">
-                                            <label for="schedule_date" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
-                                                <i class="fa-solid fa-calendar tw-mr-2 tw-text-blue-600"></i>Date/Day
-                                            </label>
-                                            <select name="schedule_date" id="schedule_date" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                <option value="">Select Day...</option>
-                                                <option value="monday" <?php echo $schedule_date === 'monday' ? 'selected' : ''; ?>>Monday</option>
-                                                <option value="tuesday" <?php echo $schedule_date === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
-                                                <option value="wednesday" <?php echo $schedule_date === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
-                                                <option value="thursday" <?php echo $schedule_date === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
-                                                <option value="friday" <?php echo $schedule_date === 'friday' ? 'selected' : ''; ?>>Friday</option>
-                                                <option value="saturday" <?php echo $schedule_date === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
-                                                <option value="sunday" <?php echo $schedule_date === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
-                                            </select>
-                                            <small class="tw-text-slate-500 tw-text-xs tw-block">Which day to run</small>
+                                    <!-- Date/Day Dropdown (full width) -->
+                                    <div class="tw-mb-4">
+                                        <label for="schedule_date" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm tw-mb-2">
+                                            <i class="fa-solid fa-calendar tw-mr-2 tw-text-blue-600"></i>Date/Day
+                                        </label>
+                                        <select name="schedule_date" id="schedule_date" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                            <option value="">Select Day...</option>
+                                            <option value="monday" <?php echo $schedule_date === 'monday' ? 'selected' : ''; ?>>Monday</option>
+                                            <option value="tuesday" <?php echo $schedule_date === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
+                                            <option value="wednesday" <?php echo $schedule_date === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
+                                            <option value="thursday" <?php echo $schedule_date === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
+                                            <option value="friday" <?php echo $schedule_date === 'friday' ? 'selected' : ''; ?>>Friday</option>
+                                            <option value="saturday" <?php echo $schedule_date === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
+                                            <option value="sunday" <?php echo $schedule_date === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
+                                        </select>
+                                        <small class="tw-text-slate-500 tw-text-xs tw-block tw-mt-1">Which day to run (ignored when Run Daily is on)</small>
+                                    </div>
+
+                                    <!-- Start Time / End Time -->
+                                    <div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
+                                        <!-- Start Time -->
+                                        <div class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
+                                            <p class="tw-text-slate-800 tw-font-semibold tw-text-sm tw-mb-3">
+                                                <i class="fa-solid fa-hourglass-start tw-mr-2 tw-text-green-600"></i>Start Time
+                                            </p>
+                                            <div class="tw-grid tw-grid-cols-2 tw-gap-3">
+                                                <div>
+                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Hour</label>
+                                                    <select name="schedule_hour" id="schedule_hour" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                        <?php for ($h = 0; $h < 24; $h++) : ?>
+                                                            <option value="<?php echo $h; ?>" <?php echo $schedule_hour == $h ? 'selected' : ''; ?>>
+                                                                <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00
+                                                            </option>
+                                                        <?php endfor; ?>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Minutes</label>
+                                                    <select name="schedule_minutes" id="schedule_minutes" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                        <option value="0"  <?php echo $schedule_minutes == 0  ? 'selected' : ''; ?>>:00</option>
+                                                        <option value="10" <?php echo $schedule_minutes == 10 ? 'selected' : ''; ?>>:10</option>
+                                                        <option value="20" <?php echo $schedule_minutes == 20 ? 'selected' : ''; ?>>:20</option>
+                                                        <option value="30" <?php echo $schedule_minutes == 30 ? 'selected' : ''; ?>>:30</option>
+                                                        <option value="40" <?php echo $schedule_minutes == 40 ? 'selected' : ''; ?>>:40</option>
+                                                        <option value="50" <?php echo $schedule_minutes == 50 ? 'selected' : ''; ?>>:50</option>
+                                                    </select>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <!-- Hour Dropdown -->
-                                        <div class="tw-space-y-2">
-                                            <label for="schedule_hour" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
-                                                <i class="fa-solid fa-hourglass-start tw-mr-2 tw-text-blue-600"></i>Hour
-                                            </label>
-                                            <select name="schedule_hour" id="schedule_hour" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                <option value="">Select Hour...</option>
-                                                <?php for ($h = 0; $h < 24; $h++) : ?>
-                                                    <option value="<?php echo $h; ?>" <?php echo $schedule_hour == $h ? 'selected' : ''; ?>>
-                                                        <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00 (<?php echo $h < 12 ? 'AM' : 'PM'; ?>)
-                                                    </option>
-                                                <?php endfor; ?>
-                                            </select>
-                                            <small class="tw-text-slate-500 tw-text-xs tw-block">Hour of the day</small>
-                                        </div>
-
-                                        <!-- Minutes Dropdown -->
-                                        <div class="tw-space-y-2">
-                                            <label for="schedule_minutes" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm">
-                                                <i class="fa-solid fa-timer tw-mr-2 tw-text-blue-600"></i>Minutes
-                                            </label>
-                                            <select name="schedule_minutes" id="schedule_minutes" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                <option value="0" <?php echo $schedule_minutes == 0 ? 'selected' : ''; ?>>00 minutes</option>
-                                                <option value="10" <?php echo $schedule_minutes == 10 ? 'selected' : ''; ?>>10 minutes</option>
-                                                <option value="20" <?php echo $schedule_minutes == 20 ? 'selected' : ''; ?>>20 minutes</option>
-                                                <option value="30" <?php echo $schedule_minutes == 30 ? 'selected' : ''; ?>>30 minutes</option>
-                                                <option value="40" <?php echo $schedule_minutes == 40 ? 'selected' : ''; ?>>40 minutes</option>
-                                                <option value="50" <?php echo $schedule_minutes == 50 ? 'selected' : ''; ?>>50 minutes</option>
-                                            </select>
-                                            <small class="tw-text-slate-500 tw-text-xs tw-block">Minutes offset in hour</small>
+                                        <!-- End Time -->
+                                        <div class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
+                                            <p class="tw-text-slate-800 tw-font-semibold tw-text-sm tw-mb-3">
+                                                <i class="fa-solid fa-hourglass-end tw-mr-2 tw-text-red-500"></i>End Time
+                                            </p>
+                                            <div class="tw-grid tw-grid-cols-2 tw-gap-3">
+                                                <div>
+                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Hour</label>
+                                                    <select name="schedule_end_hour" id="schedule_end_hour" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                        <?php for ($h = 0; $h < 24; $h++) : ?>
+                                                            <option value="<?php echo $h; ?>" <?php echo $schedule_end_hour == $h ? 'selected' : ''; ?>>
+                                                                <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00
+                                                            </option>
+                                                        <?php endfor; ?>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Minutes</label>
+                                                    <select name="schedule_end_minutes" id="schedule_end_minutes" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                        <option value="0"  <?php echo $schedule_end_minutes == 0  ? 'selected' : ''; ?>>:00</option>
+                                                        <option value="10" <?php echo $schedule_end_minutes == 10 ? 'selected' : ''; ?>>:10</option>
+                                                        <option value="20" <?php echo $schedule_end_minutes == 20 ? 'selected' : ''; ?>>:20</option>
+                                                        <option value="30" <?php echo $schedule_end_minutes == 30 ? 'selected' : ''; ?>>:30</option>
+                                                        <option value="40" <?php echo $schedule_end_minutes == 40 ? 'selected' : ''; ?>>:40</option>
+                                                        <option value="50" <?php echo $schedule_end_minutes == 50 ? 'selected' : ''; ?>>:50</option>
+                                                    </select>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -408,35 +436,50 @@
         $dateDropdown.on('change', updateScheduleSummary);
         $hourDropdown.on('change', updateScheduleSummary);
         $minutesDropdown.on('change', updateScheduleSummary);
+        $('#schedule_end_hour, #schedule_end_minutes').on('change', updateScheduleSummary);
         $runDailyCheckbox.on('change', updateScheduleSummary);
 
+        function formatTime(h, m) {
+            var ampm = h < 12 ? 'AM' : 'PM';
+            var dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+            return str_pad(dh) + ':' + str_pad(m) + ' ' + ampm;
+        }
+
         function updateScheduleSummary() {
-            var runDaily = $runDailyCheckbox.is(':checked');
+            var runDaily    = $runDailyCheckbox.is(':checked');
             var selectedDay = $dateDropdown.val();
-            var selectedHour = $hourDropdown.val();
-            var selectedMinutes = $minutesDropdown.val();
+            var startHour   = parseInt($('#schedule_hour').val());
+            var startMin    = parseInt($('#schedule_minutes').val());
+            var endHour     = parseInt($('#schedule_end_hour').val());
+            var endMin      = parseInt($('#schedule_end_minutes').val());
 
-            var summary = '';
+            var startTotal = startHour * 60 + startMin;
+            var endTotal   = endHour   * 60 + endMin;
 
-            if (!selectedHour) {
-                summary = 'Select hour to schedule';
-            } else {
-                var hour = parseInt(selectedHour);
-                var ampm = hour < 12 ? 'AM' : 'PM';
-                var displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-
-                if (runDaily) {
-                    summary = 'Every day at ' + 
-                        str_pad(displayHour) + ':' + str_pad(selectedMinutes) + ' ' + ampm;
-                } else if (selectedDay) {
-                    var dayName = capitalizeDay(selectedDay);
-                    summary = dayName + 's at ' + 
-                        str_pad(displayHour) + ':' + str_pad(selectedMinutes) + ' ' + ampm;
-                } else {
-                    summary = 'Select a day or enable "Run Daily"';
-                }
+            if (isNaN(startHour) || isNaN(endHour)) {
+                $('#schedule-summary').text('Select start and end time');
+                return;
             }
 
+            if (endTotal <= startTotal) {
+                $('#schedule-summary').html('<span class="tw-text-red-500">End time must be after start time</span>');
+                return;
+            }
+
+            // Build trigger list
+            var triggers = [];
+            for (var t = startTotal; t <= endTotal; t += 30) {
+                var th = Math.floor(t / 60), tm = t % 60;
+                triggers.push(formatTime(th, tm));
+            }
+
+            var prefix = runDaily ? 'Every day' : (selectedDay ? capitalizeDay(selectedDay) + 's' : null);
+            if (!prefix) {
+                $('#schedule-summary').text('Select a day or enable "Run Daily"');
+                return;
+            }
+
+            var summary = prefix + ': ' + triggers.join(', ');
             $('#schedule-summary').text(summary);
         }
 

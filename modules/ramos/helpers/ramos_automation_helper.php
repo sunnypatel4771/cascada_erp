@@ -29,27 +29,40 @@ function ramos_should_run_scheduled_automation(): bool
         return false;
     }
 
-    $scheduledHour    = (int) get_option('ramos_automation_schedule_hour', 8);
-    $scheduledMinutes = (int) get_option('ramos_automation_schedule_minutes', 0);
-    $runDaily         = get_option('ramos_automation_schedule_run_daily') === '1';
-    $scheduledDate    = strtolower(trim((string) get_option('ramos_automation_schedule_date', '')));
+    $startHour    = (int) get_option('ramos_automation_schedule_hour', 8);
+    $startMinutes = (int) get_option('ramos_automation_schedule_minutes', 0);
+    $endHour      = (int) get_option('ramos_automation_schedule_end_hour', 18);
+    $endMinutes   = (int) get_option('ramos_automation_schedule_end_minutes', 0);
+    $runDaily     = get_option('ramos_automation_schedule_run_daily') === '1';
+    $scheduledDate = strtolower(trim((string) get_option('ramos_automation_schedule_date', '')));
 
-    // Use the app's configured timezone (same as what the user sees in the UI)
+    // Use the app's configured timezone
     $appTimezone = get_option('default_timezone');
-    if (!empty($appTimezone)) {
-        $now = new DateTime('now', new DateTimeZone($appTimezone));
-    } else {
-        $now = new DateTime('now');
-    }
-    $currentHour   = (int) $now->format('G'); // 0-23
-    $currentMinute = (int) $now->format('i'); // 0-59
+    $now = !empty($appTimezone)
+        ? new DateTime('now', new DateTimeZone($appTimezone))
+        : new DateTime('now');
+    $currentHour   = (int) $now->format('G');
+    $currentMinute = (int) $now->format('i');
 
-    // Must be within a 6-minute window after the scheduled time.
-    // The cron throttle fires every ~5 minutes, so we use 6 minutes to ensure
-    // the boundary cron tick (at exactly scheduled+5) is also included.
-    $scheduledTotalMins = $scheduledHour * 60 + $scheduledMinutes;
-    $currentTotalMins   = $currentHour   * 60 + $currentMinute;
-    if ($currentTotalMins < $scheduledTotalMins || $currentTotalMins > $scheduledTotalMins + 5) {
+    $startTotal   = $startHour   * 60 + $startMinutes;
+    $endTotal     = $endHour     * 60 + $endMinutes;
+    $currentTotal = $currentHour * 60 + $currentMinute;
+
+    // Build the list of trigger minutes: start, start+30, start+60, … up to and including end
+    $triggerMinutes = [];
+    for ($t = $startTotal; $t <= $endTotal; $t += 30) {
+        $triggerMinutes[] = $t;
+    }
+
+    // Check if current time falls within a 6-minute window of any trigger point
+    $inWindow = false;
+    foreach ($triggerMinutes as $trigger) {
+        if ($currentTotal >= $trigger && $currentTotal <= $trigger + 5) {
+            $inWindow = true;
+            break;
+        }
+    }
+    if (!$inWindow) {
         return false;
     }
 

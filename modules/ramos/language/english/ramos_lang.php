@@ -460,3 +460,27 @@ $lang['ramos_automation_analysis_table_to_buy']   = 'To Buy';
 $lang['ramos_automation_copy_button']        = 'Copy to Clipboard';
 $lang['ramos_automation_copied_success']     = 'Copied to clipboard!';
 $lang['ramos_automation_confirm_run']        = 'This will process all unprocessed orders and create purchase orders. Continue?';
+
+// Settings page
+$lang['ramos_settings_automation_schedule_title']    = 'Automation Schedule';
+$lang['ramos_settings_automation_schedule_subtitle'] = 'Configure when the automation runs automatically via cron';
+$lang['ramos_settings_automation_schedule']          = 'Automation Schedule';
+$lang['ramos_settings_enable_automation']            = 'Enable Scheduled Automation';
+$lang['ramos_settings_automation_description']       = 'When enabled, automation runs automatically at the configured times';
+$lang['ramos_settings_last_automation_run']          = 'Last Automated Run';
+$lang['ramos_settings_never_run']                    = 'Never run automatically';
+$lang['ramos_settings_route_generation']             = 'Route Generation';
+$lang['ramos_settings_auto_generate_routes']         = 'Auto-Generate Routes After Automation';
+$lang['ramos_settings_auto_generate_routes_description'] = 'Automatically create optimized delivery routes after processing orders';
+$lang['ramos_settings_default_max_stops']            = 'Max Stops per Route';
+$lang['ramos_settings_default_max_stops_description'] = 'Maximum number of delivery stops per generated route';
+$lang['ramos_settings_default_route_prefix']         = 'Route Name Prefix';
+$lang['ramos_settings_default_route_prefix_description'] = 'Prefix used when naming auto-generated routes (e.g. "Route", "Delivery")';
+$lang['ramos_settings_default_route_start_time']     = 'Default Route Start Time';
+$lang['ramos_settings_default_route_start_time_description'] = 'Default start time assigned to auto-generated routes';
+
+// Shared / misc
+$lang['ramos_automation_subtitle']          = 'Run purchase order automation and manage scheduled runs';
+$lang['ramos_automation_title']             = 'Automation';
+$lang['ramos_automation_sufficient_stock']  = 'Sufficient stock — no purchase orders needed.';
+$lang['ramos_purchases_unassigned_supplier'] = 'Unassigned Supplier';

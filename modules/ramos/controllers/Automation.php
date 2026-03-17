@@ -105,6 +105,8 @@ class Automation extends AdminController
         $data['schedule_date'] = get_option('ramos_automation_schedule_date', '');
         $data['schedule_hour'] = (int)get_option('ramos_automation_schedule_hour', 8);
         $data['schedule_minutes'] = (int)get_option('ramos_automation_schedule_minutes', 0);
+        $data['schedule_end_hour'] = (int)get_option('ramos_automation_schedule_end_hour', 18);
+        $data['schedule_end_minutes'] = (int)get_option('ramos_automation_schedule_end_minutes', 0);
         
         // OLD: Load array format for backward compatibility
         $hoursJson = get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18]));
@@ -167,29 +169,36 @@ class Automation extends AdminController
                 $selectedDate = trim((string)$this->input->post('schedule_date'));
                 $selectedHour = (int)$this->input->post('schedule_hour');
                 $selectedMinutes = (int)$this->input->post('schedule_minutes');
+                $selectedEndHour = (int)$this->input->post('schedule_end_hour');
+                $selectedEndMinutes = (int)$this->input->post('schedule_end_minutes');
 
                 // Validate
                 if ($selectedHour < 0 || $selectedHour > 23) {
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'Invalid hour selected'
-                    ]);
+                    echo json_encode(['success' => false, 'message' => 'Invalid start hour selected']);
+                    return;
+                }
+                if ($selectedMinutes < 0 || $selectedMinutes > 59) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid start minutes selected']);
+                    return;
+                }
+                if ($selectedEndHour < 0 || $selectedEndHour > 23) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid end hour selected']);
+                    return;
+                }
+                if ($selectedEndMinutes < 0 || $selectedEndMinutes > 59) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid end minutes selected']);
                     return;
                 }
 
-                if ($selectedMinutes < 0 || $selectedMinutes > 59) {
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'Invalid minutes selected'
-                    ]);
+                $startTotal = $selectedHour * 60 + $selectedMinutes;
+                $endTotal   = $selectedEndHour * 60 + $selectedEndMinutes;
+                if ($endTotal <= $startTotal) {
+                    echo json_encode(['success' => false, 'message' => 'End time must be after start time']);
                     return;
                 }
 
                 if (!$runDaily && empty($selectedDate)) {
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'Please select a day or enable "Run Daily"'
-                    ]);
+                    echo json_encode(['success' => false, 'message' => 'Please select a day or enable "Run Daily"']);
                     return;
                 }
 
@@ -198,8 +207,10 @@ class Automation extends AdminController
                 update_option('ramos_automation_schedule_date', $selectedDate);
                 update_option('ramos_automation_schedule_hour', (string)$selectedHour);
                 update_option('ramos_automation_schedule_minutes', (string)$selectedMinutes);
+                update_option('ramos_automation_schedule_end_hour', (string)$selectedEndHour);
+                update_option('ramos_automation_schedule_end_minutes', (string)$selectedEndMinutes);
 
-                // For backward compatibility, also save as hours array (but NOT minutes - keep minutes as integer)
+                // For backward compatibility, also save as hours array
                 update_option('ramos_automation_schedule_hours', json_encode([$selectedHour]));
             }
 
