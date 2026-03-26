@@ -20,7 +20,14 @@ class InitModules
                 $uris = include_once($excludeUrisPath);
 
                 if (is_array($uris)) {
-                    hooks()->add_filter('csrf_exclude_uris', function ($current) use ($uris) {
+                    $hooks = hooks();
+
+                    // In some CLI bootstrap paths the hooks instance may not be initialized yet.
+                    if (!is_object($hooks) || !method_exists($hooks, 'add_filter')) {
+                        continue;
+                    }
+
+                    $hooks->add_filter('csrf_exclude_uris', function ($current) use ($uris) {
                         return array_merge($current, $uris);
                     });
                 }

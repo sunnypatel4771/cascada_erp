@@ -281,9 +281,10 @@ function render_textarea($name, $label = '', $value = '', $textarea_attrs = [], 
  * @param  string  $form_group_class <div class="form-group"> additional class
  * @param  string  $select_class     additional <select> class
  * @param  boolean $include_blank    do you want to include the first <option> to be empty
+ * @param  string  $select_dom_id    optional HTML id (and label for=); defaults to $name when empty
  * @return string
  */
-function render_select($name, $options, $option_attrs = [], $label = '', $selected = '', $select_attrs = [], $form_group_attr = [], $form_group_class = '', $select_class = '', $include_blank = true)
+function render_select($name, $options, $option_attrs = [], $label = '', $selected = '', $select_attrs = [], $form_group_attr = [], $form_group_class = '', $select_class = '', $include_blank = true, $select_dom_id = '')
 {
     $callback_translate = '';
     if (isset($options['callback_translate'])) {
@@ -324,11 +325,12 @@ function render_select($name, $options, $option_attrs = [], $label = '', $select
     if (!empty($form_group_class)) {
         $form_group_class = ' ' . $form_group_class;
     }
+    $dom_id = ($select_dom_id !== '' && $select_dom_id !== null) ? $select_dom_id : $name;
     $select .= '<div class="select-placeholder form-group' . $form_group_class . '" ' . $_form_group_attr . '>';
     if ($label != '') {
-        $select .= '<label for="' . $name . '" class="control-label">' . _l($label, '', false) . '</label>';
+        $select .= '<label for="' . $dom_id . '" class="control-label">' . _l($label, '', false) . '</label>';
     }
-    $select .= '<select id="' . $name . '" name="' . $name . '" class="selectpicker' . $select_class . '" ' . $_select_attrs . ' data-live-search="true">';
+    $select .= '<select id="' . $dom_id . '" name="' . $name . '" class="selectpicker' . $select_class . '" ' . $_select_attrs . ' data-live-search="true">';
     if ($include_blank == true) {
         $select .= '<option value=""></option>';
     }
@@ -403,10 +405,10 @@ function render_select($name, $options, $option_attrs = [], $label = '', $select
     return $select;
 }
 
-function render_select_with_input_group($name, $options, $option_attrs = [], $label = '', $selected = '', $input_group_contents = '', $select_attrs = [], $form_group_attr = [], $form_group_class = '', $select_class = '', $include_blank = true)
+function render_select_with_input_group($name, $options, $option_attrs = [], $label = '', $selected = '', $input_group_contents = '', $select_attrs = [], $form_group_attr = [], $form_group_class = '', $select_class = '', $include_blank = true, $select_dom_id = '')
 {
     $select_class .= ' _select_input_group';
-    $select = render_select($name, $options, $option_attrs, $label, $selected, $select_attrs, $form_group_attr, $form_group_class, $select_class, $include_blank);
+    $select = render_select($name, $options, $option_attrs, $label, $selected, $select_attrs, $form_group_attr, $form_group_class, $select_class, $include_blank, $select_dom_id);
     $select = str_replace('form-group', 'input-group input-group-select select-' . $name, $select);
     $select = str_replace('select-placeholder ', '', $select);
     $select = str_replace('</select>', '</select>' . $input_group_contents, $select);

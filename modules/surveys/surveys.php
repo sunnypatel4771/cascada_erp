@@ -9,7 +9,10 @@ Version: 1.0
 Author: EREISE
 */
 
-require(__DIR__ . '/vendor/autoload.php');
+$surveysVendorAutoload = __DIR__ . '/vendor/autoload.php';
+if (file_exists($surveysVendorAutoload)) {
+    require $surveysVendorAutoload;
+}
 
 define('SURVEYS_MODULE_NAME', 'surveys');
 

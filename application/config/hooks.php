@@ -44,6 +44,36 @@ function hooks()
 {
     global $hooks;
 
+    if (!is_object($hooks)) {
+        static $noopHooks = null;
+
+        if ($noopHooks === null) {
+            $noopHooks = new class {
+                public function add_action($tag, $function_to_add, $priority = 10, $accepted_args = 1)
+                {
+                    return true;
+                }
+
+                public function add_filter($tag, $function_to_add, $priority = 10, $accepted_args = 1)
+                {
+                    return true;
+                }
+
+                public function do_action($tag, ...$args)
+                {
+                    return null;
+                }
+
+                public function apply_filters($tag, $value)
+                {
+                    return $value;
+                }
+            };
+        }
+
+        return $noopHooks;
+    }
+
     return $hooks;
 }
 

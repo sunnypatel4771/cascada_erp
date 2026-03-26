@@ -386,6 +386,12 @@ hooks()->add_filter('get_dashboard_widgets', function ($widgets) {
     return array_merge($new_widgets, $widgets);
 });
 function check_whatsapp_cronjob_status() {
+    // Suppress cronjob warnings when running locally (dev/staging)
+    $baseUrl = defined('APP_BASE_URL') ? APP_BASE_URL : base_url();
+    if (ENVIRONMENT !== 'production' || strpos($baseUrl, '127.0.0.1') !== false || strpos($baseUrl, 'localhost') !== false) {
+        return '';
+    }
+
     // Get the last run time of the WhatsApp cronjob
     $last_run = get_option('whatsapp_campaign_cronjob_run_at'); // Ensure this option is set correctly
 

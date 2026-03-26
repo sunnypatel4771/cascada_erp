@@ -5,32 +5,36 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /*
 Filters
  */
-hooks()->add_filter('check_vault_entries_visibility', '_check_vault_entries_visibility');
-hooks()->add_filter('register_merge_fields', 'core_merge_fields');
+$hooks = hooks();
+
+if (is_object($hooks)) {
+    $hooks->add_filter('check_vault_entries_visibility', '_check_vault_entries_visibility');
+    $hooks->add_filter('register_merge_fields', 'core_merge_fields');
 
 /*
 Actions
  */
-hooks()->add_action('clients_init', '_maybe_add_estimate_request_link_in_customers_area');
-hooks()->add_action('non_existent_user_login_attempt', '_maybe_user_is_trying_to_login_into_the_clients_area_as_staff');
-hooks()->add_action('clients_login_form_start', '_maybe_mistaken_login_area_check_performed');
+    $hooks->add_action('clients_init', '_maybe_add_estimate_request_link_in_customers_area');
+    $hooks->add_action('non_existent_user_login_attempt', '_maybe_user_is_trying_to_login_into_the_clients_area_as_staff');
+    $hooks->add_action('clients_login_form_start', '_maybe_mistaken_login_area_check_performed');
 
-hooks()->add_action('new_ticket_admin_page_loaded', 'ticket_message_save_as_predefined_reply_javascript');
-hooks()->add_action('ticket_admin_single_page_loaded', 'ticket_message_save_as_predefined_reply_javascript');
+    $hooks->add_action('new_ticket_admin_page_loaded', 'ticket_message_save_as_predefined_reply_javascript');
+    $hooks->add_action('ticket_admin_single_page_loaded', 'ticket_message_save_as_predefined_reply_javascript');
 
-hooks()->add_action('database_updated', 'app_set_update_message_info');
-hooks()->add_action('before_update_database', 'app_set_pipe_php_permissions');
-hooks()->add_action('admin_init', 'app_init_admin_sidebar_menu_items');
-hooks()->add_action('admin_init', 'app_init_customer_profile_tabs');
-hooks()->add_action('admin_init', 'app_init_project_tabs');
-hooks()->add_action('admin_init', 'app_init_settings_tabs');
-hooks()->add_action('admin_init', '_maybe_set_identification_key');
+    $hooks->add_action('database_updated', 'app_set_update_message_info');
+    $hooks->add_action('before_update_database', 'app_set_pipe_php_permissions');
+    $hooks->add_action('admin_init', 'app_init_admin_sidebar_menu_items');
+    $hooks->add_action('admin_init', 'app_init_customer_profile_tabs');
+    $hooks->add_action('admin_init', 'app_init_project_tabs');
+    $hooks->add_action('admin_init', 'app_init_settings_tabs');
+    $hooks->add_action('admin_init', '_maybe_set_identification_key');
 
-if (get_instance()->config->item('csrf_protection')) {
-    hooks()->add_action('app_admin_head', 'csrf_jquery_token');
-    hooks()->add_action('app_customers_head', 'csrf_jquery_token');
-    hooks()->add_action('app_external_form_head', 'csrf_jquery_token');
-    hooks()->add_action('elfinder_tinymce_head', 'csrf_jquery_token');
+    if (get_instance()->config->item('csrf_protection')) {
+        $hooks->add_action('app_admin_head', 'csrf_jquery_token');
+        $hooks->add_action('app_customers_head', 'csrf_jquery_token');
+        $hooks->add_action('app_external_form_head', 'csrf_jquery_token');
+        $hooks->add_action('elfinder_tinymce_head', 'csrf_jquery_token');
+    }
 }
 
 /**

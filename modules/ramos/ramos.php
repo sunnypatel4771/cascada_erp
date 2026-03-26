@@ -160,24 +160,38 @@ function ramos_init_admin_menu(): void
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+        'slug'     => 'ramos-facturacion',
+        'name'     => _l('ramos_facturacion_menu_label'),
+        'href'     => admin_url('ramos/facturacion'),
+        'position' => 7,
+    ]);
+
+    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-routes',
         'name'     => _l('ramos_routes_menu_label'),
         'href'     => admin_url('ramos/routes'),
-        'position' => 7,
+        'position' => 8,
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-routes-board',
         'name'     => _l('ramos_routes_board_menu_label'),
         'href'     => admin_url('ramos/routes/board'),
-        'position' => 8,
+        'position' => 9,
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-pricing',
         'name'     => _l('ramos_pricing_menu_label'),
         'href'     => admin_url('ramos/pricing'),
-        'position' => 9,
+        'position' => 10,
+    ]);
+
+    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+        'slug'     => 'ramos-automation',
+        'name'     => _l('ramos_automation_menu_label'),
+        'href'     => admin_url('ramos/automation'),
+        'position' => 11,
     ]);
 }
 

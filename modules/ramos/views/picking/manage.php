@@ -1,4 +1,43 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
+<?php
+hooks()->add_action('app_admin_head', function () { ?>
+<style id="ramos-picking-select-fix">
+/* Let bootstrap-select menus align to the toggle (avoid data-container=body drift) */
+.ramos-picking-modules .panel_s,
+.ramos-picking-modules .panel-body,
+.ramos-picking-modules .col-md-6 {
+  overflow: visible;
+}
+.ramos-picking-modules .bootstrap-select.btn-group:not(.input-group-btn) {
+  display: block;
+  width: 100% !important;
+  max-width: 100%;
+}
+.ramos-picking-modules .bootstrap-select > .dropdown-toggle {
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  height: auto;
+  min-height: 34px;
+  text-align: left;
+}
+/* Tailwind select.css applies tw-truncate on .filter-option-inner-inner — undo for full labels */
+.ramos-picking-modules .bootstrap-select .dropdown-toggle .filter-option-inner-inner {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.ramos-picking-modules .bootstrap-select .dropdown-menu {
+  min-width: 100%;
+  box-sizing: border-box;
+}
+.ramos-picking-modules .picking-shift-actions {
+  clear: both;
+  margin-top: 12px;
+}
+</style>
+<?php });
+?>
 <?php init_head(); ?>
 <?php
 $canEdit = staff_can('edit', RAMOS_MODULE_NAME);
@@ -25,7 +64,7 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                     <div class="alert alert-info tw-text-sm"><?php echo _l('ramos_picking_no_modules'); ?></div>
                 <?php endif; ?>
 
-                <div class="row">
+                <div class="row ramos-picking-modules">
                     <?php foreach ($modules as $module) :
                         $activeStaff = array_filter($module['staff'], function ($record) {
                             return empty($record['shift_ended_at']);
@@ -60,7 +99,24 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                                                 $selectedProducts = array_map(function ($product) {
                                                     return (int) $product['inventory_item_id'];
                                                 }, $module['products']);
-                                                echo render_select('product_ids[]', $inventoryOptions, ['id', 'name'], _l('ramos_picking_products_label'), $selectedProducts, ['multiple' => true, 'data-width' => '100%', 'data-live-search' => 'true'], [], 'tw-mt-2');
+                                                echo render_select(
+                                                    'product_ids[]',
+                                                    $inventoryOptions,
+                                                    ['id', 'name'],
+                                                    _l('ramos_picking_products_label'),
+                                                    $selectedProducts,
+                                                    [
+                                                        'multiple'         => true,
+                                                        'data-width'       => '100%',
+                                                        'data-live-search' => 'true',
+                                                        'data-size'        => '8',
+                                                    ],
+                                                    [],
+                                                    'tw-mt-2',
+                                                    '',
+                                                    true,
+                                                    'product_ids_module_' . (int) $module['id']
+                                                );
                                                 ?>
                                                 <button type="submit" class="btn btn-default btn-sm tw-mt-2"><?php echo _l('ramos_picking_update_products_button'); ?></button>
                                             <?php echo form_close(); ?>
@@ -92,11 +148,11 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
 
                                         <?php if ($canEdit) : ?>
                                             <?php echo form_open(admin_url('ramos/picking/start_shift/' . $module['id'])); ?>
-                                                <div class="row">
-                                                    <div class="col-md-7">
-                                                        <div class="form-group">
-                                                            <label class="control-label"><?php echo _l('ramos_picking_assign_staff_label'); ?></label>
-                                                            <select name="staff_id" class="form-control selectpicker" data-live-search="true" data-width="100%">
+                                                <div class="row picking-shift-row">
+                                                    <div class="col-sm-12 col-md-6">
+                                                        <div class="form-group picking-shift-field">
+                                                            <label class="control-label" for="picking_staff_<?php echo (int) $module['id']; ?>"><?php echo _l('ramos_picking_assign_staff_label'); ?></label>
+                                                            <select name="staff_id" id="picking_staff_<?php echo (int) $module['id']; ?>" class="selectpicker" data-live-search="true" data-width="100%" data-size="8">
                                                                 <option value="">--</option>
                                                                 <?php foreach ($staffMembers as $staff) : ?>
                                                                     <option value="<?php echo (int) $staff['staffid']; ?>"><?php echo html_escape($staff['firstname'] . ' ' . $staff['lastname']); ?></option>
@@ -104,17 +160,19 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                                                             </select>
                                                         </div>
                                                     </div>
-                                                    <div class="col-md-5">
-                                                        <div class="form-group">
-                                                            <label class="control-label"><?php echo _l('ramos_role_label'); ?></label>
-                                                            <select name="role" class="form-control selectpicker" data-width="100%">
+                                                    <div class="col-sm-12 col-md-6">
+                                                        <div class="form-group picking-shift-field">
+                                                            <label class="control-label" for="picking_role_<?php echo (int) $module['id']; ?>"><?php echo _l('ramos_role_label'); ?></label>
+                                                            <select name="role" id="picking_role_<?php echo (int) $module['id']; ?>" class="selectpicker" data-width="100%" data-size="6">
                                                                 <option value="operator"><?php echo _l('ramos_role_operator'); ?></option>
                                                                 <option value="supervisor"><?php echo _l('ramos_role_supervisor'); ?></option>
                                                             </select>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <button type="submit" class="btn btn-primary btn-sm"><?php echo _l('ramos_picking_start_shift_button'); ?></button>
+                                                <div class="picking-shift-actions">
+                                                    <button type="submit" class="btn btn-primary btn-sm"><?php echo _l('ramos_picking_start_shift_button'); ?></button>
+                                                </div>
                                             <?php echo form_close(); ?>
                                         <?php endif; ?>
 

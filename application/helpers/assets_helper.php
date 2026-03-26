@@ -5,6 +5,11 @@ defined('BASEPATH') or exit('No direct script access allowed');
 hooks()->add_action('admin_auth_init', 'init_admin_auth_assets');
 hooks()->add_action('app_admin_assets', '_init_admin_assets');
 
+function app_build_asset_exists($file)
+{
+    return file_exists(FCPATH . 'assets/builds/' . ltrim($file, '/'));
+}
+
 function init_admin_assets()
 {
     hooks()->do_action('app_admin_assets');
@@ -33,7 +38,9 @@ function init_admin_auth_assets()
         $CI->app_css->add('bootstrap-rtl-css', 'assets/plugins/bootstrap-arabic/css/bootstrap-arabic.min.css', $groupName);
     }
 
-    $CI->app_css->add('tailwind-css', base_url($CI->app_css->core_file('assets/builds', 'tailwind.css')) . '?v=' . $CI->app_css->core_version(), $groupName, ['bootstrap-css']);
+    if (app_build_asset_exists('tailwind.css')) {
+        $CI->app_css->add('tailwind-css', base_url($CI->app_css->core_file('assets/builds', 'tailwind.css')) . '?v=' . $CI->app_css->core_version(), $groupName, ['bootstrap-css']);
+    }
 }
 
 function _init_admin_assets()
@@ -41,7 +48,14 @@ function _init_admin_assets()
     $CI = &get_instance();
 
     // Javascript
-    $CI->app_scripts->add('vendor-js', 'assets/builds/vendor-admin.js');
+    $hasVendorAdminBuild = app_build_asset_exists('vendor-admin.js');
+
+    if ($hasVendorAdminBuild) {
+        $CI->app_scripts->add('vendor-js', 'assets/builds/vendor-admin.js');
+    } else {
+        $CI->app_scripts->add('jquery-js', 'assets/plugins/jquery/jquery.min.js');
+        $CI->app_scripts->add('bootstrap-js', 'assets/plugins/bootstrap/js/bootstrap.min.js', 'admin', ['jquery-js']);
+    }
 
     $CI->app_scripts->add('jquery-migrate-js', 'assets/plugins/jquery/jquery-migrate.' . (ENVIRONMENT === 'production' ? 'min.' : '') . 'js');
 
@@ -54,29 +68,85 @@ function _init_admin_assets()
     add_jquery_validation_js_assets();
 
     if (get_option('pusher_realtime_notifications') == 1) {
-        $CI->app_scripts->add('pusher-js', 'https://js.pusher.com/5.0/pusher.min.js');
+        $CI->app_scripts->add('pusher-js', 'https://js.pusher.com/8.2.0/pusher.min.js');
     }
 
     add_dropbox_js_assets();
     add_google_api_js_assets();
 
-    $CI->app_scripts->add('common-js', 'assets/builds/common.js');
+    $CI->app_scripts->add(
+        'jquery-ui-js',
+        'assets/plugins/jquery-ui/jquery-ui' . (ENVIRONMENT === 'production' ? '.min' : '') . '.js',
+        'admin',
+        [$hasVendorAdminBuild ? 'vendor-js' : 'jquery-js']
+    );
+
+    $CI->app_scripts->add(
+        'dropzone-js',
+        'assets/plugins/dropzone/min/dropzone.min.js',
+        'admin',
+        [$hasVendorAdminBuild ? 'vendor-js' : 'jquery-js']
+    );
+
+    $CI->app_scripts->add(
+        'metismenu-js',
+        'assets/plugins/metisMenu/metisMenu.min.js',
+        'admin',
+        [$hasVendorAdminBuild ? 'vendor-js' : 'jquery-js']
+    );
+
+    // Required by main.js (it calls $.Shortcuts.start/stop).
+    // In ramos-php the compiled common.js bundle is missing, so we must ensure hotkeys are loaded explicitly.
+    $CI->app_scripts->add(
+        'hotkeys-js',
+        'assets/plugins/internal/hotkeys/hotkeys.js',
+        'admin',
+        [$hasVendorAdminBuild ? 'vendor-js' : 'jquery-js']
+    );
+
+    if (app_build_asset_exists('common.js')) {
+        $CI->app_scripts->add('common-js', 'assets/builds/common.js');
+    } else {
+        $CI->app_scripts->add('common-js', base_url($CI->app_scripts->core_file('assets/js', 'app.js')) . '?v=' . $CI->app_css->core_version());
+    }
 
     $CI->app_scripts->add(
         'app-js',
         base_url($CI->app_scripts->core_file('assets/js', 'main.js')) . '?v=' . $CI->app_css->core_version(),
         'admin',
-        ['vendor-js', 'datatables-js', 'bootstrap-select-js', 'tinymce-js', 'jquery-migrate-js', 'jquery-validation-js', 'moment-js', 'common-js']
+        [$hasVendorAdminBuild ? 'vendor-js' : 'bootstrap-js', 'datatables-js', 'bootstrap-select-js', 'tinymce-js', 'jquery-migrate-js', 'jquery-validation-js', 'moment-js', 'common-js', 'hotkeys-js', 'jquery-ui-js', 'dropzone-js', 'metismenu-js']
     );
 
-    $CI->app_scripts->add('app-v3', 'assets/builds/app.js');
+    if (app_build_asset_exists('app.js')) {
+        $CI->app_scripts->add('app-v3', 'assets/builds/app.js');
+    }
 
     // CSS
     add_favicon_link_asset();
 
     $CI->app_css->add('reset-css', 'assets/css/reset.min.css');
     $CI->app_css->add('inter-font', 'assets/plugins/inter/inter.css', 'admin', ['reset-css']);
-    $CI->app_css->add('vendor-css', 'assets/builds/vendor-admin.css', 'admin', ['reset-css']);
+    if (app_build_asset_exists('vendor-admin.css')) {
+        $CI->app_css->add('vendor-css', 'assets/builds/vendor-admin.css', 'admin', ['reset-css']);
+    } else {
+        $CI->app_css->add('bootstrap-css', 'assets/plugins/bootstrap/css/bootstrap.min.css', 'admin', ['reset-css']);
+        // Required for selectpicker: hides native <select> and styles the dropdown (missing from vendor bundle fallback)
+        $CI->app_css->add(
+            'bootstrap-select-css',
+            'assets/plugins/bootstrap-select/css/bootstrap-select' . (ENVIRONMENT === 'production' ? '.min' : '') . '.css',
+            'admin',
+            ['bootstrap-css']
+        );
+    }
+
+    $CI->app_css->add(
+        'jquery-ui-css',
+        'assets/plugins/jquery-ui/jquery-ui' . (ENVIRONMENT === 'production' ? '.min' : '') . '.css',
+        'admin'
+    );
+
+    $CI->app_css->add('dropzone-css', 'assets/plugins/dropzone/min/dropzone.min.css', 'admin');
+    $CI->app_css->add('metismenu-css', 'assets/plugins/metisMenu/metisMenu.min.css', 'admin');
 
     $CI->app_css->add('fontawesome-css', 'assets/plugins/font-awesome/css/fontawesome.min.css');
     $CI->app_css->add('fontawesome-brands', 'assets/plugins/font-awesome/css/brands.min.css');
@@ -87,9 +157,12 @@ function _init_admin_assets()
         $CI->app_css->add('bootstrap-rtl-css', 'assets/plugins/bootstrap-arabic/css/bootstrap-arabic.min.css');
     }
 
-    $CI->app_css->add('tailwind-css', base_url($CI->app_css->core_file('assets/builds', 'tailwind.css')) . '?v=' . $CI->app_css->core_version());
+    if (app_build_asset_exists('tailwind.css')) {
+        $CI->app_css->add('tailwind-css', base_url($CI->app_css->core_file('assets/builds', 'tailwind.css')) . '?v=' . $CI->app_css->core_version());
+    }
 
-    $CI->app_css->add('app-css', base_url($CI->app_css->core_file('assets/css', 'style.css')) . '?v=' . $CI->app_css->core_version(), 'admin', ['tailwind-css']);
+    $appCssDeps = app_build_asset_exists('tailwind.css') ? ['tailwind-css'] : [];
+    $CI->app_css->add('app-css', base_url($CI->app_css->core_file('assets/css', 'style.css')) . '?v=' . $CI->app_css->core_version(), 'admin', $appCssDeps);
 
     if (file_exists(FCPATH . 'assets/css/custom.css')) {
         $CI->app_css->add('custom-css', base_url('assets/css/custom.css'), 'admin', ['app-css']);
@@ -115,15 +188,25 @@ function add_calendar_assets($group = 'admin')
 
 function add_moment_js_assets($group = 'admin')
 {
-    get_instance()->app_scripts->add('moment-js', 'assets/builds/moment.min.js', $group);
+    if (app_build_asset_exists('moment.min.js')) {
+        get_instance()->app_scripts->add('moment-js', 'assets/builds/moment.min.js', $group);
+    } else {
+        get_instance()->app_scripts->add('moment-js', 'assets/plugins/moment/moment-with-locales.js', $group);
+    }
 }
 
 function add_favicon_link_asset($group = 'admin')
 {
     $favIcon = get_option('favicon');
+
+    if ($favIcon != '' && !file_exists(FCPATH . 'uploads/company/' . $favIcon)) {
+        $favIcon = '';
+    }
+
     if ($favIcon != '') {
+        $favPath = 'uploads/company/' . $favIcon;
         get_instance()->app_css->add('favicon', [
-        'path'       => 'uploads/company/' . $favIcon,
+        'path'       => $favPath,
         'version'    => false,
         'attributes' => [
             'rel'  => 'shortcut icon',
@@ -131,7 +214,7 @@ function add_favicon_link_asset($group = 'admin')
         ],
         ], $group);
         get_instance()->app_css->add('favicon-apple-touch-icon', [
-        'path'       => 'uploads/company/' . $favIcon,
+        'path'       => $favPath,
         'version'    => false,
         'attributes' => [
             'rel'  => 'apple-touch-icon”',
@@ -165,7 +248,11 @@ function add_bootstrap_select_js_assets($group = 'admin')
     $locale       = $GLOBALS['locale'];
     $localeUpper  = strtoupper($locale);
     $bsSelectBase = 'assets/plugins/bootstrap-select/js/';
-    $CI->app_scripts->add('bootstrap-select-js', 'assets/builds/bootstrap-select.min.js', $group);
+    if (app_build_asset_exists('bootstrap-select.min.js')) {
+        $CI->app_scripts->add('bootstrap-select-js', 'assets/builds/bootstrap-select.min.js', $group);
+    } else {
+        $CI->app_scripts->add('bootstrap-select-js', 'assets/plugins/bootstrap-select/js/bootstrap-select.js', $group);
+    }
 
     if ($locale != 'en') {
         if (file_exists(FCPATH . $bsSelectBase . 'i18n/defaults-' . $locale . '.min.js')) {

@@ -7,6 +7,12 @@ class Modules_model extends App_Model
     protected $modulesTable;
     protected $moduleProductsTable;
     protected $moduleStaffTable;
+    
+    /**
+     * Cache whether `role` column exists in `ramos_module_staff`.
+     * Some installations may not have run the latest schema update.
+     */
+    protected ?bool $staffRoleColumnExistsCache = null;
 
     public function __construct()
     {
@@ -140,13 +146,19 @@ class Modules_model extends App_Model
             return false;
         }
 
-        return $this->db->insert($this->moduleStaffTable, [
-            'module_id'       => $moduleId,
-            'staff_id'        => $staffId,
-            'role'            => $role,
-            'shift_started_at'=> date('Y-m-d H:i:s'),
-            'shift_ended_at'  => null,
-        ]);
+        $insertData = [
+            'module_id'        => $moduleId,
+            'staff_id'         => $staffId,
+            'shift_started_at' => date('Y-m-d H:i:s'),
+            'shift_ended_at'   => null,
+        ];
+
+        // If the DB doesn't have `role` yet, omit it to avoid SQL errors.
+        if ($this->staffRoleColumnExists()) {
+            $insertData['role'] = $role;
+        }
+
+        return $this->db->insert($this->moduleStaffTable, $insertData);
     }
 
     public function end_shift($recordId): bool
@@ -186,6 +198,10 @@ class Modules_model extends App_Model
      */
     public function staff_is_supervisor_on_module($moduleId, $staffId): bool
     {
+        if (!$this->staffRoleColumnExists()) {
+            return false;
+        }
+
         return $this->db
             ->where('module_id', (int) $moduleId)
             ->where('staff_id', (int) $staffId)
@@ -199,6 +215,10 @@ class Modules_model extends App_Model
      */
     public function staff_is_supervisor($staffId): bool
     {
+        if (!$this->staffRoleColumnExists()) {
+            return false;
+        }
+
         return $this->db
             ->where('staff_id', (int) $staffId)
             ->where('role', 'supervisor')
@@ -211,6 +231,10 @@ class Modules_model extends App_Model
      */
     public function get_staff_role_on_module($moduleId, $staffId): ?string
     {
+        if (!$this->staffRoleColumnExists()) {
+            return null;
+        }
+
         $result = $this->db
             ->select('role')
             ->where('module_id', (int) $moduleId)
@@ -220,6 +244,20 @@ class Modules_model extends App_Model
             ->row();
 
         return $result ? $result->role : null;
+    }
+
+    /**
+     * Checks if the `role` column exists in `ramos_module_staff`.
+     * Falls back safely when older DBs don't have the column.
+     */
+    protected function staffRoleColumnExists(): bool
+    {
+        if ($this->staffRoleColumnExistsCache !== null) {
+            return $this->staffRoleColumnExistsCache;
+        }
+
+        $this->staffRoleColumnExistsCache = $this->db->field_exists('role', $this->moduleStaffTable);
+        return $this->staffRoleColumnExistsCache;
     }
 
     protected function get_products_map(array $moduleIds): array

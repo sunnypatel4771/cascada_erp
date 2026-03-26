@@ -18,7 +18,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 * environments.
 *
 */
-define('APP_BASE_URL', 'http://erp.local');
+define('APP_BASE_URL', 'http://127.0.0.1:8080/');
 
 /*
 * --------------------------------------------------------------------------
@@ -44,17 +44,17 @@ define('APP_DB_HOSTNAME', '127.0.0.1');
 /**
  * The username used to connect to the database
  */
-define('APP_DB_USERNAME', 'user');
+define('APP_DB_USERNAME', 'root');
 
 /**
  * The password used to connect to the database
  */
-define('APP_DB_PASSWORD', 'password');
+define('APP_DB_PASSWORD', '123456');
 
 /**
  * The name of the database you want to connect to
  */
-define('APP_DB_NAME', 'erp_db');
+define('APP_DB_NAME', 'ranos-php');
 
 /**
  * @since  2.3.0
