@@ -126,17 +126,16 @@ class Clients extends ClientsController
         }
         $data['previous_order_total'] = $previous_order_total;
 
-        // Get customer discount percentage from custom field "Descuento"
-        $discount_percent = get_custom_field_value($client_id, 'customers_descuento', 'customers', false);
-        $discount_percent = is_numeric($discount_percent) ? floatval($discount_percent) : 0;
-        $data['customer_discount_percent'] = $discount_percent;
+        // The "Descuento" custom field acts as a percentage markup on cost:
+        // unit_price = purchase_price * (1 + markup% / 100)
+        $markup_percent = get_custom_field_value($client_id, 'customers_descuento', 'customers', false);
+        $markup_percent = is_numeric($markup_percent) ? floatval($markup_percent) : 0;
+        $data['customer_discount_percent'] = $markup_percent; // kept for backward compat view references
+        $data['customer_markup_percent']   = $markup_percent;
 
-        // Customer markup percentage (purchase_price → selling price); 0 = use rate directly
-        $data['customer_markup_percent'] = 0;
-
-        // Calculate discount amounts for previous order
-        $data['previous_order_discount_amount'] = ($previous_order_total * $discount_percent) / 100;
-        $data['previous_order_total_after_discount'] = $previous_order_total - $data['previous_order_discount_amount'];
+        // Previous order total is already stored at markup-adjusted rates, no secondary discount.
+        $data['previous_order_discount_amount']      = 0;
+        $data['previous_order_total_after_discount'] = $previous_order_total;
 
         // Pass data to view
         $data['latest_order'] = $latest_order;
@@ -181,9 +180,12 @@ class Clients extends ClientsController
         // Load invoices model
         $this->load->model('invoices_model');
 
-        // Get customer discount percentage from custom field "Descuento"
-        $discount_percent = get_custom_field_value($client_id, 'customers_descuento', 'customers', false);
-        $discount_percent = is_numeric($discount_percent) ? floatval($discount_percent) : 0;
+        // The "Descuento" field is a markup on cost, not a post-total discount.
+        // The frontend already applies cost * (1 + markup/100) when building item rates,
+        // so rates sent here are already the final selling prices — no further deduction needed.
+        $markup_percent = get_custom_field_value($client_id, 'customers_descuento', 'customers', false);
+        $markup_percent = is_numeric($markup_percent) ? floatval($markup_percent) : 0;
+        $discount_percent = 0; // no invoice-level discount; pricing is done at item rate level
 
         // Get customer's zone and priority from profile custom fields
         $customer_zone = get_validated_customer_zone($client_id, DEFAULT_DELIVERY_ZONE);
@@ -199,9 +201,9 @@ class Clients extends ClientsController
             'subtotal' => 0,
             'total' => 0,
             'adjustment' => 0,
-            'discount_percent' => $discount_percent,
-            'discount_total' => 0, // Will be calculated below
-            'discount_type' => $discount_percent > 0 ? 'before_tax' : '',
+            'discount_percent' => 0,
+            'discount_total'   => 0,
+            'discount_type'    => '',
             'terms' => '',
             'clientnote' => 'Order created from customer portal',
             'adminnote' => '',
@@ -233,27 +235,41 @@ class Clients extends ClientsController
                 continue;
             }
 
-            $item_total = $item['qty'] * $item['rate'];
+            // Server-side price validation: recompute expected rate from purchase_price + markup.
+            // Override client-supplied rate if it deviates by more than 1% to prevent manipulation.
+            $rate = (float) $item['rate'];
+            $item_record = $this->db
+                ->select('purchase_price')
+                ->where('description', $item['description'])
+                ->limit(1)
+                ->get(db_prefix() . 'items')
+                ->row();
+
+            if ($item_record && (float) $item_record->purchase_price > 0) {
+                $expected_rate = (float) $item_record->purchase_price * (1 + $markup_percent / 100);
+                if ($expected_rate > 0 && abs($rate - $expected_rate) / $expected_rate > 0.01) {
+                    $rate = round($expected_rate, 4);
+                }
+            }
+
+            $item_total = $item['qty'] * $rate;
             $subtotal += $item_total;
 
             $newitems[] = [
                 'description' => $item['description'],
                 'long_description' => isset($item['long_description']) ? $item['long_description'] : '',
                 'qty' => $item['qty'],
-                'rate' => $item['rate'],
+                'rate' => $rate,
                 'unit' => isset($item['unit']) ? $item['unit'] : '',
                 'order' => isset($item['order']) ? $item['order'] : ($index + 1),
                 'ripeness' => isset($item['maduracion']) ? trim($item['maduracion']) : '',
             ];
         }
 
-        // Calculate discount and total
-        $discount_amount = ($subtotal * $discount_percent) / 100;
-        $total_after_discount = $subtotal - $discount_amount;
-
+        // Rates are already markup-adjusted; total = subtotal with no further deductions.
         $invoice_data['subtotal'] = $subtotal;
-        $invoice_data['discount_total'] = $discount_amount;
-        $invoice_data['total'] = $total_after_discount;
+        $invoice_data['discount_total'] = 0;
+        $invoice_data['total'] = $subtotal;
         $invoice_data['newitems'] = $newitems;
 
         // Create the invoice

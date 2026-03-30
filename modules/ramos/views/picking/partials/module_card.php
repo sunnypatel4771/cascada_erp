@@ -62,6 +62,9 @@ $canEdit     = $can_edit ?? true;
                                         <tr>
                                             <td>
                                                 <?php echo html_escape($item['item_name']); ?>
+                                                <?php if (!empty($item['ripeness'])) : ?>
+                                                    <span class="label label-info tw-ml-1" style="font-size:10px;"><?php echo html_escape($item['ripeness']); ?></span>
+                                                <?php endif; ?>
                                                 <?php if (!empty($item['unit'])) : ?>
                                                     <div class="tw-text-[10px] tw-text-slate-400"><?php echo html_escape($item['unit']); ?></div>
                                                 <?php endif; ?>

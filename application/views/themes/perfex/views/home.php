@@ -718,6 +718,16 @@
                     order: index + 1  // Add order field for sorting
                 }))
             };
+
+            // Include CSRF token to avoid 419 responses when posting from portal.
+            if (typeof csrfData !== 'undefined' && csrfData && csrfData.token_name && csrfData.hash) {
+                data[csrfData.token_name] = csrfData.hash;
+            } else {
+                const legacyToken = document.querySelector('input[name="csrf_token_name"]');
+                if (legacyToken && legacyToken.value) {
+                    data['csrf_token_name'] = legacyToken.value;
+                }
+            }
             
             // Get the button
             const btn = document.querySelector('button[onclick*="saveNewOrder"]');

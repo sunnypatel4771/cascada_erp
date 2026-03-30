@@ -65,16 +65,27 @@ class Purchase_model extends App_Model
 
             $netRequired     = (float) $requiredQty - $currentStock - $openQty;
 
-            if ($netRequired <= 0) {
+            // Proactive safety stock: also order when stock falls below the safety threshold
+            // even when demand alone does not create a deficit.
+            $safetyDeficit = $safetyStock > 0
+                ? max(0.0, $safetyStock - ($currentStock + $openQty))
+                : 0.0;
+
+            if ($netRequired <= 0 && $safetyDeficit <= 0) {
                 continue;
             }
 
-            if ($safetyStock > 0) {
-                $netRequired = max($netRequired, $safetyStock - ($currentStock + $openQty));
-            }
+            $netRequired = max($netRequired, $safetyDeficit);
 
             $statusKey = ramos_inventory_status($currentStock, $safetyStock, $bufferPercent);
 
+            // Resolve supplier: use item supplier, fall back to configured default, never null-collapse
+            if (!$supplierId) {
+                $defaultSupplierId = (int) get_option('ramos_default_supplier_id');
+                $supplierId = $defaultSupplierId > 0 ? $defaultSupplierId : null;
+            }
+
+            $groups[$supplierId]['supplier_id'] = $supplierId;
             $groups[$supplierId]['items'][] = [
                 'inventory_item_id' => $itemId,
                 'item_name'         => $inventoryRecord['item_name'],

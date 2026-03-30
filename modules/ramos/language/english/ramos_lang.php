@@ -449,15 +449,21 @@ $lang['ramos_facturacion_btn_guardar']       = 'Guardar';
 $lang['ramos_facturacion_confirm_invoice']   = 'Generate invoice for this order?';
 $lang['ramos_facturacion_view_invoice']      = 'View Invoice';
 $lang['ramos_facturacion_col_product']       = 'Producto';
+$lang['ramos_facturacion_col_maduracion']    = 'Maduración';
 $lang['ramos_facturacion_col_pedido']        = 'Pedido';
 $lang['ramos_facturacion_col_surtido']       = 'Surtido';
 $lang['ramos_facturacion_col_peso']          = 'Peso';
+$lang['ramos_facturacion_col_price']         = 'Precio';
 $lang['ramos_facturacion_col_unit']          = 'Unidad';
 $lang['ramos_facturacion_col_actions']       = 'Actions';
+$lang['ramos_facturacion_btn_update_price']  = 'Update Price';
+$lang['ramos_facturacion_price_updated']     = 'Price updated successfully.';
+$lang['ramos_facturacion_price_update_failed'] = 'Could not update price.';
+$lang['ramos_facturacion_price_invalid']     = 'Invalid price or item.';
+$lang['ramos_facturacion_status_red']        = 'Waiting for PO';
 $lang['ramos_facturacion_total']             = 'TOTAL DEL PEDIDO';
 $lang['ramos_facturacion_products']          = 'productos';
-$lang['ramos_facturacion_status_red']        = 'Pending';
-$lang['ramos_facturacion_status_yellow']     = 'Missing Weight';
+$lang['ramos_facturacion_status_yellow']     = 'Pending / Missing Weight';
 $lang['ramos_facturacion_status_green']      = 'Complete';
 $lang['ramos_facturacion_item_updated']      = 'Item updated successfully.';
 $lang['ramos_facturacion_invoice_created']   = 'Invoice created successfully.';
@@ -529,3 +535,22 @@ $lang['ramos_automation_subtitle']          = 'Run purchase order automation and
 $lang['ramos_automation_title']             = 'Automation';
 $lang['ramos_automation_sufficient_stock']  = 'Sufficient stock — no purchase orders needed.';
 $lang['ramos_purchases_unassigned_supplier'] = 'Unassigned Supplier';
+
+// Picking — waiting_for_po status
+$lang['ramos_pick_status_waiting_for_po']   = 'Waiting for PO';
+
+// Route capacity
+$lang['ramos_routes_board_move_capacity_exceeded'] = 'Route is full (%s customers max). Move another customer out first.';
+
+// Facturacion — email
+$lang['ramos_facturacion_email_sent']        = 'Invoice emailed to customer successfully.';
+$lang['ramos_facturacion_email_failed']      = 'Failed to send invoice email. Check email settings.';
+$lang['ramos_facturacion_email_no_invoice']  = 'No linked invoice found for this order. Generate an invoice first.';
+$lang['ramos_facturacion_send_email_btn']    = 'Email Invoice';
+
+// Facturacion — FE-SAT
+$lang['ramos_facturacion_fesat_no_invoice']       = 'No linked invoice found. Generate an invoice before creating FE-SAT document.';
+$lang['ramos_facturacion_fesat_already_generated'] = 'FE-SAT document already generated (ID: %s).';
+$lang['ramos_facturacion_fesat_not_configured']    = 'FE-SAT integration is not enabled. Configure it in Automation Settings.';
+$lang['ramos_facturacion_fesat_pending']           = 'FE-SAT generation queued. Provider integration required to complete.';
+$lang['ramos_facturacion_generate_fesat_btn']      = 'Generate FE-SAT';

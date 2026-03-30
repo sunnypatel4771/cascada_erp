@@ -186,6 +186,23 @@ class Routes extends AdminController
         $result = $this->routes_model->move_stop($stopId, $originRouteId, $destinationRouteId, $orderedIds);
 
         if (!$result) {
+            // Distinguish capacity-exceeded from generic failure for meaningful UI feedback
+            $isCrossRouteMove = $originRouteId !== $destinationRouteId;
+            if ($isCrossRouteMove) {
+                $destRoute = $this->routes_model->get_route($destinationRouteId);
+                $capacity  = isset($destRoute['capacity']) && (int) $destRoute['capacity'] > 0
+                    ? (int) $destRoute['capacity']
+                    : 10;
+                $stopCount = (int) $this->db
+                    ->where('route_id', $destinationRouteId)
+                    ->count_all_results(db_prefix() . 'ramos_route_stops');
+                if ($stopCount >= $capacity) {
+                    $message = _l('ramos_routes_board_move_capacity_exceeded', $capacity);
+                    $this->output->set_status_header(422);
+                    echo json_encode(['success' => false, 'message' => $message, 'csrf' => $csrfPayload]);
+                    return;
+                }
+            }
             $this->output->set_status_header(400);
             echo json_encode(['success' => false, 'message' => _l('ramos_routes_board_move_error'), 'csrf' => $csrfPayload]);
             return;

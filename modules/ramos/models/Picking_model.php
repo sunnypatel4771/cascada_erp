@@ -89,11 +89,19 @@ class Picking_model extends App_Model
             return;
         }
 
+        // Build the set of currently-valid omni_sales cart detail item IDs for this module.
+        // These are active (non-cancelled, non-return) cart line items whose product maps to
+        // one of the module's assigned products.  Mirrors the filter used in
+        // ensure_pick_records_for_module() so the two methods stay in sync.
         $validItemIds = $this->db
-            ->select('oi.id')
-            ->from(db_prefix() . 'ramos_order_items oi')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = oi.inventory_item_id', 'inner')
+            ->select('cd.id')
+            ->from(db_prefix() . 'cart_detailt cd')
+            ->join(db_prefix() . 'cart c', 'c.id = cd.cart_id', 'inner')
+            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = cd.product_id', 'inner')
             ->where('mp.module_id', $moduleId)
+            ->where('c.status !=', 5)
+            ->where('c.channel_id IN (1,2,4,6)', null, false)
+            ->where('c.original_order_id IS NULL', null, false)
             ->get()
             ->result_array();
 
@@ -267,26 +275,35 @@ class Picking_model extends App_Model
 
         // NEW: Using omni_sales orders (tblcart and tblcart_detailt)
         // Join with route_stops to enable route-priority picking
+        $selectColumns = [
+            'c.id as order_id',
+            'c.order_number',
+            'c.phonenumber as customer_name',
+            'c.address as delivery_address',
+            '1 as priority',
+            'c.status as order_status',
+            'pi.id as pick_id',
+            'pi.required_qty',
+            'pi.picked_qty',
+            'pi.weight',
+            'pi.status as pick_status',
+            'i.description as item_name',
+            'cd.quantity',
+            'pi.module_id',
+            'u.unit_name as unit',
+            'rs.stop_number as route_priority',
+            'rs.route_id as route_id',
+        ];
+
+        // Backward compatibility: some environments may not yet have cart_detailt.ripeness.
+        if ($this->db->field_exists('ripeness', db_prefix() . 'cart_detailt')) {
+            $selectColumns[] = 'cd.ripeness';
+        } else {
+            $selectColumns[] = '"" as ripeness';
+        }
+
         $rows = $this->db
-            ->select([
-                'c.id as order_id',
-                'c.order_number',
-                'c.phonenumber as customer_name',
-                'c.address as delivery_address',
-                '1 as priority',
-                'c.status as order_status',
-                'pi.id as pick_id',
-                'pi.required_qty',
-                'pi.picked_qty',
-                'pi.weight',
-                'pi.status as pick_status',
-                'i.description as item_name',
-                'cd.quantity',
-                'pi.module_id',
-                'u.unit_name as unit',
-                'rs.stop_number as route_priority',
-                'rs.route_id as route_id'
-            ])
+            ->select($selectColumns)
             ->from($this->pickTable . ' pi')
             ->join(db_prefix() . 'cart c', 'c.id = pi.order_id', 'inner')
             ->join(db_prefix() . 'cart_detailt cd', 'cd.id = pi.order_item_id', 'inner')
@@ -327,6 +344,7 @@ class Picking_model extends App_Model
                 'pick_id'     => (int) $row['pick_id'],
                 'item_name'   => $row['item_name'],
                 'unit'        => $row['unit'],
+                'ripeness'    => $row['ripeness'] ?? '',
                 'required_qty'=> (float) $row['required_qty'],
                 'picked_qty'  => (float) $row['picked_qty'],
                 'weight'      => (float) $row['weight'],
@@ -347,14 +365,16 @@ class Picking_model extends App_Model
                 continue;
             }
 
-            $displayStatus = 'red';
+            // Color logic per spec:
+            //   Red    = any item is blocked on a purchase order (waiting_for_po)
+            //   Yellow = work in progress but not PO-blocked: pending, in_progress, weight_missing
+            //   Green  = all items completed
+            $displayStatus = 'green';
 
-            if (!in_array('pending', $statuses, true) && !in_array('in_progress', $statuses, true)) {
-                if (in_array('weight_missing', $statuses, true)) {
-                    $displayStatus = 'yellow';
-                } else {
-                    $displayStatus = 'green';
-                }
+            if (in_array('waiting_for_po', $statuses, true)) {
+                $displayStatus = 'red';
+            } elseif (count(array_filter($statuses, fn($s) => in_array($s, ['pending', 'in_progress', 'weight_missing'], true))) > 0) {
+                $displayStatus = 'yellow';
             }
 
             // Calculate progress based on picked quantity vs required quantity
@@ -409,8 +429,125 @@ class Picking_model extends App_Model
             $newStatus = RAMOS_ORDER_STATUS_NEW;
         }
 
-        $this->db->where('id', $orderId);
-        $this->db->update(db_prefix() . 'ramos_orders', ['status' => $newStatus]);
+        // Only update ramos_orders if a record for this ID actually exists there.
+        // For omni_sales orders the order_id is a tblcart.id — no matching ramos_orders
+        // row exists, so the update would silently target the wrong record.
+        $inLegacy = $this->db
+            ->where('id', $orderId)
+            ->count_all_results(db_prefix() . 'ramos_orders') > 0;
+
+        if ($inLegacy) {
+            $this->db->where('id', $orderId);
+            $this->db->update(db_prefix() . 'ramos_orders', ['status' => $newStatus]);
+        }
+    }
+
+    /**
+     * Mark pick items for given product IDs as waiting_for_po.
+     * Called after automation creates POs for deficit products so pickers see
+     * these items as blocked (red) until the PO is received.
+     *
+     * Only affects items currently in 'pending' status so in-progress
+     * or completed items are never regressed.
+     *
+     * @param  array $productIds  Array of inventory_item_id / product_id values
+     * @return int   Number of rows updated
+     */
+    public function mark_waiting_for_po(array $productIds): int
+    {
+        if (empty($productIds)) {
+            return 0;
+        }
+
+        $productIds = array_values(array_unique(array_map('intval', $productIds)));
+        $productIds = array_filter($productIds, fn($id) => $id > 0);
+
+        if (empty($productIds)) {
+            return 0;
+        }
+
+        // Find pick items for these products via cart_detailt join
+        $itemIds = $this->db
+            ->select('pi.id')
+            ->from($this->pickTable . ' pi')
+            ->join(db_prefix() . 'cart_detailt cd', 'cd.id = pi.order_item_id', 'inner')
+            ->where_in('cd.product_id', $productIds)
+            ->where('pi.status', 'pending')
+            ->get()
+            ->result_array();
+
+        if (empty($itemIds)) {
+            return 0;
+        }
+
+        $ids = array_column($itemIds, 'id');
+
+        $this->db->where_in('id', $ids);
+        $this->db->update($this->pickTable, [
+            'status'     => 'waiting_for_po',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return $this->db->affected_rows();
+    }
+
+    /**
+     * Release pick items that were blocked on a PO back to 'pending'.
+     * Called after receiving inventory for those products so pickers
+     * can proceed without a manual intervention.
+     *
+     * @param  array $productIds  Array of inventory_item_id / product_id values
+     * @return int   Number of rows updated
+     */
+    public function release_waiting_for_po(array $productIds): int
+    {
+        if (empty($productIds)) {
+            return 0;
+        }
+
+        $productIds = array_values(array_unique(array_map('intval', $productIds)));
+        $productIds = array_filter($productIds, fn($id) => $id > 0);
+
+        if (empty($productIds)) {
+            return 0;
+        }
+
+        // Find waiting_for_po pick items for these products
+        $itemIds = $this->db
+            ->select('pi.id')
+            ->from($this->pickTable . ' pi')
+            ->join(db_prefix() . 'cart_detailt cd', 'cd.id = pi.order_item_id', 'inner')
+            ->where_in('cd.product_id', $productIds)
+            ->where('pi.status', 'waiting_for_po')
+            ->get()
+            ->result_array();
+
+        if (empty($itemIds)) {
+            return 0;
+        }
+
+        $ids = array_column($itemIds, 'id');
+
+        $this->db->where_in('id', $ids);
+        $this->db->update($this->pickTable, [
+            'status'     => 'pending',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $affected = $this->db->affected_rows();
+
+        // Refresh parent order statuses
+        $orderIds = $this->db
+            ->select('DISTINCT order_id')
+            ->where_in('id', $ids)
+            ->get($this->pickTable)
+            ->result_array();
+
+        foreach ($orderIds as $row) {
+            $this->refresh_order_status((int) $row['order_id']);
+        }
+
+        return $affected;
     }
 
     protected function maybeGenerateInvoice(int $orderId): void

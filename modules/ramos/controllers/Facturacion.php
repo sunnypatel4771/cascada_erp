@@ -102,6 +102,47 @@ class Facturacion extends AdminController
     }
 
     /**
+     * Update price for an individual order line item.
+     * For omni_sales orders this updates tblcart_detailt.price.
+     * For erp_invoice orders this updates tblitemable.rate.
+     */
+    public function update_item_price(): void
+    {
+        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+            access_denied();
+        }
+
+        if (!$this->input->post()) {
+            redirect(admin_url('ramos/facturacion'));
+        }
+
+        $orderSource = $this->input->post('order_source') ?: 'omni_sales';
+        $itemId      = (int) $this->input->post('item_id');
+        $newPrice    = (float) $this->input->post('new_price');
+
+        if ($itemId <= 0 || $newPrice < 0) {
+            set_alert('warning', _l('ramos_facturacion_price_invalid'));
+            redirect(admin_url('ramos/facturacion'));
+        }
+
+        if ($orderSource === 'erp_invoice') {
+            $this->db->where('id', $itemId);
+            $updated = $this->db->update(db_prefix() . 'itemable', ['rate' => $newPrice]);
+        } else {
+            $this->db->where('id', $itemId);
+            $updated = $this->db->update(db_prefix() . 'cart_detailt', ['price' => $newPrice]);
+        }
+
+        if ($updated) {
+            set_alert('success', _l('ramos_facturacion_price_updated'));
+        } else {
+            set_alert('warning', _l('ramos_facturacion_price_update_failed'));
+        }
+
+        redirect(admin_url('ramos/facturacion'));
+    }
+
+    /**
      * Generate invoice for an order
      */
     public function generate_invoice($orderId): void
@@ -126,6 +167,159 @@ class Facturacion extends AdminController
             }
         }
 
+        redirect(admin_url('ramos/facturacion'));
+    }
+
+    /**
+     * Send the Perfex invoice for an order to the customer by email.
+     *
+     * Resolves the Perfex invoice linked to the order (via ramos_orders or
+     * the processed_for_purchase invoice) then delegates to Perfex's own
+     * send_invoice_to_client which handles template, PDF attachment, and logging.
+     */
+    public function send_invoice_email($orderId): void
+    {
+        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+            access_denied();
+        }
+
+        $orderId = (int) $orderId;
+
+        // Resolve invoice_id from ramos_orders (legacy ramos flow)
+        $orderRow = $this->db
+            ->select('invoice_id')
+            ->where('id', $orderId)
+            ->get(db_prefix() . 'ramos_orders')
+            ->row_array();
+
+        $invoiceId = $orderRow ? (int) ($orderRow['invoice_id'] ?? 0) : 0;
+
+        // Fallback: try omni_sales / cart order by matching the exact clientnote string
+        // that Clients::save_new_order() sets ("Order created from customer portal").
+        // Using an exact match avoids picking up the wrong invoice when a customer has
+        // placed multiple portal orders (previously only "LIKE '%portal%'" was used).
+        if (!$invoiceId) {
+            $cartRow = $this->db
+                ->select('userid, order_number')
+                ->where('id', $orderId)
+                ->get(db_prefix() . 'cart')
+                ->row_array();
+
+            if ($cartRow) {
+                $inv = $this->db
+                    ->select('id')
+                    ->where('clientid', (int) $cartRow['userid'])
+                    ->where('status', 1)
+                    ->where('clientnote', 'Order created from customer portal')
+                    ->order_by('id', 'DESC')
+                    ->limit(1)
+                    ->get(db_prefix() . 'invoices')
+                    ->row_array();
+
+                $invoiceId = $inv ? (int) $inv['id'] : 0;
+            }
+        }
+
+        if (!$invoiceId) {
+            set_alert('warning', _l('ramos_facturacion_email_no_invoice'));
+            redirect(admin_url('ramos/facturacion'));
+        }
+
+        // Use Perfex's built-in invoice email (template + PDF attachment)
+        $this->load->model('invoices_model');
+        $sent = $this->invoices_model->send_invoice_to_client(
+            $invoiceId,
+            '',    // use default template
+            true,  // attach PDF
+            '',    // no CC
+            true   // mark as sent manually
+        );
+
+        // Log the send attempt
+        if ($sent) {
+            $this->db->insert(db_prefix() . 'ramos_facturacion_email_log', [
+                'order_id'   => $orderId,
+                'invoice_id' => $invoiceId,
+                'sent_by'    => get_staff_user_id(),
+                'sent_at'    => date('Y-m-d H:i:s'),
+                'status'     => 'sent',
+            ]);
+            set_alert('success', _l('ramos_facturacion_email_sent'));
+        } else {
+            $this->db->insert(db_prefix() . 'ramos_facturacion_email_log', [
+                'order_id'   => $orderId,
+                'invoice_id' => $invoiceId,
+                'sent_by'    => get_staff_user_id(),
+                'sent_at'    => date('Y-m-d H:i:s'),
+                'status'     => 'failed',
+            ]);
+            set_alert('danger', _l('ramos_facturacion_email_failed'));
+        }
+
+        redirect(admin_url('ramos/facturacion'));
+    }
+
+    /**
+     * Generate or retrieve FE-SAT document for an order's invoice.
+     *
+     * Records the generation attempt in ramos_facturacion_fesat_log.
+     * Actual SAT provider API integration should be added here once
+     * credentials and provider are confirmed (Infilesat, Megaprint, etc.).
+     */
+    public function generate_fesat($orderId): void
+    {
+        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+            access_denied();
+        }
+
+        $orderId = (int) $orderId;
+
+        // Resolve invoice
+        $orderRow = $this->db
+            ->select('invoice_id')
+            ->where('id', $orderId)
+            ->get(db_prefix() . 'ramos_orders')
+            ->row_array();
+
+        $invoiceId = $orderRow ? (int) ($orderRow['invoice_id'] ?? 0) : 0;
+
+        if (!$invoiceId) {
+            set_alert('warning', _l('ramos_facturacion_fesat_no_invoice'));
+            redirect(admin_url('ramos/facturacion'));
+        }
+
+        // Check if already generated to avoid duplicates
+        $existing = $this->db
+            ->where('order_id', $orderId)
+            ->where('status', 'generated')
+            ->get(db_prefix() . 'ramos_facturacion_fesat_log')
+            ->row_array();
+
+        if ($existing) {
+            set_alert('warning', _l('ramos_facturacion_fesat_already_generated', $existing['document_id'] ?? ''));
+            redirect(admin_url('ramos/facturacion'));
+        }
+
+        // SAT provider integration placeholder.
+        // Replace this block with actual provider API call (e.g. Infilesat/Megaprint/G4S).
+        $fesat_enabled = get_option('ramos_fesat_enabled') === '1';
+        if (!$fesat_enabled) {
+            set_alert('warning', _l('ramos_facturacion_fesat_not_configured'));
+            redirect(admin_url('ramos/facturacion'));
+        }
+
+        // Log generation attempt (provider-specific result would update document_id + status)
+        $this->db->insert(db_prefix() . 'ramos_facturacion_fesat_log', [
+            'order_id'    => $orderId,
+            'invoice_id'  => $invoiceId,
+            'document_id' => null, // populated by provider response
+            'generated_by'=> get_staff_user_id(),
+            'generated_at'=> date('Y-m-d H:i:s'),
+            'status'      => 'pending',
+            'notes'       => 'FE-SAT generation pending provider integration.',
+        ]);
+
+        set_alert('info', _l('ramos_facturacion_fesat_pending'));
         redirect(admin_url('ramos/facturacion'));
     }
 
@@ -181,8 +375,9 @@ class Facturacion extends AdminController
 
             $customers = [];
             foreach ($stops as $stop) {
-                $orderId = (int) $stop['order_id'];
-                $orderData = $this->get_order_pick_data($orderId);
+                $orderId     = (int) $stop['order_id'];
+                $orderSource = $stop['order_source'] ?? 'omni_sales';
+                $orderData   = $this->get_order_pick_data($orderId, $orderSource);
 
                 if (!empty($orderData)) {
                     $customers[] = $orderData;
@@ -201,11 +396,23 @@ class Facturacion extends AdminController
     }
 
     /**
-     * Get order data with pick items for facturacion display
+     * Get order data with pick items for facturacion display.
+     * Supports both omni_sales (tblcart) and erp_invoice (tblinvoices) order sources.
      */
-    protected function get_order_pick_data(int $orderId): array
+    protected function get_order_pick_data(int $orderId, string $orderSource = 'omni_sales'): array
     {
-        // Get order info from cart (omni_sales orders)
+        if ($orderSource === 'erp_invoice') {
+            return $this->get_erp_order_pick_data($orderId);
+        }
+
+        return $this->get_omni_order_pick_data($orderId);
+    }
+
+    /**
+     * Facturacion data for Omni Sales (tblcart) orders
+     */
+    protected function get_omni_order_pick_data(int $orderId): array
+    {
         $order = $this->db
             ->select('c.id, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.userid, c.total')
             ->select('cl.company as client_company')
@@ -219,10 +426,10 @@ class Facturacion extends AdminController
             return [];
         }
 
-        // Get pick items for this order
         $items = $this->db
             ->select([
                 'pi.id as pick_id',
+                'cd.id as item_id',
                 'pi.required_qty',
                 'pi.picked_qty',
                 'pi.weight',
@@ -231,6 +438,7 @@ class Facturacion extends AdminController
                 'u.unit_name as unit',
                 'cd.quantity',
                 'cd.price',
+                'cd.ripeness',
             ])
             ->from(db_prefix() . 'ramos_pick_items pi')
             ->join(db_prefix() . 'cart_detailt cd', 'cd.id = pi.order_item_id', 'inner')
@@ -242,10 +450,10 @@ class Facturacion extends AdminController
             ->result_array();
 
         if (empty($items)) {
-            // Also try to get items directly from cart_detailt even without pick records
             $items = $this->db
                 ->select([
                     '0 as pick_id',
+                    'cd.id as item_id',
                     'cd.quantity as required_qty',
                     '0 as picked_qty',
                     '0 as weight',
@@ -254,6 +462,7 @@ class Facturacion extends AdminController
                     'u.unit_name as unit',
                     'cd.quantity',
                     'cd.price',
+                    'cd.ripeness',
                 ])
                 ->from(db_prefix() . 'cart_detailt cd')
                 ->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left')
@@ -264,23 +473,8 @@ class Facturacion extends AdminController
                 ->result_array();
         }
 
-        // Calculate order status
-        $statuses = array_column($items, 'pick_status');
-        $totalItems = count($items);
-        $completed = count(array_filter($statuses, fn($s) => $s === 'completed'));
+        $displayStatus = $this->calculate_display_status(array_column($items, 'pick_status'));
 
-        $displayStatus = 'red';
-        if ($completed === $totalItems && $totalItems > 0) {
-            $displayStatus = 'green';
-        } elseif (!in_array('pending', $statuses, true) && !in_array('in_progress', $statuses, true)) {
-            if (in_array('weight_missing', $statuses, true)) {
-                $displayStatus = 'yellow';
-            } else {
-                $displayStatus = 'green';
-            }
-        }
-
-        // Check if invoice already exists
         $hasInvoice = $this->db
             ->select('invoice_id')
             ->from(db_prefix() . 'ramos_orders')
@@ -288,18 +482,95 @@ class Facturacion extends AdminController
             ->get()
             ->row();
 
-        $invoiceId = $hasInvoice ? $hasInvoice->invoice_id : null;
-
         return [
             'order_id'         => $orderId,
+            'order_source'     => 'omni_sales',
             'order_number'     => $order['order_number'],
             'customer_name'    => $order['customer_name'] ?: $order['client_company'],
             'delivery_address' => $order['delivery_address'],
             'total'            => (float) $order['total'],
             'items'            => $items,
             'status'           => $displayStatus,
-            'invoice_id'       => $invoiceId,
+            'invoice_id'       => $hasInvoice ? $hasInvoice->invoice_id : null,
         ];
+    }
+
+    /**
+     * Facturacion data for ERP portal (tblinvoices) orders
+     */
+    protected function get_erp_order_pick_data(int $orderId): array
+    {
+        $order = $this->db
+            ->select('i.id, i.number as order_number, i.total, i.clientid')
+            ->select('cl.company as customer_name, cl.shipping_street as delivery_address')
+            ->from(db_prefix() . 'invoices i')
+            ->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left')
+            ->where('i.id', $orderId)
+            ->get()
+            ->row_array();
+
+        if (empty($order)) {
+            return [];
+        }
+
+        // ERP invoice items come from tblitemable
+        $items = $this->db
+            ->select([
+                '0 as pick_id',
+                'ia.id as item_id',
+                'ia.qty as required_qty',
+                '0 as picked_qty',
+                '0 as weight',
+                "'pending' as pick_status",
+                'ia.description as item_name',
+                'ia.unit as unit',
+                'ia.qty as quantity',
+                'ia.rate as price',
+                'ia.ripeness as ripeness',
+            ])
+            ->from(db_prefix() . 'itemable ia')
+            ->where('ia.rel_id', $orderId)
+            ->where('ia.rel_type', 'invoice')
+            ->order_by('ia.item_order', 'ASC')
+            ->get()
+            ->result_array();
+
+        $displayStatus = $this->calculate_display_status(array_column($items, 'pick_status'));
+
+        return [
+            'order_id'         => $orderId,
+            'order_source'     => 'erp_invoice',
+            'order_number'     => $order['order_number'],
+            'customer_name'    => $order['customer_name'],
+            'delivery_address' => $order['delivery_address'],
+            'total'            => (float) $order['total'],
+            'items'            => $items,
+            'status'           => $displayStatus,
+            'invoice_id'       => $orderId, // ERP orders ARE invoices
+        ];
+    }
+
+    /**
+     * Compute the display status (green/yellow/red) from an array of pick statuses.
+     * Red    = any item waiting_for_po
+     * Yellow = any item pending, in_progress, or weight_missing
+     * Green  = all items completed
+     */
+    protected function calculate_display_status(array $statuses): string
+    {
+        if (empty($statuses)) {
+            return 'red';
+        }
+
+        if (in_array('waiting_for_po', $statuses, true)) {
+            return 'red';
+        }
+
+        if (count(array_filter($statuses, fn($s) => in_array($s, ['pending', 'in_progress', 'weight_missing'], true))) > 0) {
+            return 'yellow';
+        }
+
+        return 'green';
     }
 
     /**

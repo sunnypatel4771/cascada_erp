@@ -72,30 +72,43 @@ $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
                             <thead>
                                 <tr class="tw-bg-slate-50">
                                     <th class="tw-text-xs tw-uppercase tw-text-slate-500"><?php echo _l('ramos_facturacion_col_product'); ?></th>
+                                    <th class="tw-text-xs tw-uppercase tw-text-slate-500 tw-text-center"><?php echo _l('ramos_facturacion_col_maduracion'); ?></th>
                                     <th class="tw-text-xs tw-uppercase tw-text-slate-500 tw-text-center"><?php echo _l('ramos_facturacion_col_pedido'); ?></th>
                                     <th class="tw-text-xs tw-uppercase tw-text-slate-500 tw-text-center"><?php echo _l('ramos_facturacion_col_surtido'); ?></th>
                                     <th class="tw-text-xs tw-uppercase tw-text-slate-500 tw-text-center"><?php echo _l('ramos_facturacion_col_peso'); ?></th>
+                                    <th class="tw-text-xs tw-uppercase tw-text-slate-500 tw-text-right"><?php echo _l('ramos_facturacion_col_price'); ?></th>
                                     <?php if ($can_edit) : ?>
                                         <th class="tw-text-xs tw-uppercase tw-text-slate-500 tw-text-right"><?php echo _l('ramos_facturacion_col_actions'); ?></th>
                                     <?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($customer['items'] as $item) :
+                                <?php
+                                $orderSource = $customer['order_source'] ?? 'omni_sales';
+                                foreach ($customer['items'] as $item) :
                                     $itemStatus = $item['pick_status'] ?? 'pending';
                                     $rowClass = '';
                                     if ($itemStatus === 'completed') {
                                         $rowClass = 'tw-bg-green-50';
-                                    } elseif ($itemStatus === 'weight_missing') {
-                                        $rowClass = 'tw-bg-yellow-50';
-                                    } elseif ($itemStatus === 'pending' || $itemStatus === 'in_progress') {
+                                    } elseif ($itemStatus === 'waiting_for_po') {
                                         $rowClass = 'tw-bg-red-50';
+                                    } elseif (in_array($itemStatus, ['weight_missing', 'pending', 'in_progress'], true)) {
+                                        $rowClass = 'tw-bg-yellow-50';
                                     }
+                                    $ripeness = $item['ripeness'] ?? '';
+                                    $itemId   = (int) ($item['item_id'] ?? 0);
                                 ?>
                                     <tr class="<?php echo $rowClass; ?>">
                                         <td class="tw-text-sm tw-font-medium">
                                             <?php echo html_escape($item['item_name']); ?>
                                             <span class="tw-text-xs tw-text-slate-400 tw-ml-1">(<?php echo html_escape($item['unit'] ?? 'pz'); ?>)</span>
+                                        </td>
+                                        <td class="tw-text-center tw-text-sm">
+                                            <?php if ($ripeness !== '') : ?>
+                                                <span class="label label-info"><?php echo html_escape($ripeness); ?></span>
+                                            <?php else : ?>
+                                                <span class="tw-text-slate-400">—</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="tw-text-center tw-text-sm">
                                             <?php echo number_format((float) $item['required_qty'], 2); ?>
@@ -105,6 +118,22 @@ $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
                                         </td>
                                         <td class="tw-text-center tw-text-sm">
                                             <?php echo number_format((float) $item['weight'], 2); ?> kg
+                                        </td>
+                                        <td class="tw-text-right tw-text-sm">
+                                            <?php if ($can_edit && $itemId > 0) : ?>
+                                                <?php echo form_open(admin_url('ramos/facturacion/update_item_price'), ['class' => 'form-inline tw-inline-flex tw-gap-1']); ?>
+                                                    <input type="hidden" name="order_source" value="<?php echo html_escape($orderSource); ?>">
+                                                    <input type="hidden" name="item_id" value="<?php echo $itemId; ?>">
+                                                    <input type="number" name="new_price" class="form-control input-sm tw-w-20"
+                                                           value="<?php echo number_format((float) $item['price'], 2, '.', ''); ?>"
+                                                           step="0.01" min="0" placeholder="Precio">
+                                                    <button type="submit" class="btn btn-xs btn-default" title="<?php echo _l('ramos_facturacion_btn_update_price'); ?>">
+                                                        <i class="fa-regular fa-tag"></i>
+                                                    </button>
+                                                <?php echo form_close(); ?>
+                                            <?php else : ?>
+                                                $<?php echo number_format((float) $item['price'], 2); ?>
+                                            <?php endif; ?>
                                         </td>
                                         <?php if ($can_edit) : ?>
                                             <td class="tw-text-right">
@@ -126,7 +155,7 @@ $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
                             </tbody>
                             <tfoot>
                                 <tr class="tw-bg-slate-100">
-                                    <td colspan="<?php echo $can_edit ? 5 : 4; ?>" class="tw-text-right tw-font-bold">
+                                    <td colspan="<?php echo $can_edit ? 7 : 6; ?>" class="tw-text-right tw-font-bold">
                                         <?php echo _l('ramos_facturacion_total'); ?>: $<?php echo number_format((float) $customer['total'], 2); ?>
                                         <span class="tw-text-slate-500 tw-font-normal tw-ml-2">(<?php echo count($customer['items']); ?> <?php echo _l('ramos_facturacion_products'); ?>)</span>
                                     </td>

@@ -272,17 +272,41 @@ class Automation_model extends App_Model
     }
 
     /**
-     * Get warehouse inventory aggregated by product (commodity_id)
+     * Get warehouse inventory aggregated by product (commodity_id).
      *
-     * Uses warehouse module's tblinventory_manage table which tracks actual stock
-     * Returns array keyed by commodity_id (product_id from tblitems)
+     * Uses warehouse module's tblinventory_manage table for actual stock.
+     * Safety stock and supplier are resolved via dual-fallback:
+     *   1. Primary:  tblramos_inventory_items matched by sku = commodity_code
+     *   2. Secondary: default configured values (safety=0, supplier=null)
+     *
+     * Returns array keyed by commodity_id (product_id from tblitems).
      *
      * @return array
      */
     public function get_warehouse_inventory_by_product(): array
     {
-        // Get aggregated stock from warehouse module
-        // tblinventory_manage.commodity_id links to tblitems.id (product_id)
+        // Build Ramos inventory mapping keyed by sku for fallback enrichment.
+        // tblramos_inventory_items.sku matches tblitems.commodity_code.
+        $ramosMappingBySku      = [];
+        $ramosMappingById       = [];
+
+        $ramosMappingTable = db_prefix() . 'ramos_inventory_items';
+        if ($this->db->table_exists($ramosMappingTable)) {
+            $ramosMappingRaw = $this->db
+                ->select('id, sku, safety_stock, buffer_percent, supplier_id')
+                ->get($ramosMappingTable)
+                ->result_array();
+
+            foreach ($ramosMappingRaw as $rm) {
+                if (!empty($rm['sku'])) {
+                    $ramosMappingBySku[strtolower(trim($rm['sku']))] = $rm;
+                }
+                $ramosMappingById[(int) $rm['id']] = $rm;
+            }
+        }
+
+        // Get aggregated stock from warehouse module.
+        // tblinventory_manage.commodity_id links to tblitems.id (product_id).
         $this->db->select('im.commodity_id as id');
         $this->db->select('i.description as item_name');
         $this->db->select('i.commodity_code as sku');
@@ -298,13 +322,24 @@ class Automation_model extends App_Model
 
         $inventoryMap = [];
         foreach ($results as $row) {
-            // Add default values for fields expected by the purchase model
-            $row['safety_stock'] = 0;
-            $row['buffer_percent'] = 0;
-            $row['active'] = 1;
-            $row['supplier_id'] = null; // Warehouse items don't have supplier mapping yet
-            $row['unit'] = $row['unit_id'] ?? null; // Map unit_id to unit field
-            $inventoryMap[$row['id']] = $row;
+            $productId  = (int) $row['id'];
+            $sku        = strtolower(trim((string) ($row['sku'] ?? '')));
+
+            // Dual-fallback: sku match first, then id match, then defaults.
+            $ramosMeta = null;
+            if ($sku !== '' && isset($ramosMappingBySku[$sku])) {
+                $ramosMeta = $ramosMappingBySku[$sku];
+            } elseif (isset($ramosMappingById[$productId])) {
+                $ramosMeta = $ramosMappingById[$productId];
+            }
+
+            $row['safety_stock']   = $ramosMeta ? (float) $ramosMeta['safety_stock']   : 0.0;
+            $row['buffer_percent'] = $ramosMeta ? (float) $ramosMeta['buffer_percent']  : 0.0;
+            $row['supplier_id']    = $ramosMeta ? ($ramosMeta['supplier_id'] ?: null)   : null;
+            $row['active']         = 1;
+            $row['unit']           = $row['unit_id'] ?? null;
+
+            $inventoryMap[$productId] = $row;
         }
 
         return $inventoryMap;

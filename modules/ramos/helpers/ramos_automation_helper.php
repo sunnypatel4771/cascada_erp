@@ -29,9 +29,9 @@ function ramos_should_run_scheduled_automation(): bool
         return false;
     }
 
-    $startHour    = (int) get_option('ramos_automation_schedule_hour', 8);
+    $startHour    = (int) get_option('ramos_automation_schedule_hour', 2);
     $startMinutes = (int) get_option('ramos_automation_schedule_minutes', 0);
-    $endHour      = (int) get_option('ramos_automation_schedule_end_hour', 18);
+    $endHour      = (int) get_option('ramos_automation_schedule_end_hour', 2);
     $endMinutes   = (int) get_option('ramos_automation_schedule_end_minutes', 0);
     $runDaily     = get_option('ramos_automation_schedule_run_daily') === '1';
     $scheduledDate = strtolower(trim((string) get_option('ramos_automation_schedule_date', '')));
@@ -72,6 +72,19 @@ function ramos_should_run_scheduled_automation(): bool
         if ($todayName !== $scheduledDate) {
             return false;
         }
+    }
+
+    // Guard: do not run again if a completed run already fired within the last 25 minutes.
+    // Using a per-window check (instead of a daily check) lets subsequent 30-minute
+    // trigger points each fire once, satisfying the "every 30 minutes" requirement.
+    $CI = &get_instance();
+    $windowStart = (clone $now)->modify('-25 minutes')->format('Y-m-d H:i:s');
+    $recentRun = $CI->db
+        ->where('run_at >=', $windowStart)
+        ->where('status', 'completed')
+        ->count_all_results(db_prefix() . 'ramos_automation_runs');
+    if ($recentRun > 0) {
+        return false;
     }
 
     return true;
@@ -171,7 +184,8 @@ function ramos_execute_automation(int $runById = 0): array
         $totalOrdersProcessed = count($omniOrderIds) + count($erpOrderIds);
 
         // ── 6. Create purchase batch for each supplier with deficits ──────
-        $batchesCreated = 0;
+        $batchesCreated      = 0;
+        $deficitProductIds   = [];
 
         if (!empty($deficitGroups)) {
             // Get supplier map for enriching groups
@@ -204,10 +218,18 @@ function ramos_execute_automation(int $runById = 0): array
                         'current_stock'     => $item['current_stock'],
                         'safety_stock'      => $item['safety_stock'],
                     ];
+                    $deficitProductIds[] = (int) $item['inventory_item_id'];
                 }
 
                 $CI->ramos_purchase_model->create_batch($supplierId ?: null, $batchItems);
                 $batchesCreated++;
+            }
+
+            // Mark pick items for deficit products as waiting_for_po so pickers
+            // know these items cannot be processed until the PO is received.
+            if (!empty($deficitProductIds)) {
+                $CI->load->model('ramos/picking_model', 'ramos_picking_model_auto');
+                $CI->ramos_picking_model_auto->mark_waiting_for_po($deficitProductIds);
             }
         }
 
@@ -281,6 +303,39 @@ function ramos_generate_routes_for_today(): array
             'message'      => $e->getMessage(),
         ];
     }
+}
+
+/**
+ * Assign picking records for all active modules.
+ *
+ * Called as part of every automation cycle (after routes are generated)
+ * so that pick items exist and are linked to route stops for all modules.
+ *
+ * @return array{success: bool, modules_assigned: int, message: string}
+ */
+function ramos_assign_picking_for_all_modules(): array
+{
+    $CI = &get_instance();
+    $CI->load->model('ramos/modules_model', 'ramos_modules_model');
+    $CI->load->model('ramos/picking_model', 'ramos_picking_model');
+
+    $modules = $CI->ramos_modules_model->get_modules(false, false);
+    $count   = 0;
+
+    foreach ($modules as $module) {
+        $moduleId = (int) ($module['id'] ?? 0);
+        if ($moduleId <= 0) {
+            continue;
+        }
+        $CI->ramos_picking_model->ensure_pick_records_for_module($moduleId);
+        $count++;
+    }
+
+    return [
+        'success'          => true,
+        'modules_assigned' => $count,
+        'message'          => "Picking assignment done for {$count} module(s).",
+    ];
 }
 
 /**

@@ -12,7 +12,7 @@ class Purchases extends AdminController
             access_denied();
         }
 
-        $this->load->model('ramos/order_items_model', 'order_items_model');
+        $this->load->model('ramos/automation_model', 'automation_model');
         $this->load->model('ramos/inventory_model', 'inventory_model');
         $this->load->model('ramos/suppliers_model', 'suppliers_model');
         $this->load->model('ramos/purchase_model', 'ramos_purchase_model');
@@ -20,15 +20,24 @@ class Purchases extends AdminController
 
     public function index(): void
     {
-        $requiredQuantities     = $this->order_items_model->get_required_quantities([RAMOS_ORDER_STATUS_NEW, RAMOS_ORDER_STATUS_PROCESSING]);
-        $inventoryList          = $this->inventory_model->get();
+        // Load the automation helper for quantity merging
+        $this->load->helper('ramos/ramos_automation');
+
+        // Collect required quantities from both omni_sales and ERP portal orders
+        $omniOrders   = $this->automation_model->get_unprocessed_omni_orders();
+        $erpOrders    = $this->automation_model->get_unprocessed_erp_orders();
+        $omniOrderIds = array_column($omniOrders, 'id');
+        $erpOrderIds  = array_column($erpOrders,  'id');
+
+        $omniQuantities = $this->automation_model->get_required_quantities_from_omni_orders($omniOrderIds);
+        $erpQuantities  = $this->automation_model->get_required_quantities_from_erp_orders($erpOrderIds);
+        $requiredQuantities = _ramos_merge_quantities($omniQuantities, $erpQuantities);
+
+        // Use warehouse-module inventory (same source as the automation cycle)
+        $inventoryMap = $this->automation_model->get_warehouse_inventory_by_product();
+
         $openPurchaseQuantities = $this->ramos_purchase_model->get_open_purchase_quantities(['draft', 'sent', 'partial']);
         $suppliers             = $this->suppliers_model->get();
-
-        $inventoryMap = [];
-        foreach ($inventoryList as $inventory) {
-            $inventoryMap[$inventory['id']] = $inventory;
-        }
 
         $supplierMap = [];
         foreach ($suppliers as $supplier) {
@@ -147,10 +156,16 @@ class Purchases extends AdminController
         redirect(admin_url('ramos/purchases/batch/' . $batchId));
     }
 
-    public function receive($batchId): void
+    public function receive($batchId = null): void
     {
         if (!staff_can('edit', RAMOS_MODULE_NAME)) {
             access_denied();
+        }
+
+        $batchId = (int) $batchId;
+        if ($batchId <= 0) {
+            set_alert('warning', _l('ramos_purchases_receive_nothing'));
+            redirect(admin_url('ramos/purchases'));
         }
 
         $batch = $this->ramos_purchase_model->get_batch($batchId);
@@ -194,6 +209,8 @@ class Purchases extends AdminController
             redirect(admin_url('ramos/purchases/batch/' . $batchId));
         }
 
+        $receivedProductIds = [];
+
         if (!empty($applied)) {
             $items = $this->ramos_purchase_model->get_batch_items($batchId);
             $itemMap = [];
@@ -207,8 +224,16 @@ class Purchases extends AdminController
                 }
 
                 if (isset($itemMap[$itemId]) && $itemMap[$itemId]['inventory_item_id']) {
-                    $this->inventory_model->adjust_quantity($itemMap[$itemId]['inventory_item_id'], $delta);
+                    $productId = (int) $itemMap[$itemId]['inventory_item_id'];
+                    $this->inventory_model->adjust_quantity($productId, $delta);
+                    $receivedProductIds[] = $productId;
                 }
+            }
+
+            // Release any pick items that were blocked pending this PO receipt.
+            if (!empty($receivedProductIds)) {
+                $this->load->model('ramos/picking_model', 'picking_model');
+                $this->picking_model->release_waiting_for_po($receivedProductIds);
             }
         }
 

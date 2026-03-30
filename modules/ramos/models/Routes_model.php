@@ -195,11 +195,11 @@ class Routes_model extends App_Model
         // Also get customer Zona for grouping routes by zone
         
         // Query 1: Omni_sales orders (tblcart)
+        // JOIN matches on both order_id AND order_source so omni and erp stops never cross-exclude each other
+        // zona and priority are enriched via PHP helpers after fetch to avoid brittle hardcoded fieldid joins
         $this->db->select('c.id, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.duedate as delivery_datetime, c.userid, "omni_sales" as order_source');
-        $this->db->select('cfv.value as zona', false);
         $this->db->from(db_prefix() . 'cart c');
-        $this->db->join($this->stopsTable . ' rs', 'rs.order_id = c.id', 'left');
-        $this->db->join(db_prefix() . 'customfieldsvalues cfv', 'cfv.relid = c.userid AND cfv.fieldid = 3', 'left'); // fieldid 3 = Zona
+        $this->db->join($this->stopsTable . ' rs', "rs.order_id = c.id AND rs.order_source = 'omni_sales'", 'left');
         $this->db->where('c.status !=', 5); // Exclude cancelled orders
         $this->db->where('c.channel_id IN (1,2,4,6)', null, false); // Valid sales channels
         $this->db->where('c.original_order_id IS NULL', null, false); // Exclude return orders
@@ -208,17 +208,25 @@ class Routes_model extends App_Model
             $this->db->where('c.duedate IS NULL', null, false);
             $this->db->or_where('DATE(c.duedate) = ' . $this->db->escape($date), null, false);
         $this->db->group_end();
-        
+
         $omni_orders = $this->db->get()->result_array();
 
+        // Enrich omni orders with customer zone and priority from profile helpers
+        // This replaces the brittle customfieldsvalues JOIN (hardcoded fieldid = 3)
+        foreach ($omni_orders as &$omni_order) {
+            $omni_order['zona']     = get_validated_customer_zone($omni_order['userid'], DEFAULT_DELIVERY_ZONE);
+            $omni_order['priority'] = get_validated_customer_priority($omni_order['userid'], DEFAULT_PRIORITY_LEVEL);
+        }
+        unset($omni_order);
+
         // Query 2: ERP portal orders (tblinvoices)
-        // Only include invoices that are unpaid/partially paid and have a due date matching the specified date
+        // JOIN matches on both order_id AND order_source so erp stops never collide with omni stops
         $this->db->select('i.id, i.number as order_number, cl.company as customer_name, cl.shipping_street as address, i.duedate as delivery_datetime, i.clientid as userid, "erp_invoice" as order_source');
         $this->db->select('COALESCE(i.zone, "' . _l('ramos_routes_no_zone') . '") as zona', false); // Use ERP zone if set, otherwise "No Zone"
         $this->db->select('COALESCE(i.priority, 5) as priority', false); // Use ERP priority if set, otherwise 5 (normal)
         $this->db->from(db_prefix() . 'invoices i');
         $this->db->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left');
-        $this->db->join($this->stopsTable . ' rs', 'rs.order_id = i.id', 'left');
+        $this->db->join($this->stopsTable . ' rs', "rs.order_id = i.id AND rs.order_source = 'erp_invoice'", 'left');
         $this->db->where('i.status', 1); // Unpaid invoices (status = 1 is unpaid)
         $this->db->where('rs.id IS NULL', null, false); // Not already in routes
         $this->db->where("i.clientnote LIKE '%portal%' OR i.clientnote LIKE '%customer%'", null, false); // Only portal-created invoices
@@ -226,7 +234,7 @@ class Routes_model extends App_Model
             $this->db->where('i.duedate IS NULL', null, false);
             $this->db->or_where('DATE(i.duedate) = ' . $this->db->escape($date), null, false);
         $this->db->group_end();
-        
+
         $erp_orders = $this->db->get()->result_array();
 
         // Combine both order sources
@@ -352,11 +360,12 @@ class Routes_model extends App_Model
                     $etaValue = $etaTimestamp ? date('Y-m-d H:i:s', $etaTimestamp) : null;
 
                     $this->db->insert($this->stopsTable, [
-                        'route_id'    => $routeId,
-                        'order_id'    => (int) $order['id'],
-                        'stop_number' => $position + 1,
-                        'eta'         => $etaValue,
-                        'status'      => 'pending',
+                        'route_id'     => $routeId,
+                        'order_id'     => (int) $order['id'],
+                        'order_source' => $order['order_source'] ?? 'omni_sales',
+                        'stop_number'  => $position + 1,
+                        'eta'          => $etaValue,
+                        'status'       => 'pending',
                     ]);
 
                     // Link pick items to this route stop for route-priority picking
@@ -425,6 +434,22 @@ class Routes_model extends App_Model
         }
 
         $currentRouteId = (int) $current['route_id'];
+
+        // Enforce capacity cap when moving to a different route.
+        if ($currentRouteId !== $destinationRouteId) {
+            $destRoute = $this->get_route($destinationRouteId);
+            $capacity  = isset($destRoute['capacity']) && (int) $destRoute['capacity'] > 0
+                ? (int) $destRoute['capacity']
+                : 10;
+
+            $currentStopCount = (int) $this->db
+                ->where('route_id', $destinationRouteId)
+                ->count_all_results($this->stopsTable);
+
+            if ($currentStopCount >= $capacity) {
+                return false; // Route is full; controller will return 400 with error message
+            }
+        }
 
         $this->db->trans_start();
 
@@ -581,66 +606,114 @@ class Routes_model extends App_Model
         // $this->db->where('rs.route_id', $routeId);
         // $this->db->order_by('rs.stop_number', 'ASC');
 
-        // NEW: Using omni_sales orders (tblcart)
-        // Include customer Zona for grouping in delivery sheet
-        $this->db->select('rs.id, rs.stop_number, rs.eta, c.id as order_id, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.userid');
-        $this->db->select('cfv.value as zona', false);
+        // Fetch all stops for the route. For omni_sales stops, LEFT JOIN tblcart to get
+        // cart-level fields (customer_name, delivery_address, userid).  ERP invoice stops
+        // use the same JOIN condition filter so their cart columns remain NULL; we backfill
+        // them from tblinvoices + tblclients in the enrichment pass below.
+        // rs.order_id is always preserved so ERP invoice IDs are not lost.
+        $this->db->select('rs.id, rs.stop_number, rs.eta, rs.order_source, rs.order_id as raw_order_id, c.id as order_id, c.order_number, c.phonenumber as customer_name, c.address as delivery_address, c.userid');
         $this->db->from($this->stopsTable . ' rs');
-        $this->db->join(db_prefix() . 'cart c', 'c.id = rs.order_id', 'inner');
-        $this->db->join(db_prefix() . 'customfieldsvalues cfv', 'cfv.relid = c.userid AND cfv.fieldid = 3', 'left'); // fieldid 3 = Zona
+        $this->db->join(db_prefix() . 'cart c', "c.id = rs.order_id AND rs.order_source = 'omni_sales'", 'left');
         $this->db->where('rs.route_id', $routeId);
-        $this->db->order_by('cfv.value', 'ASC'); // Group by zona first
         $this->db->order_by('rs.stop_number', 'ASC');
 
         $stops = $this->db->get()->result_array();
+
+        // Backfill ERP invoice stops: populate customer_name, delivery_address, and order_id
+        // from tblinvoices + tblclients using the raw stop order_id (the invoice ID).
+        foreach ($stops as &$stop) {
+            if (($stop['order_source'] ?? '') !== 'erp_invoice') {
+                continue;
+            }
+
+            $invoiceId = (int) $stop['raw_order_id'];
+            if ($invoiceId <= 0) {
+                continue;
+            }
+
+            $invoiceRow = $this->db
+                ->select('i.id as order_id, i.number as order_number, cl.company as customer_name, cl.shipping_street as delivery_address, i.clientid as userid')
+                ->from(db_prefix() . 'invoices i')
+                ->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left')
+                ->where('i.id', $invoiceId)
+                ->get()
+                ->row_array();
+
+            if ($invoiceRow) {
+                $stop['order_id']         = $invoiceRow['order_id'];
+                $stop['order_number']     = $invoiceRow['order_number'];
+                $stop['customer_name']    = $invoiceRow['customer_name'];
+                $stop['delivery_address'] = $invoiceRow['delivery_address'];
+                $stop['userid']           = $invoiceRow['userid'];
+            }
+        }
+        unset($stop);
+
+        // Enrich stops with delivery zone from customer profile helper
+        foreach ($stops as &$stop) {
+            if (!empty($stop['userid'])) {
+                $stop['zona'] = get_validated_customer_zone($stop['userid'], DEFAULT_DELIVERY_ZONE);
+            } else {
+                $stop['zona'] = DEFAULT_DELIVERY_ZONE;
+            }
+        }
+        unset($stop);
+
+        // Sort by zona then stop_number
+        usort($stops, function ($a, $b) {
+            $zonaCompare = strcmp($a['zona'] ?? '', $b['zona'] ?? '');
+            if ($zonaCompare !== 0) {
+                return $zonaCompare;
+            }
+            return ($a['stop_number'] ?? 0) <=> ($b['stop_number'] ?? 0);
+        });
 
         if (empty($stops)) {
             return [];
         }
 
-        // COMMENTED: Ramos order items - replaced with omni_sales cart items
-        // For each stop, get the order items (products)
-        // foreach ($stops as &$stop) {
-        //     $orderId = (int) $stop['order_id'];
-        //
-        //     $this->db->select('oi.quantity, ii.item_name, ii.unit');
-        //     $this->db->from(db_prefix() . 'ramos_order_items oi');
-        //     $this->db->join(db_prefix() . 'ramos_inventory_items ii', 'ii.id = oi.inventory_item_id', 'left');
-        //     $this->db->where('oi.order_id', $orderId);
-        //     $this->db->order_by('oi.id', 'ASC');
-        //
-        //     $products = $this->db->get()->result_array();
-        //
-        //     $stop['products'] = [];
-        //     foreach ($products as $product) {
-        //         $stop['products'][] = [
-        //             'item_name' => $product['item_name'] ?? 'Unknown Item',
-        //             'quantity'  => (float) $product['quantity'],
-        //             'unit'      => $product['unit'] ?? 'pz'
-        //         ];
-        //     }
-        // }
-
-        // NEW: Using omni_sales cart items (tblcart_detailt)
+        // Fetch products for each stop based on its order source.
         foreach ($stops as &$stop) {
-            $orderId = (int) $stop['order_id'];
-
-            $this->db->select('cd.quantity, i.description as item_name, u.unit_name as unit');
-            $this->db->from(db_prefix() . 'cart_detailt cd');
-            $this->db->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left');
-            $this->db->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left');
-            $this->db->where('cd.cart_id', $orderId);
-            $this->db->order_by('cd.id', 'ASC');
-
-            $products = $this->db->get()->result_array();
-
             $stop['products'] = [];
-            foreach ($products as $product) {
-                $stop['products'][] = [
-                    'item_name' => $product['item_name'] ?? 'Unknown Item',
-                    'quantity'  => (float) $product['quantity'],
-                    'unit'      => $product['unit'] ?? 'pz'
-                ];
+            $rawOrderId = (int) $stop['raw_order_id'];
+
+            if (($stop['order_source'] ?? '') === 'erp_invoice') {
+                // ERP invoice: items are in tblitemable
+                $erpProducts = $this->db
+                    ->select('ia.qty as quantity, ia.description as item_name, ia.unit as unit')
+                    ->from(db_prefix() . 'itemable ia')
+                    ->where('ia.rel_id', $rawOrderId)
+                    ->where('ia.rel_type', 'invoice')
+                    ->order_by('ia.item_order', 'ASC')
+                    ->get()
+                    ->result_array();
+
+                foreach ($erpProducts as $product) {
+                    $stop['products'][] = [
+                        'item_name' => $product['item_name'] ?? 'Unknown Item',
+                        'quantity'  => (float) $product['quantity'],
+                        'unit'      => $product['unit'] ?? 'pz',
+                    ];
+                }
+            } else {
+                // Omni sales: items are in tblcart_detailt
+                $cartProducts = $this->db
+                    ->select('cd.quantity, i.description as item_name, u.unit_name as unit')
+                    ->from(db_prefix() . 'cart_detailt cd')
+                    ->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left')
+                    ->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left')
+                    ->where('cd.cart_id', $rawOrderId)
+                    ->order_by('cd.id', 'ASC')
+                    ->get()
+                    ->result_array();
+
+                foreach ($cartProducts as $product) {
+                    $stop['products'][] = [
+                        'item_name' => $product['item_name'] ?? 'Unknown Item',
+                        'quantity'  => (float) $product['quantity'],
+                        'unit'      => $product['unit'] ?? 'pz',
+                    ];
+                }
             }
         }
         unset($stop);

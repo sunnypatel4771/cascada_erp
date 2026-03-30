@@ -9,9 +9,14 @@
     "hot": "mix watch --hot",
     "prod": "npm run production",
     "production": "mix --production",
-    "build": "mix --production && node build.mjs"
+    "build": "mix --production && node build.mjs",
+    "pw:test": "playwright test",
+    "pw:test:headed": "playwright test --headed",
+    "pw:test:ui": "playwright test --ui",
+    "pw:report": "playwright show-report"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/nesting": "^0.0.0-insiders.565cd3e",
     "autoprefixer": "^10.4.12",
     "del": "^7.0.0",

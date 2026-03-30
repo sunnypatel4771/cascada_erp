@@ -19,32 +19,17 @@ class Ramos_client extends ClientsController
     }
 
     /**
-     * Display portal order form and previous submissions.
+     * Redirect to the main Perfex client portal home page.
+     *
+     * The legacy Ramos order form (ramos_orders schema) is retired.
+     * The full-featured split-screen order interface (last order + new order,
+     * pricing markup, Maduración) is on the standard clients home page.
      *
      * @return void
      */
     public function orders(): void
     {
-        $contactId = get_client_user_id();
-        $contact   = $this->getContact($contactId);
-        $company   = $this->getCompany($contact ? (int) $contact->userid : null);
-
-        $orders = $this->orders_model->get(null, [
-            'customer_reference' => $contactId,
-        ]);
-
-        $data['title']                = _l('ramos_client_orders_title');
-        $data['subtitle']             = _l('ramos_client_orders_subtitle');
-        $data['priorities']           = ramos_order_priorities();
-        $data['default_customer']     = $this->resolveDefaultCustomerName($contact, $company);
-        $data['default_address']      = $this->resolveDefaultAddress($company);
-        $data['orders']               = $orders;
-        $data['contact']              = $contact;
-        $data['company']              = $company;
-
-        $this->data($data);
-        $this->view('client/orders_portal');
-        $this->layout();
+        redirect(site_url('clients'));
     }
 
     /**

@@ -55,16 +55,23 @@ function ramos_maybe_run_scheduled_automation(): void
     $result = ramos_execute_automation(0); // 0 = system/cron user
 
     if ($result['success']) {
-        // Generate routes if enabled
-        if (get_option('ramos_route_generate_on_success') === '1') {
-            $routeResult = ramos_generate_routes_for_today();
-            $routeCount  = $routeResult['routes_count'];
-            log_activity('[RAMOS CRON] Automation successful: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches, ' . $routeCount . ' routes generated');
-        } else {
-            log_activity('[RAMOS CRON] Automation successful: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches');
-        }
+        // Always generate routes as part of the automation cycle
+        $routeResult = ramos_generate_routes_for_today();
+        $routeCount  = $routeResult['routes_count'];
+
+        // Always assign picking jobs to all active modules
+        $pickingResult = ramos_assign_picking_for_all_modules();
+        $modulesCount  = $pickingResult['modules_assigned'];
+
+        log_activity('[RAMOS CRON] Cycle complete: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches, ' . $routeCount . ' routes, ' . $modulesCount . ' modules assigned');
     } else {
-        log_activity('[RAMOS CRON] Automation failed: ' . $result['message']);
+        log_activity('[RAMOS CRON] PO automation failed: ' . $result['message']);
+
+        // Still run routes and picking even when no POs were needed
+        $routeResult   = ramos_generate_routes_for_today();
+        $pickingResult = ramos_assign_picking_for_all_modules();
+
+        log_activity('[RAMOS CRON] Routes + picking ran independently: ' . $routeResult['routes_count'] . ' routes, ' . $pickingResult['modules_assigned'] . ' modules');
     }
 }
 
@@ -213,7 +220,7 @@ function ramos_init_client_portal(): void
 
     add_theme_menu_item('ramos-client-orders', [
         'name'     => _l('ramos_client_orders_nav'),
-        'href'     => site_url('clients/ramos_client/orders'),
+        'href'     => site_url('clients'),
         'position' => 55,
         'icon'     => 'fa-solid fa-basket-shopping',
     ]);

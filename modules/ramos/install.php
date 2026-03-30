@@ -349,15 +349,28 @@ if (!$CI->db->table_exists(db_prefix() . 'ramos_route_stops')) {
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `route_id` INT UNSIGNED NOT NULL,
             `order_id` INT UNSIGNED NOT NULL,
+            `order_source` VARCHAR(20) NOT NULL DEFAULT 'omni_sales',
             `stop_number` INT UNSIGNED NOT NULL DEFAULT 1,
             `eta` DATETIME NULL,
             `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
             PRIMARY KEY (`id`),
-            UNIQUE KEY `idx_ramos_route_stops_unique` (`route_id`,`order_id`),
+            UNIQUE KEY `idx_ramos_route_stops_unique` (`route_id`,`order_id`,`order_source`),
             KEY `idx_ramos_route_stops_route` (`route_id`),
             KEY `idx_ramos_route_stops_status` (`status`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation};"
     );
+}
+
+// Add order_source to distinguish omni_sales vs erp_invoice orders (IDs can overlap between tables)
+if (!$CI->db->field_exists('order_source', db_prefix() . 'ramos_route_stops')) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . "ramos_route_stops` ADD `order_source` VARCHAR(20) NOT NULL DEFAULT 'omni_sales' AFTER `order_id`;");
+
+    // Drop the old two-column unique key and replace with one that includes order_source
+    $indexes = $CI->db->query('SHOW INDEX FROM `' . db_prefix() . "ramos_route_stops` WHERE Key_name = 'idx_ramos_route_stops_unique'")->result_array();
+    if (!empty($indexes)) {
+        $CI->db->query('ALTER TABLE `' . db_prefix() . 'ramos_route_stops` DROP INDEX `idx_ramos_route_stops_unique`;');
+    }
+    $CI->db->query('ALTER TABLE `' . db_prefix() . 'ramos_route_stops` ADD UNIQUE KEY `idx_ramos_route_stops_unique` (`route_id`,`order_id`,`order_source`);');
 }
 
 if (!$CI->db->field_exists('vehicle_label', db_prefix() . 'ramos_routes')) {
@@ -527,6 +540,67 @@ if (!$CI->db->table_exists(db_prefix() . 'ramos_automation_runs')) {
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}
         COMMENT='Tracks each execution of purchase order automation';"
     );
+}
+
+// Facturacion email send log
+if (!$CI->db->table_exists(db_prefix() . 'ramos_facturacion_email_log')) {
+    [$charset, $collation] = ramos_install_charset_collation();
+
+    $CI->db->query(
+        'CREATE TABLE `' . db_prefix() . "ramos_facturacion_email_log` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `order_id` INT UNSIGNED NOT NULL,
+            `invoice_id` INT UNSIGNED NULL,
+            `sent_by` INT UNSIGNED NULL,
+            `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `status` VARCHAR(20) NOT NULL DEFAULT 'sent',
+            PRIMARY KEY (`id`),
+            KEY `idx_ramos_email_log_order` (`order_id`),
+            KEY `idx_ramos_email_log_invoice` (`invoice_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}
+        COMMENT='Tracks customer invoice emails sent from Facturacion workflow';"
+    );
+}
+
+// FE-SAT electronic document log
+if (!$CI->db->table_exists(db_prefix() . 'ramos_facturacion_fesat_log')) {
+    [$charset, $collation] = ramos_install_charset_collation();
+
+    $CI->db->query(
+        'CREATE TABLE `' . db_prefix() . "ramos_facturacion_fesat_log` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `order_id` INT UNSIGNED NOT NULL,
+            `invoice_id` INT UNSIGNED NULL,
+            `document_id` VARCHAR(100) NULL COMMENT 'FE-SAT document reference from provider',
+            `generated_by` INT UNSIGNED NULL,
+            `generated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `status` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending, generated, failed',
+            `notes` TEXT NULL,
+            PRIMARY KEY (`id`),
+            KEY `idx_ramos_fesat_order` (`order_id`),
+            KEY `idx_ramos_fesat_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}
+        COMMENT='Tracks FE-SAT electronic document generation from Facturacion workflow';"
+    );
+}
+
+// Seed automation schedule defaults (2:00 AM start, run daily enabled)
+// Only set if the option has never been configured (add_option is a no-op if key exists)
+if (function_exists('add_option')) {
+    add_option('ramos_automation_schedule_enabled', '1');
+    add_option('ramos_automation_schedule_hour', '2');
+    add_option('ramos_automation_schedule_minutes', '0');
+    add_option('ramos_automation_schedule_end_hour', '2');
+    add_option('ramos_automation_schedule_end_minutes', '0');
+    add_option('ramos_automation_schedule_run_daily', '1');
+    add_option('ramos_automation_schedule_date', '');
+}
+
+// Add ripeness (Maduración) column to omni_sales cart line items
+if ($CI->db->table_exists(db_prefix() . 'cart_detailt')) {
+    if (!$CI->db->field_exists('ripeness', db_prefix() . 'cart_detailt')) {
+        $CI->db->query("ALTER TABLE `" . db_prefix() . "cart_detailt` ADD `ripeness` VARCHAR(20) NULL DEFAULT NULL COMMENT 'Maduración level for applicable items (e.g. Maduro, Verde)' AFTER `quantity`");
+    }
 }
 
 // NEW: Add automation tracking columns to omni_sales cart table (tblcart)
