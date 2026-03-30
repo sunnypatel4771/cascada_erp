@@ -554,3 +554,20 @@ $lang['ramos_facturacion_fesat_already_generated'] = 'FE-SAT document already ge
 $lang['ramos_facturacion_fesat_not_configured']    = 'FE-SAT integration is not enabled. Configure it in Automation Settings.';
 $lang['ramos_facturacion_fesat_pending']           = 'FE-SAT generation queued. Provider integration required to complete.';
 $lang['ramos_facturacion_generate_fesat_btn']      = 'Generate FE-SAT';
+
+// Delivery sheet
+$lang['ramos_routes_delivery_sheet_heading']      = 'Delivery Sheet';
+$lang['ramos_routes_copy_button']                 = 'Copy';
+$lang['ramos_routes_delivery_sheet_zone']         = 'Zone';
+$lang['ramos_routes_delivery_sheet_order']        = 'Order';
+$lang['ramos_routes_delivery_sheet_customer']     = 'Customer';
+$lang['ramos_routes_delivery_sheet_product']      = 'Product';
+$lang['ramos_routes_delivery_sheet_quantity']     = 'Qty';
+$lang['ramos_routes_delivery_sheet_unit']         = 'Unit';
+$lang['ramos_routes_no_zone']                     = 'No Zone';
+$lang['ramos_routes_no_products']                 = 'No products';
+$lang['ramos_routes_copied_success']              = 'Copied to clipboard!';
+$lang['ramos_routes_delivery_sheet_route_header'] = 'Route: %s — Start: %s';
+
+// Picking
+$lang['ramos_picking_route_stop_label']           = 'Route stop';
