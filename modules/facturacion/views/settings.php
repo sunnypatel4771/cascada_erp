@@ -6,7 +6,7 @@
       <div class="col-md-12">
         <div class="panel_s">
           <div class="panel-body">
-            <div class="clearfix"><h4 class="no-margin pull-left"><?php echo html_escape($title); ?></h4><a class="btn btn-default pull-right" href="<?php echo admin_url('facturacion'); ?>">Volver a Facturación</a></div>
+            <div class="clearfix"><h4 class="no-margin pull-left"><?php echo html_escape($title); ?></h4><a class="btn btn-default pull-right" href="<?php echo admin_url('ramos/facturacion'); ?>">Volver a Facturación</a></div>
             <hr class="hr-panel-heading" />
             <p>Tablas detectadas:</p>
             <ul>

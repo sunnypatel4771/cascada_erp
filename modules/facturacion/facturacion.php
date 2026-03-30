@@ -18,10 +18,10 @@ function facturacion_admin_init()
 
     if (is_admin()) {
 
-        // Main operational entry (Pedidos list + Generate invoice lives here)
+        // Keep legacy menu entries but route them to Ramos facturacion page.
         $CI->app_menu->add_sidebar_menu_item('facturacion', [
             'name'     => 'Facturación',
-            'href'     => admin_url('facturacion'),
+            'href'     => admin_url('ramos/facturacion'),
             'icon'     => 'fa fa-file-text-o',
             'position' => 35,
         ]);
@@ -29,7 +29,7 @@ function facturacion_admin_init()
         // Extra direct entry (same page) so users always see an action-oriented label
         $CI->app_menu->add_sidebar_menu_item('facturacion_generar', [
             'name'     => 'Generar factura',
-            'href'     => admin_url('facturacion'),
+            'href'     => admin_url('ramos/facturacion'),
             'icon'     => 'fa fa-bolt',
             'position' => 36,
         ]);

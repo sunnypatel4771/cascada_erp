@@ -35,7 +35,7 @@ class Facturacion extends AdminController
         $detail_ids = $this->input->post('detail_ids');
         if (!is_array($detail_ids) || count($detail_ids) === 0) {
             set_alert('warning', 'Selecciona al menos un producto en VERDE.');
-            redirect(admin_url('facturacion'));
+            redirect(admin_url('ramos/facturacion'));
         }
 
         $detail_ids = array_values(array_unique(array_map('intval', $detail_ids)));
@@ -43,7 +43,7 @@ class Facturacion extends AdminController
 
         if (!$result['ok']) {
             set_alert('danger', $result['message']);
-            redirect(admin_url('facturacion'));
+            redirect(admin_url('ramos/facturacion'));
         }
 
         set_alert('success', 'Factura creada correctamente. ID: ' . $result['invoice_id']);
