@@ -1,0 +1,294 @@
+import { expect, Page } from '@playwright/test';
+
+export type PickingStaffProfile = {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+};
+
+/** True if this picker already appears in an "Active staff" block (avoids duplicate start_shift). */
+function pickerListedInActiveStaffBlock(block: string, profile: PickingStaffProfile): boolean {
+  const t = block.toLowerCase();
+  if (!profile.firstName || !t.includes(profile.firstName.toLowerCase())) {
+    return false;
+  }
+  const ln = profile.lastName.toLowerCase();
+  if (t.includes(ln)) {
+    return true;
+  }
+  const first4 = ln.length >= 4 ? ln.slice(0, 4) : ln;
+  return first4.length >= 3 && t.includes(first4);
+}
+
+/**
+ * Build unique picker credentials.
+ * Override with PW_PICKING_STAFF_EMAIL / PASSWORD / FIRSTNAME / LASTNAME for a pre-created staff row
+ * (dropdown shows "firstname lastname" in module shift form).
+ */
+export function buildPickingStaffProfile(workerIndex: number): PickingStaffProfile {
+  const unique = process.env.PW_PICKING_STAFF_UNIQUE
+    ? process.env.PW_PICKING_STAFF_UNIQUE
+    : `${workerIndex}-${Date.now()}`.slice(-12);
+
+  return {
+    email: process.env.PW_PICKING_STAFF_EMAIL || `e2e.picker.${unique}@ramos.test`,
+    password: process.env.PW_PICKING_STAFF_PASSWORD || 'PickerE2E#2026',
+    firstName: process.env.PW_PICKING_STAFF_FIRSTNAME || 'E2E',
+    lastName: process.env.PW_PICKING_STAFF_LASTNAME || `Picker ${workerIndex}`,
+  };
+}
+
+/**
+ * On the new/edit staff member form: leave only Ramos → View checked (uncheck other capabilities).
+ * Admin must have permission to manage staff.
+ */
+export async function applyRamosViewOnlyPermissions(page: Page): Promise<void> {
+  const permTab = page.locator('a[href="#staff_permissions"], a[aria-controls="staff_permissions"]').first();
+  await permTab.click();
+  await expect(page.locator('#staff_permissions table.roles')).toBeVisible({ timeout: 15000 });
+
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLInputElement>('input.capability:not([disabled])').forEach((el) => {
+      el.checked = false;
+    });
+    const ramosView = document.querySelector<HTMLInputElement>('#ramos_view');
+    if (ramosView && !ramosView.disabled) {
+      ramosView.checked = true;
+    }
+  });
+}
+
+const submitStaffForm = async (page: Page) => {
+  await page.locator('form.staff-form button[type="submit"].btn-primary').click();
+};
+
+/**
+ * Create staff member with Ramos view-only, non-admin.
+ */
+export async function createPickingStaffMember(page: Page, profile: PickingStaffProfile): Promise<void> {
+  await page.goto('/admin/staff/member');
+  await expect(page.locator('input[name="firstname"]')).toBeVisible({ timeout: 20000 });
+
+  await page.locator('input[name="firstname"]').fill(profile.firstName);
+  await page.locator('input[name="lastname"]').fill(profile.lastName);
+  await page.locator('input[name="email"]').fill(profile.email);
+
+  const adminCb = page.locator('input#administrator');
+  if (await adminCb.isVisible().catch(() => false)) {
+    await adminCb.setChecked(false);
+  }
+
+  const welcome = page.locator('input#send_welcome_email');
+  if (await welcome.isVisible().catch(() => false)) {
+    await welcome.setChecked(false);
+  }
+
+  const passwordInput = page.locator('input[name="password"].password');
+  await passwordInput.fill(profile.password);
+
+  await applyRamosViewOnlyPermissions(page);
+  await submitStaffForm(page);
+
+  await page.waitForURL(/staff\/member\/\d+/, { timeout: 30000 }).catch(async () => {
+    const body = await page.locator('body').innerText();
+    if (/already exists|duplicate|exists/i.test(body)) {
+      throw new Error(`Staff email may already exist: ${profile.email}. Set PW_PICKING_STAFF_EMAIL or PW_PICKING_STAFF_UNIQUE.`);
+    }
+    throw new Error('Staff create did not redirect to member profile.');
+  });
+}
+
+/**
+ * Start operator shift for the given staff on the first picking module card (requires admin with ramos edit + staff list includes new user).
+ */
+/**
+ * Start an operator shift for {@link profile} on the first picking module that has
+ * fewer than two active shifts (DB rule in Modules_model).
+ */
+export async function startOperatorShiftOnFirstModule(page: Page, profile: PickingStaffProfile): Promise<void> {
+  await page.goto('/admin/ramos/picking');
+  await expect(page.locator('.ramos-picking-modules')).toBeVisible({ timeout: 20000 });
+
+  const moduleCards = page.locator('.ramos-picking-modules > .col-md-6');
+  const n = await moduleCards.count();
+  if (n === 0) {
+    throw new Error('No picking module cards found.');
+  }
+
+  const modulesRoot = page.locator('.ramos-picking-modules');
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const namePattern = new RegExp(escape(profile.lastName), 'i');
+
+  // Already active on at least one module: do not require another free slot (max-2 rule can block every other card).
+  for (let i = 0; i < n; i++) {
+    const card = moduleCards.nth(i);
+    const activeHeading = card.locator('h6').filter({ hasText: /Active staff|Personal activo|staff/i });
+    const activeUl = activeHeading.locator('xpath=following-sibling::ul[1]');
+    const activeText =
+      (await activeUl.count()) > 0 ? ((await activeUl.innerText().catch(() => '')) || '') : '';
+    if (pickerListedInActiveStaffBlock(activeText, profile)) {
+      return;
+    }
+  }
+
+  let target = moduleCards.first();
+  let chosen = false;
+  for (let i = 0; i < n; i++) {
+    const card = moduleCards.nth(i);
+    const endShiftCount = await card.getByRole('link', { name: /end shift|finalizar turno/i }).count();
+    if (endShiftCount >= 2) {
+      continue;
+    }
+    const activeHeading = card.locator('h6').filter({ hasText: /Active staff|Personal activo|staff/i });
+    const activeUl = activeHeading.locator('xpath=following-sibling::ul[1]');
+    const activeText =
+      (await activeUl.count()) > 0 ? ((await activeUl.innerText().catch(() => '')) || '') : '';
+    if (pickerListedInActiveStaffBlock(activeText, profile)) {
+      continue;
+    }
+    target = card;
+    chosen = true;
+    break;
+  }
+
+  if (!chosen) {
+    throw new Error(
+      'No picking module has a free shift slot for this user, or the user already has an active shift on every reachable module. ' +
+        'End shifts on /admin/ramos/picking or free a slot (max 2 operators per module).'
+    );
+  }
+
+  const staffSelect = target.locator('select[name="staff_id"]');
+  await expect(staffSelect).toBeAttached();
+
+  const shiftForm = target.locator('form[action*="start_shift"]');
+  const formAction = await shiftForm.getAttribute('action');
+  const idMatch = formAction?.match(/start_shift\/(\d+)/);
+  const moduleId = idMatch ? idMatch[1] : null;
+
+  let opt = target
+    .locator('select[name="staff_id"] option')
+    .filter({ hasText: new RegExp(escape(profile.lastName), 'i') })
+    .first();
+  if ((await opt.count()) === 0 && profile.firstName) {
+    opt = target
+      .locator('select[name="staff_id"] option')
+      .filter({ hasText: new RegExp(escape(profile.firstName), 'i') })
+      .first();
+  }
+  if ((await opt.count()) === 0) {
+    opt = target
+      .locator('select[name="staff_id"] option')
+      .filter({ hasText: new RegExp(`${escape(profile.firstName)}\\s+${escape(profile.lastName)}`, 'i') })
+      .first();
+  }
+  if ((await opt.count()) === 0) {
+    throw new Error(
+      `Staff "${profile.firstName} ${profile.lastName}" not found in module dropdown. ` +
+        `Set PW_PICKING_STAFF_FIRSTNAME / PW_PICKING_STAFF_LASTNAME to match Perfex staff name.`
+    );
+  }
+  const value = await opt.getAttribute('value');
+
+  const pickerId = `#picking_staff_${moduleId}`;
+  const staffById = moduleId ? page.locator(pickerId) : staffSelect;
+  await staffById.selectOption(value!, { force: true });
+
+  await page.evaluate(
+    ({ selector, val }) => {
+      const el = document.querySelector(selector) as HTMLSelectElement | null;
+      if (!el) return;
+      el.value = String(val);
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      type Jq = (sel: string) => { selectpicker: (method: string) => void };
+      const w = window as unknown as { jQuery?: Jq };
+      if (typeof w.jQuery === 'function') {
+        try {
+          w.jQuery(selector).selectpicker('refresh');
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    { selector: moduleId ? pickerId : 'select[name="staff_id"]', val: value }
+  );
+
+  const roleSelect = target.locator('select[name="role"]');
+  await roleSelect.selectOption('operator', { force: true });
+  await roleSelect.dispatchEvent('change');
+
+  if ((await modulesRoot.getByText(namePattern).count()) > 0) {
+    return;
+  }
+
+  await target.locator('button[type="submit"]').filter({ hasText: /start|iniciar/i }).click();
+  await page.waitForURL(/ramos\/picking/i, { timeout: 25000 }).catch(() => {});
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  const shiftFailed = await page
+    .locator('.alert-warning, .float-alert.alert-warning')
+    .filter({ hasText: /shift|turno|Unable|No se pudo|two active|dos empleados|start shift/i })
+    .first()
+    .isVisible()
+    .catch(() => false);
+
+  if ((await modulesRoot.getByText(namePattern).count()) > 0) {
+    return;
+  }
+
+  if (shiftFailed) {
+    throw new Error(
+      'Shift did not start. Module may have 2 active staff already, or duplicate shift for this user. ' +
+        'End a shift on /admin/ramos/picking or pick another module.'
+    );
+  }
+
+  await expect(modulesRoot.getByText(namePattern).first()).toBeVisible({ timeout: 20000 });
+}
+
+/**
+ * If the picker has active shifts on more than one module, end shifts on extra modules so console RBAC sees one module.
+ * Keeps the first module (A→D order) where the picker is still listed under Active staff.
+ */
+export async function consolidatePickerToSingleModule(page: Page, profile: PickingStaffProfile): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await page.goto('/admin/ramos/picking');
+    await expect(page.locator('.ramos-picking-modules')).toBeVisible({ timeout: 20000 });
+
+    const moduleCards = page.locator('.ramos-picking-modules > .col-md-6');
+    const n = await moduleCards.count();
+    const moduleIndexesWithPicker: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+      const card = moduleCards.nth(i);
+      const activeHeading = card.locator('h6').filter({ hasText: /Active staff|Personal activo/i });
+      const activeUl = activeHeading.locator('xpath=following-sibling::ul[1]');
+      if ((await activeUl.count()) === 0) {
+        continue;
+      }
+      const activeText = await activeUl.innerText().catch(() => '');
+      if (pickerListedInActiveStaffBlock(activeText, profile)) {
+        moduleIndexesWithPicker.push(i);
+      }
+    }
+
+    if (moduleIndexesWithPicker.length <= 1) {
+      return;
+    }
+
+    const endIdx = moduleIndexesWithPicker[moduleIndexesWithPicker.length - 1];
+    const card = moduleCards.nth(endIdx);
+    page.once('dialog', (d) => d.accept().catch(() => {}));
+    await card.getByRole('link', { name: /end shift|finalizar turno/i }).first().click();
+    await page.waitForURL(/ramos\/picking/i, { timeout: 20000 }).catch(() => {});
+  }
+}
+
+export async function logoutAdmin(page: Page): Promise<void> {
+  page.once('dialog', (dialog) => {
+    dialog.accept().catch(() => {});
+  });
+  await page.goto('/admin/authentication/logout');
+  await page.waitForURL(/authentication/i, { timeout: 20000 }).catch(() => {});
+}

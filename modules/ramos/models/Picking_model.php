@@ -538,7 +538,8 @@ class Picking_model extends App_Model
 
         // Refresh parent order statuses
         $orderIds = $this->db
-            ->select('DISTINCT order_id')
+            ->distinct()
+            ->select('order_id')
             ->where_in('id', $ids)
             ->get($this->pickTable)
             ->result_array();

@@ -68,6 +68,9 @@ docker-compose.override.yml
 .env.docker
 docker-compose.*.yml
 
+# Playwright local picker credentials
+tests/e2e/.env.picker
+
 # Misc
 *.bak
 *.old

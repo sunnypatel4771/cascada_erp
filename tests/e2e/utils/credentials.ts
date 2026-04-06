@@ -28,5 +28,14 @@ export const creds = {
     email: process.env.PW_MOD4_EMAIL || 'modulo4@ramos.mx',
     password: process.env.PW_MOD4_PASSWORD || 'modulo4',
   },
+  /**
+   * Optional picker for spec 07 — set via env (do not commit secrets):
+   * PW_PICKING_STAFF_EMAIL, PW_PICKING_STAFF_PASSWORD,
+   * PW_PICKING_STAFF_FIRSTNAME, PW_PICKING_STAFF_LASTNAME (as in Staff / shift dropdown)
+   */
+  pickingStaff: {
+    email: process.env.PW_PICKING_STAFF_EMAIL || '',
+    password: process.env.PW_PICKING_STAFF_PASSWORD || '',
+  },
 };
 
