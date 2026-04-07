@@ -6,6 +6,7 @@ import {
   applyRamosManageShiftsPermissions,
   buildPickingStaffProfile,
   consolidatePickerToSingleModule,
+  createManageShiftsOnlyStaffMember,
   createPickingStaffMember,
   endAllActiveShifts,
   logoutAdmin,
@@ -71,12 +72,21 @@ test.describe('7. Picking staff RBAC (Javo workflow)', () => {
     const profile = buildPickingStaffProfile(testInfo.parallelIndex);
     if (process.env.PW_PICKING_STAFF_EMAIL) {
       profile.email    = process.env.PW_PICKING_STAFF_EMAIL;
-      profile.password = process.env.PW_PICKING_STAFF_PASSWORD || profile.password;
+      profile.password = process.env.PW_PICKING_STAFF_PASSWORD || '';
     }
 
     // Admin: ensure the picker has a shift so the manage page shows exactly one card.
     await loginAdmin(page, creds.admin);
     await endAllActiveShifts(page);
+    if (!process.env.PW_PICKING_STAFF_EMAIL) {
+      await createManageShiftsOnlyStaffMember(page, profile);
+    } else {
+      if (!profile.password) {
+        test.skip(true, 'PW_PICKING_STAFF_PASSWORD is required when using PW_PICKING_STAFF_EMAIL.');
+        return;
+      }
+      await restrictStaffToManageShiftsOnly(page, profile.email);
+    }
     await startOperatorShiftOnFirstModule(page, profile);
     await logoutAdmin(page);
 

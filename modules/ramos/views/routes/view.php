@@ -33,8 +33,9 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
                             <div class="tw-text-xs tw-text-slate-500 tw-whitespace-pre-line"><?php echo html_escape($route['notes']); ?></div>
                         <?php endif; ?>
                         <?php if (staff_can('edit', RAMOS_MODULE_NAME)) : ?>
-                            <?php echo form_open(admin_url('ramos/routes/update_status/' . $route['id']), ['class' => 'tw-flex tw-gap-2 tw-items-center tw-mt-2']); ?>
-                                <select name="status" class="form-control selectpicker">
+                            <?php echo form_open(admin_url('ramos/routes/update_status/' . $route['id']), ['id' => 'ramos-route-status-form', 'class' => 'tw-flex tw-gap-2 tw-items-center tw-mt-2']); ?>
+                                <input type="hidden" name="dispatch_confirmed" id="dispatch_confirmed" value="0">
+                                <select name="status" id="ramos-route-status-select" class="form-control selectpicker">
                                     <?php foreach (ramos_route_statuses() as $key => $label) : ?>
                                         <option value="<?php echo html_escape($key); ?>" <?php echo $route['status'] === $key ? 'selected' : ''; ?>><?php echo html_escape($label); ?></option>
                                     <?php endforeach; ?>
@@ -163,6 +164,26 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
         </div>
     </div>
 </div>
+<!-- Dispatch readiness warning modal -->
+<div class="modal fade" id="ramos-dispatch-warning-modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title"><?php echo _l('ramos_routes_dispatch_warning_title'); ?></h4>
+            </div>
+            <div class="modal-body">
+                <p class="tw-text-slate-600 tw-mb-3"><?php echo _l('ramos_routes_dispatch_warning_intro'); ?></p>
+                <ul id="ramos-dispatch-issues" class="tw-pl-4 tw-space-y-1 tw-text-sm"></ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal"><?php echo _l('cancel'); ?></button>
+                <button type="button" class="btn btn-warning" id="ramos-dispatch-proceed"><?php echo _l('ramos_routes_dispatch_proceed_button'); ?></button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php init_tail(); ?>
 <script>
     (function() {
@@ -237,5 +258,57 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
 
             $temp.remove();
         }
+
+        // Dispatch readiness check
+        <?php if (staff_can('edit', RAMOS_MODULE_NAME)) : ?>
+        (function() {
+            var routeId        = <?php echo (int) $route['id']; ?>;
+            var $form          = $('#ramos-route-status-form');
+            var $statusSelect  = $('#ramos-route-status-select');
+            var $confirmed     = $('#dispatch_confirmed');
+            var $modal         = $('#ramos-dispatch-warning-modal');
+            var $issues        = $('#ramos-dispatch-issues');
+            var $proceedBtn    = $('#ramos-dispatch-proceed');
+
+            var msgNotPicked   = <?php echo json_encode(_l('ramos_routes_dispatch_issue_not_picked')); ?>;
+            var msgNotInvoiced = <?php echo json_encode(_l('ramos_routes_dispatch_issue_not_invoiced')); ?>;
+
+            $form.on('submit', function(e) {
+                if ($statusSelect.val() !== 'dispatched' || $confirmed.val() === '1') {
+                    return true;
+                }
+
+                e.preventDefault();
+
+                $.getJSON(admin_url + 'ramos/routes/dispatch_readiness/' + routeId, function(data) {
+                    if (data.all_picked && data.all_invoiced) {
+                        $confirmed.val('1');
+                        $form.submit();
+                        return;
+                    }
+
+                    $issues.empty();
+                    if (!data.all_picked) {
+                        $issues.append('<li><i class="fa-regular fa-circle-xmark tw-text-red-500 tw-mr-1"></i>' + msgNotPicked + '</li>');
+                    }
+                    if (!data.all_invoiced) {
+                        $issues.append('<li><i class="fa-regular fa-circle-xmark tw-text-red-500 tw-mr-1"></i>' + msgNotInvoiced + '</li>');
+                    }
+
+                    $modal.modal('show');
+                }).fail(function() {
+                    // If check fails, allow dispatch without warning
+                    $confirmed.val('1');
+                    $form.submit();
+                });
+            });
+
+            $proceedBtn.on('click', function() {
+                $modal.modal('hide');
+                $confirmed.val('1');
+                $form.submit();
+            });
+        })();
+        <?php endif; ?>
     })();
 </script>

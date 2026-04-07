@@ -65,9 +65,9 @@ class Picking_model extends App_Model
         //     ->get()
         //     ->result_array();
 
-        // NEW: Using omni_sales orders (tblcart and tblcart_detailt)
+        // Path 1: Omni-sales orders (tblcart / tblcart_detailt)
         // cart_detailt.product_id maps to items.id (warehouse commodities)
-        $rows = $this->db
+        $omniRows = $this->db
             ->select('cd.id as order_item_id, cd.cart_id as order_id, cd.quantity, mp.module_id')
             ->from(db_prefix() . 'cart_detailt cd')
             ->join(db_prefix() . 'cart c', 'c.id = cd.cart_id', 'inner')
@@ -79,7 +79,33 @@ class Picking_model extends App_Model
             ->get()
             ->result_array();
 
-        $this->ensure_pick_records($rows);
+        foreach ($omniRows as &$r) {
+            $r['source_type'] = 'omni_sales';
+        }
+        unset($r);
+
+        // Path 2: ERP invoice orders (tblinvoices / tblitemable)
+        // Items are matched by joining tblitemable → tblitems (by description) → ramos_module_products.
+        // Only portal-created invoices that are still unpaid (status = 1) are considered.
+        $invoiceRows = $this->db
+            ->select('ia.id as order_item_id, ia.rel_id as order_id, ia.qty as quantity, mp.module_id')
+            ->from(db_prefix() . 'itemable ia')
+            ->join(db_prefix() . 'items itm', 'itm.description = ia.description', 'inner')
+            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = itm.id', 'inner')
+            ->join(db_prefix() . 'invoices inv', 'inv.id = ia.rel_id', 'inner')
+            ->where('ia.rel_type', 'invoice')
+            ->where('mp.module_id', $moduleId)
+            ->where('inv.status', 1) // Unpaid invoices
+            ->where("(inv.clientnote LIKE '%portal%' OR inv.clientnote LIKE '%customer%')", null, false)
+            ->get()
+            ->result_array();
+
+        foreach ($invoiceRows as &$r) {
+            $r['source_type'] = 'erp_invoice';
+        }
+        unset($r);
+
+        $this->ensure_pick_records(array_merge($omniRows, $invoiceRows));
     }
 
     public function sync_module_assignments($moduleId): void
@@ -93,7 +119,7 @@ class Picking_model extends App_Model
         // These are active (non-cancelled, non-return) cart line items whose product maps to
         // one of the module's assigned products.  Mirrors the filter used in
         // ensure_pick_records_for_module() so the two methods stay in sync.
-        $validItemIds = $this->db
+        $validOmniIds = $this->db
             ->select('cd.id')
             ->from(db_prefix() . 'cart_detailt cd')
             ->join(db_prefix() . 'cart c', 'c.id = cd.cart_id', 'inner')
@@ -104,18 +130,38 @@ class Picking_model extends App_Model
             ->where('c.original_order_id IS NULL', null, false)
             ->get()
             ->result_array();
+        $validOmniIds = array_map('intval', array_column($validOmniIds, 'id'));
 
-        $validItemIds = array_map('intval', array_column($validItemIds, 'id'));
+        // Build the set of currently-valid ERP invoice item IDs for this module.
+        $validInvoiceIds = $this->db
+            ->select('ia.id')
+            ->from(db_prefix() . 'itemable ia')
+            ->join(db_prefix() . 'items itm', 'itm.description = ia.description', 'inner')
+            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = itm.id', 'inner')
+            ->join(db_prefix() . 'invoices inv', 'inv.id = ia.rel_id', 'inner')
+            ->where('ia.rel_type', 'invoice')
+            ->where('mp.module_id', $moduleId)
+            ->where('inv.status', 1)
+            ->where("(inv.clientnote LIKE '%portal%' OR inv.clientnote LIKE '%customer%')", null, false)
+            ->get()
+            ->result_array();
+        $validInvoiceIds = array_map('intval', array_column($validInvoiceIds, 'id'));
 
         $currentRecords = $this->db
-            ->select('id, order_item_id')
+            ->select('id, order_item_id, source_type')
             ->from($this->pickTable)
             ->where('module_id', $moduleId)
             ->get()
             ->result_array();
 
         foreach ($currentRecords as $record) {
-            if (!in_array((int) $record['order_item_id'], $validItemIds, true)) {
+            $oid = (int) $record['order_item_id'];
+            $src = $record['source_type'] ?? 'omni_sales';
+            $valid = ($src === 'erp_invoice')
+                ? in_array($oid, $validInvoiceIds, true)
+                : in_array($oid, $validOmniIds, true);
+
+            if (!$valid) {
                 $this->db->delete($this->pickTable, ['id' => (int) $record['id']]);
             }
         }
@@ -134,6 +180,7 @@ class Picking_model extends App_Model
             $orderItemId  = (int) ($row['order_item_id'] ?? 0);
             $orderId      = (int) ($row['order_id'] ?? 0);
             $requiredQty  = (float) ($row['quantity'] ?? 0);
+            $sourceType   = (string) ($row['source_type'] ?? 'omni_sales');
 
             if ($moduleId <= 0 || $orderItemId <= 0 || $orderId <= 0) {
                 continue;
@@ -142,12 +189,14 @@ class Picking_model extends App_Model
             $exists = $this->db
                 ->where('order_item_id', $orderItemId)
                 ->where('module_id', $moduleId)
+                ->where('source_type', $sourceType)
                 ->count_all_results($this->pickTable) > 0;
 
             if ($exists) {
                 $this->db
                     ->where('order_item_id', $orderItemId)
                     ->where('module_id', $moduleId)
+                    ->where('source_type', $sourceType)
                     ->update($this->pickTable, ['required_qty' => $requiredQty]);
                 continue;
             }
@@ -155,6 +204,7 @@ class Picking_model extends App_Model
             $this->db->insert($this->pickTable, [
                 'order_id'       => $orderId,
                 'order_item_id'  => $orderItemId,
+                'source_type'    => $sourceType,
                 'module_id'      => $moduleId,
                 'required_qty'   => $requiredQty,
                 'picked_qty'     => 0,
@@ -274,51 +324,86 @@ class Picking_model extends App_Model
         //     ->get()
         //     ->result_array();
 
-        // NEW: Using omni_sales orders (tblcart and tblcart_detailt)
-        // Join with route_stops to enable route-priority picking
-        $selectColumns = [
-            'c.id as order_id',
-            'c.order_number',
-            'c.phonenumber as customer_name',
-            'c.address as delivery_address',
-            '1 as priority',
-            'c.status as order_status',
-            'pi.id as pick_id',
-            'pi.required_qty',
-            'pi.picked_qty',
-            'pi.weight',
-            'pi.status as pick_status',
-            'i.description as item_name',
-            'cd.quantity',
-            'pi.module_id',
-            'u.unit_name as unit',
-            'rs.stop_number as route_priority',
-            'rs.route_id as route_id',
-        ];
+        // Path 1: Omni-sales orders (tblcart / tblcart_detailt)
+        $hasRipeness = $this->db->field_exists('ripeness', db_prefix() . 'cart_detailt');
+        $ripenessCol = $hasRipeness ? 'cd.ripeness' : '"" as ripeness';
 
-        // Backward compatibility: some environments may not yet have cart_detailt.ripeness.
-        if ($this->db->field_exists('ripeness', db_prefix() . 'cart_detailt')) {
-            $selectColumns[] = 'cd.ripeness';
-        } else {
-            $selectColumns[] = '"" as ripeness';
-        }
-
-        $rows = $this->db
-            ->select($selectColumns)
+        $omniRows = $this->db
+            ->select([
+                'c.id as order_id',
+                'c.order_number',
+                'c.phonenumber as customer_name',
+                'c.address as delivery_address',
+                '1 as priority',
+                'c.status as order_status',
+                'pi.id as pick_id',
+                'pi.required_qty',
+                'pi.picked_qty',
+                'pi.weight',
+                'pi.status as pick_status',
+                'i.description as item_name',
+                'cd.quantity',
+                'pi.module_id',
+                'u.unit_name as unit',
+                'rs.stop_number as route_priority',
+                'rs.route_id as route_id',
+                $ripenessCol,
+            ])
             ->from($this->pickTable . ' pi')
             ->join(db_prefix() . 'cart c', 'c.id = pi.order_id', 'inner')
             ->join(db_prefix() . 'cart_detailt cd', 'cd.id = pi.order_item_id', 'inner')
             ->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left')
             ->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left')
             ->join(db_prefix() . 'ramos_module_products mp', 'mp.module_id = pi.module_id AND mp.inventory_item_id = cd.product_id', 'left')
-            ->join(db_prefix() . 'ramos_route_stops rs', 'rs.id = pi.route_stop_id', 'left')
+            ->join(db_prefix() . 'ramos_route_stops rs', "rs.id = pi.route_stop_id AND rs.order_source = 'omni_sales'", 'left')
             ->where('pi.module_id', $moduleId)
-            ->where('c.status !=', 5) // Exclude cancelled orders
-            ->order_by('rs.stop_number', 'ASC') // Route delivery order first
-            ->order_by('c.duedate', 'ASC') // Then by due date
-            ->order_by('c.id', 'ASC') // Finally by order ID
+            ->where('pi.source_type', 'omni_sales')
+            ->where('c.status !=', 5)
+            ->order_by('rs.stop_number', 'ASC')
+            ->order_by('c.duedate', 'ASC')
+            ->order_by('c.id', 'ASC')
             ->get()
             ->result_array();
+
+        // Path 2: ERP invoice orders (tblinvoices / tblitemable)
+        $invoiceRows = $this->db
+            ->select([
+                'inv.id as order_id',
+                'inv.number as order_number',
+                'cl.company as customer_name',
+                'cl.shipping_street as delivery_address',
+                '1 as priority',
+                'inv.status as order_status',
+                'pi.id as pick_id',
+                'pi.required_qty',
+                'pi.picked_qty',
+                'pi.weight',
+                'pi.status as pick_status',
+                'ia.description as item_name',
+                'ia.qty as quantity',
+                'pi.module_id',
+                'u.unit_name as unit',
+                'rs.stop_number as route_priority',
+                'rs.route_id as route_id',
+                '"" as ripeness',
+            ])
+            ->from($this->pickTable . ' pi')
+            ->join(db_prefix() . 'invoices inv', 'inv.id = pi.order_id', 'inner')
+            ->join(db_prefix() . 'clients cl', 'cl.userid = inv.clientid', 'left')
+            ->join(db_prefix() . 'itemable ia', 'ia.id = pi.order_item_id AND ia.rel_type = \'invoice\'', 'inner')
+            ->join(db_prefix() . 'items itm', 'itm.description = ia.description', 'left')
+            ->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = itm.unit_id', 'left')
+            ->join(db_prefix() . 'ramos_route_stops rs', "rs.id = pi.route_stop_id AND rs.order_source = 'erp_invoice'", 'left')
+            ->where('pi.module_id', $moduleId)
+            ->where('pi.source_type', 'erp_invoice')
+            ->where('inv.status', 1)
+            ->order_by('rs.stop_number', 'ASC')
+            ->order_by('inv.duedate', 'ASC')
+            ->order_by('inv.id', 'ASC')
+            ->get()
+            ->result_array();
+
+        $rows = array_merge($omniRows, $invoiceRows);
 
         if (empty($rows)) {
             return [];

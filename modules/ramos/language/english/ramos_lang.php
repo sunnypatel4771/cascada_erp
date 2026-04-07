@@ -578,5 +578,46 @@ $lang['ramos_routes_no_products']                 = 'No products';
 $lang['ramos_routes_copied_success']              = 'Copied to clipboard!';
 $lang['ramos_routes_delivery_sheet_route_header'] = 'Route: %s — Start: %s';
 
+// Routes board — pick-based state labels
+$lang['ramos_routes_board_state_no_picks']        = 'Awaiting picks';
+$lang['ramos_routes_board_state_no_stock']        = 'No stock';
+$lang['ramos_routes_board_state_in_progress']     = 'In progress';
+$lang['ramos_routes_board_state_ready_on_time']   = 'Ready — on time';
+$lang['ramos_routes_board_state_ready_late']      = 'Ready — overdue';
+
+// Routes board — color legend
+$lang['ramos_routes_board_legend_label']          = 'Legend';
+$lang['ramos_routes_board_legend_green']          = 'All orders picked & on time';
+$lang['ramos_routes_board_legend_yellow']         = 'Orders still being picked';
+$lang['ramos_routes_board_legend_red']            = 'Missing stock (waiting for PO)';
+
+// Route dispatch readiness
+$lang['ramos_routes_dispatch_warning_title']      = 'Route not ready for dispatch';
+$lang['ramos_routes_dispatch_warning_intro']      = 'The following issues were found before dispatching this route:';
+$lang['ramos_routes_dispatch_issue_not_picked']   = 'Not all orders have been fully picked.';
+$lang['ramos_routes_dispatch_issue_not_invoiced'] = 'Not all orders have invoices generated.';
+$lang['ramos_routes_dispatch_proceed_button']     = 'Proceed anyway';
+
+// Staff module usage report
+$lang['ramos_report_menu']                        = 'Module Usage Report';
+$lang['ramos_report_title']                       = 'Staff Module Usage Report';
+$lang['ramos_report_subtitle']                    = 'Track which employee worked which picking module on each day.';
+$lang['ramos_report_col_date']                    = 'Date';
+$lang['ramos_report_col_module']                  = 'Module';
+$lang['ramos_report_col_staff']                   = 'Staff';
+$lang['ramos_report_col_role']                    = 'Role';
+$lang['ramos_report_col_shift_start']             = 'Shift Start';
+$lang['ramos_report_col_shift_end']               = 'Shift End';
+$lang['ramos_report_col_duration']                = 'Duration';
+$lang['ramos_report_export_csv']                  = 'Export CSV';
+$lang['ramos_report_no_records']                  = 'No shift records found for the selected filters.';
+$lang['ramos_report_filter_date_from']            = 'From';
+$lang['ramos_report_filter_date_to']              = 'To';
+$lang['ramos_report_filter_module']               = 'Module';
+$lang['ramos_report_filter_staff']                = 'Staff member';
+$lang['ramos_report_filter_all']                  = '— All —';
+$lang['ramos_report_results_count']               = '%s record(s) found.';
+$lang['ramos_report_duration_note']               = '* Active shifts show estimated duration.';
+
 // Picking
 $lang['ramos_picking_route_stop_label']           = 'Route stop';

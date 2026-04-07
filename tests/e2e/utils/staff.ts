@@ -210,6 +210,43 @@ export async function createPickingStaffMember(page: Page, profile: PickingStaff
 }
 
 /**
+ * Create staff member with Ramos view + manage_shifts only (non-admin).
+ * This matches the minimal picker RBAC required by Javo.
+ */
+export async function createManageShiftsOnlyStaffMember(page: Page, profile: PickingStaffProfile): Promise<void> {
+  await page.goto('/admin/staff/member');
+  await expect(page.locator('input[name="firstname"]')).toBeVisible({ timeout: 20000 });
+
+  await page.locator('input[name="firstname"]').fill(profile.firstName);
+  await page.locator('input[name="lastname"]').fill(profile.lastName);
+  await page.locator('input[name="email"]').fill(profile.email);
+
+  const adminCb = page.locator('input#administrator');
+  if (await adminCb.isVisible().catch(() => false)) {
+    await adminCb.setChecked(false);
+  }
+
+  const welcome = page.locator('input#send_welcome_email');
+  if (await welcome.isVisible().catch(() => false)) {
+    await welcome.setChecked(false);
+  }
+
+  const passwordInput = page.locator('input[name="password"].password');
+  await passwordInput.fill(profile.password);
+
+  await applyRamosManageShiftsPermissions(page);
+  await submitStaffForm(page);
+
+  await page.waitForURL(/staff\/member\/\d+/, { timeout: 30000 }).catch(async () => {
+    const body = await page.locator('body').innerText();
+    if (/already exists|duplicate|exists/i.test(body)) {
+      throw new Error(`Staff email may already exist: ${profile.email}. Set PW_PICKING_STAFF_EMAIL or PW_PICKING_STAFF_UNIQUE.`);
+    }
+    throw new Error('Staff create did not redirect to member profile.');
+  });
+}
+
+/**
  * Start operator shift for the given staff on the first picking module card (requires admin with ramos edit + staff list includes new user).
  */
 /**

@@ -66,6 +66,15 @@
                     </div>
                 </div>
 
+                <div class="panel_s tw-mb-4">
+                    <div class="panel-body tw-flex tw-flex-wrap tw-gap-4 tw-items-center tw-text-xs tw-text-slate-600">
+                        <span class="tw-font-semibold tw-text-slate-500"><?php echo _l('ramos_routes_board_legend_label'); ?>:</span>
+                        <span><span class="label label-success">&nbsp;</span>&nbsp;<?php echo _l('ramos_routes_board_legend_green'); ?></span>
+                        <span><span class="label label-warning">&nbsp;</span>&nbsp;<?php echo _l('ramos_routes_board_legend_yellow'); ?></span>
+                        <span><span class="label label-danger">&nbsp;</span>&nbsp;<?php echo _l('ramos_routes_board_legend_red'); ?></span>
+                    </div>
+                </div>
+
                 <div class="panel_s <?php echo empty($routes) ? '' : 'tw-hidden'; ?>" id="ramos-board-empty">
                     <div class="panel-body">
                         <p class="tw-text-sm tw-text-slate-500 tw-mb-0"><?php echo _l('ramos_routes_board_no_routes'); ?></p>

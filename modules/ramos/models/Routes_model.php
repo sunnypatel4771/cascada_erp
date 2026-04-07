@@ -401,15 +401,88 @@ class Routes_model extends App_Model
         }
 
         foreach ($routes as &$route) {
-            $route['board_state'] = $this->determine_board_state(
-                (int) ($route['total_stops'] ?? 0),
-                (int) ($route['completed_stops'] ?? 0)
+            $pickStatuses = $this->get_pick_statuses_for_route((int) $route['id']);
+            $route['board_state'] = $this->determine_board_state_from_picks(
+                $pickStatuses,
+                $route['route_date'] ?? date('Y-m-d'),
+                !empty($route['start_time']) ? $route['start_time'] : '23:59:00'
             );
             $route['stops'] = $this->get_route_stops((int) $route['id']);
         }
         unset($route);
 
         return $routes;
+    }
+
+    /**
+     * Returns an array of all distinct pick-item statuses for orders
+     * belonging to stops on the given route.
+     */
+    public function get_pick_statuses_for_route(int $routeId): array
+    {
+        $routeId = (int) $routeId;
+        if ($routeId <= 0) {
+            return [];
+        }
+
+        // Match stops to pick items by both order_id and source_type to prevent cross-source confusion
+        // (an omni_sales cart id could equal an erp_invoice id numerically).
+        $rows = $this->db
+            ->select('pi.status', false)
+            ->from(db_prefix() . 'ramos_pick_items pi')
+            ->join($this->stopsTable . ' rs', 'rs.order_id = pi.order_id AND rs.order_source = pi.source_type', 'inner')
+            ->where('rs.route_id', $routeId)
+            ->get()
+            ->result_array();
+
+        return array_column($rows, 'status');
+    }
+
+    /**
+     * Determine the board column state from pick-item statuses and planned departure.
+     *
+     * Priority (highest to lowest):
+     *   Red    – any item is 'waiting_for_po' (product unavailable)
+     *   Yellow – items remain incomplete (pending / in_progress / weight_missing)
+     *            OR no pick items have been created yet
+     *   Green  – all items completed AND current time ≤ planned departure
+     */
+    public function determine_board_state_from_picks(array $pickStatuses, string $routeDate, string $startTime): array
+    {
+        if (empty($pickStatuses)) {
+            return [
+                'key'         => 'no_picks',
+                'label'       => _l('ramos_routes_board_state_no_picks'),
+                'badge_class' => 'label-warning',
+            ];
+        }
+
+        if (in_array('waiting_for_po', $pickStatuses, true)) {
+            return [
+                'key'         => 'no_stock',
+                'label'       => _l('ramos_routes_board_state_no_stock'),
+                'badge_class' => 'label-danger',
+            ];
+        }
+
+        $incomplete = array_filter($pickStatuses, static fn($s) => in_array($s, ['pending', 'in_progress', 'weight_missing'], true));
+        if (!empty($incomplete)) {
+            return [
+                'key'         => 'in_progress',
+                'label'       => _l('ramos_routes_board_state_in_progress'),
+                'badge_class' => 'label-warning',
+            ];
+        }
+
+        // All picks completed — check departure time
+        $departureTs = strtotime($routeDate . ' ' . $startTime);
+        $onTime      = ($departureTs !== false && time() <= $departureTs);
+
+        return [
+            'key'         => 'ready',
+            'label'       => $onTime ? _l('ramos_routes_board_state_ready_on_time') : _l('ramos_routes_board_state_ready_late'),
+            'badge_class' => 'label-success',
+        ];
     }
 
     public function move_stop(int $stopId, int $originRouteId, int $destinationRouteId, array $orderedStopIds): bool

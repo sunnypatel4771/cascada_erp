@@ -434,6 +434,47 @@ $lang['ramos_routes_no_products']                 = 'Sin productos';
 $lang['ramos_routes_copied_success']              = '¡Copiado al portapapeles!';
 $lang['ramos_routes_delivery_sheet_route_header'] = 'Ruta: %s — Inicio: %s';
 
+// Routes board — pick-based state labels
+$lang['ramos_routes_board_state_no_picks']        = 'Sin surtido';
+$lang['ramos_routes_board_state_no_stock']        = 'Sin existencia';
+$lang['ramos_routes_board_state_in_progress']     = 'En proceso';
+$lang['ramos_routes_board_state_ready_on_time']   = 'Listo — a tiempo';
+$lang['ramos_routes_board_state_ready_late']      = 'Listo — fuera de tiempo';
+
+// Routes board — color legend
+$lang['ramos_routes_board_legend_label']          = 'Leyenda';
+$lang['ramos_routes_board_legend_green']          = 'Todos los pedidos surtidos y a tiempo';
+$lang['ramos_routes_board_legend_yellow']         = 'Pedidos aún en proceso de surtido';
+$lang['ramos_routes_board_legend_red']            = 'Falta existencia (en espera de OC)';
+
+// Route dispatch readiness
+$lang['ramos_routes_dispatch_warning_title']      = 'Ruta no lista para despachar';
+$lang['ramos_routes_dispatch_warning_intro']      = 'Se encontraron los siguientes problemas antes de despachar esta ruta:';
+$lang['ramos_routes_dispatch_issue_not_picked']   = 'No todos los pedidos han sido surtidos completamente.';
+$lang['ramos_routes_dispatch_issue_not_invoiced'] = 'No todos los pedidos tienen factura generada.';
+$lang['ramos_routes_dispatch_proceed_button']     = 'Continuar de todas formas';
+
+// Staff module usage report
+$lang['ramos_report_menu']                        = 'Reporte de Uso de Módulos';
+$lang['ramos_report_title']                       = 'Reporte de Uso de Módulos por Personal';
+$lang['ramos_report_subtitle']                    = 'Consulta qué empleado trabajó en qué módulo de picking cada día.';
+$lang['ramos_report_col_date']                    = 'Fecha';
+$lang['ramos_report_col_module']                  = 'Módulo';
+$lang['ramos_report_col_staff']                   = 'Personal';
+$lang['ramos_report_col_role']                    = 'Rol';
+$lang['ramos_report_col_shift_start']             = 'Inicio de Turno';
+$lang['ramos_report_col_shift_end']               = 'Fin de Turno';
+$lang['ramos_report_col_duration']                = 'Duración';
+$lang['ramos_report_export_csv']                  = 'Exportar CSV';
+$lang['ramos_report_no_records']                  = 'No se encontraron registros de turno para los filtros seleccionados.';
+$lang['ramos_report_filter_date_from']            = 'Desde';
+$lang['ramos_report_filter_date_to']              = 'Hasta';
+$lang['ramos_report_filter_module']               = 'Módulo';
+$lang['ramos_report_filter_staff']                = 'Personal';
+$lang['ramos_report_filter_all']                  = '— Todos —';
+$lang['ramos_report_results_count']               = '%s registro(s) encontrado(s).';
+$lang['ramos_report_duration_note']               = '* Los turnos activos muestran duración estimada.';
+
 // Pricing
 $lang['ramos_pricing_title']                 = 'Precios y Facturación';
 $lang['ramos_pricing_menu_label']            = 'Precios';

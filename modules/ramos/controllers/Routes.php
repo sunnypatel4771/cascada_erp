@@ -147,6 +147,84 @@ class Routes extends AdminController
         redirect(admin_url('ramos/routes/view/' . $routeId));
     }
 
+    /**
+     * AJAX endpoint: check whether a route is ready to dispatch.
+     * Returns JSON with:
+     *   all_picked   – true if all pick items for the route are 'completed'
+     *   all_invoiced – true if every omni_sales stop has a generated invoice
+     *                  (erp_invoice stops are treated as already invoiced)
+     */
+    public function dispatch_readiness($routeId): void
+    {
+        if (!staff_can('view', RAMOS_MODULE_NAME)) {
+            $this->output->set_status_header(403)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['error' => 'forbidden']));
+            return;
+        }
+
+        $routeId = (int) $routeId;
+        $route   = $this->routes_model->get_route($routeId);
+        if (empty($route)) {
+            $this->output->set_status_header(404)
+                ->set_content_type('application/json')
+                ->set_output(json_encode(['error' => 'not_found']));
+            return;
+        }
+
+        $stops = $this->db
+            ->select('order_id, order_source')
+            ->from(db_prefix() . 'ramos_route_stops')
+            ->where('route_id', $routeId)
+            ->get()
+            ->result_array();
+
+        $allPicked   = true;
+        $allInvoiced = true;
+
+        foreach ($stops as $stop) {
+            $orderId = (int) $stop['order_id'];
+
+            $pickStatuses = $this->db
+                ->select('status')
+                ->from(db_prefix() . 'ramos_pick_items')
+                ->where('order_id', $orderId)
+                ->get()
+                ->result_array();
+
+            if (empty($pickStatuses)) {
+                $allPicked = false;
+            } else {
+                foreach ($pickStatuses as $pi) {
+                    if ($pi['status'] !== 'completed') {
+                        $allPicked = false;
+                        break;
+                    }
+                }
+            }
+
+            $orderSource = $stop['order_source'] ?? '';
+            if ($orderSource !== 'erp_invoice') {
+                $orderRow = $this->db
+                    ->select('invoice_id')
+                    ->where('id', $orderId)
+                    ->get(db_prefix() . 'ramos_orders')
+                    ->row_array();
+
+                if (!$orderRow || empty($orderRow['invoice_id'])) {
+                    $allInvoiced = false;
+                }
+            }
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'all_picked'   => $allPicked,
+                'all_invoiced' => $allInvoiced,
+            ]));
+    }
+
     public function move_stop(): void
     {
         if (!staff_can('edit', RAMOS_MODULE_NAME) && !is_admin()) {

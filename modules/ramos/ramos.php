@@ -201,6 +201,13 @@ function ramos_init_admin_menu(): void
         'href'     => admin_url('ramos/automation'),
         'position' => 11,
     ]);
+
+    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+        'slug'     => 'ramos-report',
+        'name'     => _l('ramos_report_menu'),
+        'href'     => admin_url('ramos/report'),
+        'position' => 12,
+    ]);
 }
 
 /**
