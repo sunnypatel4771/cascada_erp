@@ -215,6 +215,7 @@ class Picking_model extends App_Model
         if ($updated) {
             $orderId = (int) $pick['order_id'];
             $this->refresh_order_status($orderId);
+            $this->refresh_route_stop_status($orderId);
             $this->maybeGenerateInvoice($orderId);
         }
 
@@ -397,6 +398,57 @@ class Picking_model extends App_Model
         }
 
         return $result;
+    }
+
+    /**
+     * Automatically mark the route stop for $orderId as 'completed' when every
+     * pick item belonging to that order is in 'completed' status, and revert it
+     * to 'pending' if work is still in progress.
+     *
+     * Only touches stops on routes that are in 'draft' status so that dispatched
+     * or completed routes are never silently regressed.
+     */
+    protected function refresh_route_stop_status(int $orderId): void
+    {
+        if ($orderId <= 0) {
+            return;
+        }
+
+        // Gather all pick item statuses for this order.
+        $statuses = $this->db
+            ->select('status')
+            ->from($this->pickTable)
+            ->where('order_id', $orderId)
+            ->get()
+            ->result_array();
+
+        if (empty($statuses)) {
+            return;
+        }
+
+        $statusValues = array_column($statuses, 'status');
+        $allCompleted = count(array_filter($statusValues, fn($s) => $s === 'completed')) === count($statusValues);
+
+        $newStopStatus = $allCompleted ? 'completed' : 'pending';
+
+        // Find route stops for this order on routes that are still in 'draft' status.
+        // We never auto-complete stops on routes that are already dispatched or completed.
+        $stops = $this->db
+            ->select('rs.id')
+            ->from(db_prefix() . 'ramos_route_stops rs')
+            ->join(db_prefix() . 'ramos_routes r', 'r.id = rs.route_id', 'inner')
+            ->where('rs.order_id', $orderId)
+            ->where_in('r.status', ['draft'])
+            ->get()
+            ->result_array();
+
+        if (empty($stops)) {
+            return;
+        }
+
+        $stopIds = array_column($stops, 'id');
+        $this->db->where_in('id', $stopIds);
+        $this->db->update(db_prefix() . 'ramos_route_stops', ['status' => $newStopStatus]);
     }
 
     protected function refresh_order_status(int $orderId): void

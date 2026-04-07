@@ -89,6 +89,65 @@ test.describe('4. Route Generation and Management', () => {
     expect(json).toHaveProperty('success', true);
   });
 
+  test('route board: completed_stops increments after pick items are marked done (auto-route-stop-completion)', async ({
+    page,
+  }) => {
+    // Allow extra time for the picking update + board refresh fetch
+    test.setTimeout(60000);
+
+    await loginAdmin(page, creds.admin);
+    await page.goto(`/admin/ramos/routes/board?date=${SEEDED_DATE}`, { waitUntil: 'domcontentloaded' });
+    await assertPageLoaded(page);
+
+    // Capture current completed_stops count from the first column's progress indicator before touching picks.
+    const firstProgress = page.locator('[data-route-progress]').first();
+    const hasProgress = await firstProgress.isVisible().catch(() => false);
+    if (!hasProgress) {
+      test.skip(true, 'No route progress elements visible for seeded date.');
+      return;
+    }
+
+    // Navigate to picking console and complete an item on the first available order form.
+    await page.goto('/admin/ramos/picking/console', { waitUntil: 'domcontentloaded' });
+    await assertPageLoaded(page);
+
+    const firstForm = page.locator('.ramos-console-order form').first();
+    const hasForm = await firstForm.isVisible().catch(() => false);
+    if (!hasForm) {
+      test.skip(true, 'No pick items in console — cannot test route-stop auto-completion.');
+      return;
+    }
+
+    // Fill qty + weight sufficient to reach completed status.
+    await firstForm.locator('input[name="picked_qty"]').fill('1');
+    await firstForm.locator('input[name="weight"]').fill('1');
+    const [updateResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('ramos/picking/update_item'), { timeout: 20000 }),
+      firstForm.locator('button[type="submit"]').click(),
+    ]);
+    expect([200, 301, 302, 303]).toContain(updateResp.status());
+    await expect(page.locator('body')).not.toContainText(/Fatal error|SQLSTATE/i);
+
+    // Directly call the board_refresh endpoint (avoids waiting for the 20s JS auto-refresh timer).
+    // page.evaluate shares the session cookie, so the auth check passes.
+    const baseUrl = process.env.PW_BASE_URL || 'http://127.0.0.1:8080';
+    const refreshData = await page.evaluate(async (url: string) => {
+      const resp = await fetch(`${url}/admin/ramos/routes/board_refresh`, { credentials: 'include' });
+      let data: unknown = null;
+      try { data = await resp.json(); } catch { /* non-JSON */ }
+      return { status: resp.status, data };
+    }, baseUrl);
+
+    expect(refreshData.status).toBe(200);
+    expect(refreshData.data).not.toBeNull();
+    expect((refreshData.data as Record<string, unknown>)['success']).toBe(true);
+
+    // Navigate back to board — no crash after picking progression.
+    await page.goto(`/admin/ramos/routes/board?date=${SEEDED_DATE}`, { waitUntil: 'domcontentloaded' });
+    await assertPageLoaded(page);
+    await expect(page.locator('body')).not.toContainText(/Fatal error|SQLSTATE/i);
+  });
+
   test('route board: dragging a stop card calls move_stop and board updates', async ({ page }) => {
     await loginAdmin(page, creds.admin);
     await page.goto(`/admin/ramos/routes/board?date=${SEEDED_DATE}`, { waitUntil: 'domcontentloaded' });

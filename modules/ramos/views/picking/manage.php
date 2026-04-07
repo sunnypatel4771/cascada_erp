@@ -40,9 +40,11 @@ hooks()->add_action('app_admin_head', function () { ?>
 ?>
 <?php init_head(); ?>
 <?php
-$canEdit = staff_can('edit', RAMOS_MODULE_NAME);
-$inventoryOptions = isset($inventory_options) ? $inventory_options : [];
-$staffMembers     = isset($staff_members) ? $staff_members : [];
+$canEdit              = staff_can('edit', RAMOS_MODULE_NAME) || is_admin();
+$canManageShifts      = $canEdit || staff_can('manage_shifts', RAMOS_MODULE_NAME);
+$isShiftsScoped       = !empty($picking_manage_shifts_scoped);
+$inventoryOptions     = isset($inventory_options) ? $inventory_options : [];
+$staffMembers         = isset($staff_members) ? $staff_members : [];
 ?>
 <div id="wrapper">
     <div class="content">
@@ -61,7 +63,16 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                 </div>
 
                 <?php if (empty($modules)) : ?>
-                    <div class="alert alert-info tw-text-sm"><?php echo _l('ramos_picking_no_modules'); ?></div>
+                    <?php if ($isShiftsScoped) : ?>
+                        <div class="alert alert-warning tw-text-sm">
+                            <?php echo _l('ramos_picking_manage_shift_only_no_shift'); ?>
+                            &nbsp;<a href="<?php echo admin_url('ramos/picking/console'); ?>" class="btn btn-sm btn-primary tw-ml-2">
+                                <i class="fa-regular fa-clipboard-list tw-mr-1"></i><?php echo _l('ramos_picking_open_console_button'); ?>
+                            </a>
+                        </div>
+                    <?php else : ?>
+                        <div class="alert alert-info tw-text-sm"><?php echo _l('ramos_picking_no_modules'); ?></div>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <div class="row ramos-picking-modules">
@@ -136,7 +147,7 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                                                         <?php echo html_escape(trim(($record['firstname'] ?? '') . ' ' . ($record['lastname'] ?? ''))); ?>
                                                         <span class="label <?php echo $roleBadgeClass; ?> tw-ml-1"><?php echo $roleLabel; ?></span>
                                                         <span class="tw-text-2xs tw-text-slate-400 tw-ml-1"><?php echo _dt($record['shift_started_at']); ?></span>
-                                                        <?php if ($canEdit) : ?>
+                                                        <?php if ($canManageShifts) : ?>
                                                             <a href="<?php echo admin_url('ramos/picking/end_shift/' . $record['id']); ?>" class="btn btn-danger btn-xs tw-ml-2" onclick="return confirm('<?php echo _l('ramos_picking_end_shift_confirm'); ?>');"><?php echo _l('ramos_picking_end_shift_button'); ?></a>
                                                         <?php endif; ?>
                                                     </li>
@@ -146,7 +157,7 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                                             <p class="tw-text-xs tw-text-slate-500 tw-mb-2"><?php echo _l('ramos_picking_no_active_staff'); ?></p>
                                         <?php endif; ?>
 
-                                        <?php if ($canEdit) : ?>
+                                        <?php if ($canManageShifts) : ?>
                                             <?php echo form_open(admin_url('ramos/picking/start_shift/' . $module['id'])); ?>
                                                 <div class="row picking-shift-row">
                                                     <div class="col-sm-12 col-md-6">
@@ -160,6 +171,7 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                                                             </select>
                                                         </div>
                                                     </div>
+                                                    <?php if ($canEdit) : ?>
                                                     <div class="col-sm-12 col-md-6">
                                                         <div class="form-group picking-shift-field">
                                                             <label class="control-label" for="picking_role_<?php echo (int) $module['id']; ?>"><?php echo _l('ramos_role_label'); ?></label>
@@ -169,6 +181,9 @@ $staffMembers     = isset($staff_members) ? $staff_members : [];
                                                             </select>
                                                         </div>
                                                     </div>
+                                                    <?php else : ?>
+                                                    <input type="hidden" name="role" value="operator">
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="picking-shift-actions">
                                                     <button type="submit" class="btn btn-primary btn-sm"><?php echo _l('ramos_picking_start_shift_button'); ?></button>

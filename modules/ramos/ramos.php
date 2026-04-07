@@ -95,10 +95,11 @@ function ramos_register_permissions(): void
 {
     $capabilities = [
         'capabilities' => [
-            'view'   => _l('permission_view') . '(' . _l('permission_global') . ')',
-            'create' => _l('permission_create'),
-            'edit'   => _l('permission_edit'),
-            'delete' => _l('permission_delete'),
+            'view'          => _l('permission_view') . '(' . _l('permission_global') . ')',
+            'create'        => _l('permission_create'),
+            'edit'          => _l('permission_edit'),
+            'delete'        => _l('permission_delete'),
+            'manage_shifts' => _l('ramos_permission_manage_shifts'),
         ],
     ];
 

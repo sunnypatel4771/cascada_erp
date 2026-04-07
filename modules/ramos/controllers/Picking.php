@@ -20,15 +20,33 @@ class Picking extends AdminController
 
     public function index(): void
     {
-        $modules   = $this->modules_model->get_modules(true, true);
+        $isFullPickingAdmin  = is_admin() || staff_can('edit', RAMOS_MODULE_NAME);
+        $isManageShiftsOnly  = staff_can('manage_shifts', RAMOS_MODULE_NAME) && !$isFullPickingAdmin;
+
+        $allModules = $this->modules_model->get_modules(true, true);
+
+        if ($isManageShiftsOnly) {
+            $currentStaffId  = (int) get_staff_user_id();
+            $allowedModuleIds = $this->modules_model->get_active_module_ids_for_staff($currentStaffId);
+
+            // Only show module cards the picker is actively shifted into.
+            $modules = array_values(array_filter($allModules, function ($m) use ($allowedModuleIds) {
+                return in_array((int) $m['id'], $allowedModuleIds, true);
+            }));
+
+            // Staff dropdown limited to self only.
+            $selfStaff = $this->staff_model->get($currentStaffId);
+            $staff     = $selfStaff ? [$selfStaff] : [];
+        } else {
+            $modules = $allModules;
+            $staff   = $this->staff_model->get('', ['active' => 1]);
+        }
 
         // COMMENTED: Ramos inventory - replaced with warehouse commodity list
         // $inventory = $this->inventory_model->get(null, ['active' => 1]);
 
         // NEW: Get warehouse commodity list items (tblitems)
         $inventory = $this->get_warehouse_commodities();
-
-        $staff     = $this->staff_model->get('', ['active' => 1]);
 
         $inventoryOptions = [];
         foreach ($inventory as $item) {
@@ -39,11 +57,12 @@ class Picking extends AdminController
             ];
         }
 
-        $data['title']             = _l('ramos_picking_title');
-        $data['subtitle']          = _l('ramos_picking_subtitle');
-        $data['modules']           = $modules;
-        $data['inventory_options'] = $inventoryOptions;
-        $data['staff_members']     = $staff;
+        $data['title']                      = _l('ramos_picking_title');
+        $data['subtitle']                   = _l('ramos_picking_subtitle');
+        $data['modules']                    = $modules;
+        $data['inventory_options']          = $inventoryOptions;
+        $data['staff_members']              = $staff;
+        $data['picking_manage_shifts_scoped'] = $isManageShiftsOnly;
 
         $this->load->view('picking/manage', $data);
     }
@@ -101,7 +120,8 @@ class Picking extends AdminController
 
     public function start_shift($moduleId): void
     {
-        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+        // Allow Ramos edit/admin or users with the narrower manage_shifts capability.
+        if (!is_admin() && !staff_can('edit', RAMOS_MODULE_NAME) && !staff_can('manage_shifts', RAMOS_MODULE_NAME)) {
             access_denied();
         }
 
@@ -111,7 +131,23 @@ class Picking extends AdminController
         }
 
         $staffId = (int) $this->input->post('staff_id');
-        $role = $this->input->post('role');
+        $role    = $this->input->post('role');
+
+        // Pickers with only manage_shifts can only start a shift for themselves as operator.
+        $isFullAdmin = is_admin() || staff_can('edit', RAMOS_MODULE_NAME);
+        if (!$isFullAdmin) {
+            $staffId = (int) get_staff_user_id();
+            $role    = 'operator';
+
+            // Security: manage_shifts-only may only end/extend a shift on a module they are
+            // already shifted into. Starting on an arbitrary module must go through claim_shift.
+            $allowedIds = $this->modules_model->get_active_module_ids_for_staff($staffId);
+            if (!in_array((int) $moduleId, $allowedIds, true)) {
+                set_alert('warning', _l('ramos_picking_shift_start_failed'));
+                redirect(admin_url('ramos/picking'));
+                return;
+            }
+        }
 
         // Validate role - default to operator if invalid
         if (!in_array($role, ['operator', 'supervisor'], true)) {
@@ -136,13 +172,20 @@ class Picking extends AdminController
 
     public function end_shift($recordId): void
     {
-        if (!staff_can('edit', RAMOS_MODULE_NAME)) {
+        // Allow Ramos edit/admin or users with manage_shifts (they can only end their own shifts).
+        if (!is_admin() && !staff_can('edit', RAMOS_MODULE_NAME) && !staff_can('manage_shifts', RAMOS_MODULE_NAME)) {
             access_denied();
         }
 
         $record = $this->db->get_where(db_prefix() . 'ramos_module_staff', ['id' => $recordId])->row_array();
         if (!$record) {
             show_404();
+        }
+
+        // manage_shifts-only users may only end their own shift records.
+        $isFullAdmin = is_admin() || staff_can('edit', RAMOS_MODULE_NAME);
+        if (!$isFullAdmin && (int) $record['staff_id'] !== (int) get_staff_user_id()) {
+            access_denied();
         }
 
         $success = $this->modules_model->end_shift($recordId);
@@ -156,6 +199,55 @@ class Picking extends AdminController
         redirect(admin_url('ramos/picking'));
     }
 
+    /**
+     * Picker-self-service: claim an available module from the console.
+     * Requires manage_shifts permission. Forces staff_id = current user, role = operator.
+     */
+    public function claim_shift($moduleId): void
+    {
+        if (!staff_can('manage_shifts', RAMOS_MODULE_NAME) && !is_admin() && !staff_can('edit', RAMOS_MODULE_NAME)) {
+            access_denied();
+        }
+
+        $module = $this->modules_model->get_module($moduleId);
+        if (empty($module)) {
+            show_404();
+        }
+
+        $staffId = (int) get_staff_user_id();
+        $success = $this->modules_model->start_shift($moduleId, $staffId, 'operator');
+
+        if ($success) {
+            set_alert('success', _l('ramos_picking_shift_started'));
+        } else {
+            set_alert('warning', _l('ramos_picking_claim_shift_failed'));
+        }
+
+        redirect(admin_url('ramos/picking/console'));
+    }
+
+    /**
+     * Picker-self-service: end own active shift from the console.
+     * Requires manage_shifts permission. Only ends the current user's own shift.
+     */
+    public function release_shift($moduleId): void
+    {
+        if (!staff_can('manage_shifts', RAMOS_MODULE_NAME) && !is_admin() && !staff_can('edit', RAMOS_MODULE_NAME)) {
+            access_denied();
+        }
+
+        $staffId = (int) get_staff_user_id();
+        $success = $this->modules_model->end_own_shift((int) $moduleId, $staffId);
+
+        if ($success) {
+            set_alert('success', _l('ramos_picking_shift_finished'));
+        } else {
+            set_alert('warning', _l('ramos_picking_shift_finish_failed'));
+        }
+
+        redirect(admin_url('ramos/picking/console'));
+    }
+
     public function console(): void
     {
         if (!staff_can('view', RAMOS_MODULE_NAME)) {
@@ -164,15 +256,40 @@ class Picking extends AdminController
 
         [$moduleData, $hasModules] = $this->get_console_modules();
 
-        // Supervisors can edit items on any module they can see
-        $staffId = get_staff_user_id();
+        $staffId      = get_staff_user_id();
         $isSupervisor = $this->modules_model->staff_is_supervisor($staffId);
+        $isFullAdmin  = is_admin() || staff_can('edit', RAMOS_MODULE_NAME);
+        $canManageShifts = $isFullAdmin || staff_can('manage_shifts', RAMOS_MODULE_NAME);
 
-        $data['title']          = _l('ramos_picking_console_title');
-        $data['subtitle']       = _l('ramos_picking_console_subtitle');
-        $data['module_data']    = $moduleData;
-        $data['can_edit']       = staff_can('edit', RAMOS_MODULE_NAME) || is_admin() || $isSupervisor;
-        $data['has_modules']    = $hasModules;
+        // For pickers with manage_shifts and no active module, show module selector.
+        $availableModules    = [];
+        $pickerActiveModules = [];
+        $pickerActiveShifts  = [];
+        if ($canManageShifts && !$isFullAdmin) {
+            $pickerActiveModules = $this->modules_model->get_active_module_ids_for_staff($staffId);
+            if (empty($pickerActiveModules)) {
+                $availableModules = $this->modules_model->get_available_modules();
+            } else {
+                // Load active shift records for the "End my shift" button.
+                $pickerActiveShifts = $this->db
+                    ->where('staff_id', $staffId)
+                    ->where('shift_ended_at IS NULL', null, false)
+                    ->where_in('module_id', $pickerActiveModules)
+                    ->get(db_prefix() . 'ramos_module_staff')
+                    ->result_array();
+            }
+        }
+
+        $data['title']                = _l('ramos_picking_console_title');
+        $data['subtitle']             = _l('ramos_picking_console_subtitle');
+        $data['module_data']          = $moduleData;
+        $data['can_edit']             = $isFullAdmin || $isSupervisor;
+        $data['has_modules']          = $hasModules;
+        $data['can_manage_shifts']    = $canManageShifts;
+        $data['available_modules']    = $availableModules;
+        $data['picker_active_modules']= $pickerActiveModules;
+        $data['picker_active_shifts'] = $pickerActiveShifts;
+        $data['is_full_admin']        = $isFullAdmin;
 
         $this->load->view('picking/console', $data);
     }

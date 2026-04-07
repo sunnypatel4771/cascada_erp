@@ -4,6 +4,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 
 // General / dashboard
 $lang['ramos_permission_group']              = 'Operaciones Ramos';
+$lang['ramos_permission_manage_shifts']      = 'Iniciar/Terminar turno';
 $lang['ramos_menu_label']                    = 'Ramos';
 $lang['ramos_dashboard_title']               = 'Panel de Operaciones Ramos';
 $lang['ramos_dashboard_tagline']             = 'Centro de control para pedidos, compras, módulos de surtido, rutas e inventario.';
@@ -296,13 +297,21 @@ $lang['ramos_picking_module_update_failed']  = 'No se pudo actualizar el módulo
 $lang['ramos_picking_products_updated']      = 'Productos actualizados.';
 $lang['ramos_picking_select_staff']          = 'Primero selecciona un miembro del personal.';
 $lang['ramos_picking_shift_started']         = 'Turno iniciado.';
-$lang['ramos_picking_shift_start_failed']    = 'No se pudo iniciar el turno (el módulo puede ya tener dos empleados activos).';
+$lang['ramos_picking_shift_start_failed']    = 'No se pudo iniciar el turno (el módulo ya tiene un operador activo).';
 $lang['ramos_picking_shift_finished']        = 'Turno finalizado.';
 $lang['ramos_picking_shift_finish_failed']   = 'No se pudo finalizar el turno.';
 $lang['ramos_picking_open_console_button']   = 'Abrir consola de surtido';
 $lang['ramos_picking_console_title']         = 'Consola de Surtido';
 $lang['ramos_picking_console_subtitle']      = 'Surtir y pesar los pedidos asignados a tu módulo.';
 $lang['ramos_picking_console_no_access']     = 'No estás asignado a ningún módulo de surtido activo.';
+$lang['ramos_picking_manage_shift_only_no_shift'] = 'No tienes un turno activo. Ve a la Consola de Surtido para tomar un módulo e iniciar tu turno.';
+$lang['ramos_picking_claim_module_heading']  = 'Selecciona tu módulo';
+$lang['ramos_picking_claim_module_label']    = 'Módulo disponible';
+$lang['ramos_picking_claim_shift_button']    = 'Iniciar mi turno';
+$lang['ramos_picking_no_modules_available']  = 'No hay módulos disponibles ahora. Todos están ocupados o inactivos.';
+$lang['ramos_picking_claim_shift_failed']    = 'No se pudo tomar el módulo. Puede que otro usuario ya lo haya tomado.';
+$lang['ramos_picking_end_own_shift_button']  = 'Terminar mi turno';
+$lang['ramos_picking_end_own_shift_confirm'] = '¿Terminar tu turno actual en este módulo?';
 $lang['ramos_picking_console_no_orders']     = 'Sin pedidos pendientes para este módulo.';
 $lang['ramos_picking_order_label']           = 'Pedido #%s';
 $lang['ramos_picking_status_red']            = 'Artículos pendientes';

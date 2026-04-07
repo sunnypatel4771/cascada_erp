@@ -136,13 +136,20 @@ class Modules_model extends App_Model
             return false;
         }
 
+        // Use a transaction so two simultaneous requests can't both pass the capacity check.
+        $this->db->trans_start();
+
+        // Staff already has an active shift on this module → reject.
         $this->db->where(['module_id' => $moduleId, 'staff_id' => $staffId, 'shift_ended_at' => null]);
         if ($this->db->count_all_results($this->moduleStaffTable) > 0) {
+            $this->db->trans_rollback();
             return false;
         }
 
+        // Exclusive lock: only 1 active operator per module (Javo requirement).
         $this->db->where(['module_id' => $moduleId, 'shift_ended_at' => null]);
-        if ($this->db->count_all_results($this->moduleStaffTable) >= 2) {
+        if ($this->db->count_all_results($this->moduleStaffTable) >= 1) {
+            $this->db->trans_rollback();
             return false;
         }
 
@@ -158,7 +165,11 @@ class Modules_model extends App_Model
             $insertData['role'] = $role;
         }
 
-        return $this->db->insert($this->moduleStaffTable, $insertData);
+        $inserted = $this->db->insert($this->moduleStaffTable, $insertData);
+
+        $this->db->trans_complete();
+
+        return $inserted && $this->db->trans_status();
     }
 
     public function end_shift($recordId): bool
@@ -169,6 +180,57 @@ class Modules_model extends App_Model
         return $this->db->update($this->moduleStaffTable, [
             'shift_ended_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * End a picker's own active shift on a given module.
+     * Only affects the record belonging to $staffId (self-service end).
+     */
+    public function end_own_shift(int $moduleId, int $staffId): bool
+    {
+        $moduleId = (int) $moduleId;
+        $staffId  = (int) $staffId;
+
+        if ($moduleId <= 0 || $staffId <= 0) {
+            return false;
+        }
+
+        $this->db->where('module_id', $moduleId);
+        $this->db->where('staff_id', $staffId);
+        $this->db->where('shift_ended_at IS NULL', null, false);
+
+        return $this->db->update($this->moduleStaffTable, [
+            'shift_ended_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Return active modules that currently have no active shift (available for a picker to claim).
+     */
+    public function get_available_modules(): array
+    {
+        $allModules = $this->db
+            ->where('is_active', 1)
+            ->order_by('display_name', 'ASC')
+            ->get($this->modulesTable)
+            ->result_array();
+
+        if (empty($allModules)) {
+            return [];
+        }
+
+        // Find module IDs that already have an active shift.
+        $occupied = $this->db
+            ->select('module_id')
+            ->where('shift_ended_at IS NULL', null, false)
+            ->get($this->moduleStaffTable)
+            ->result_array();
+
+        $occupiedIds = array_map('intval', array_column($occupied, 'module_id'));
+
+        return array_values(array_filter($allModules, function ($m) use ($occupiedIds) {
+            return !in_array((int) $m['id'], $occupiedIds, true);
+        }));
     }
 
     public function get_active_module_ids_for_staff($staffId): array

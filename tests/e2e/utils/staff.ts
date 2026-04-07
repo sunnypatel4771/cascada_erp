@@ -7,6 +7,12 @@ export type PickingStaffProfile = {
   lastName: string;
 };
 
+/**
+ * Module-level timestamp ensures every call to buildPickingStaffProfile within the
+ * same test-runner process returns the same email (serial tests share one process).
+ */
+const _runUnique = process.env.PW_PICKING_STAFF_UNIQUE || `${Date.now()}`.slice(-10);
+
 /** True if this picker already appears in an "Active staff" block (avoids duplicate start_shift). */
 function pickerListedInActiveStaffBlock(block: string, profile: PickingStaffProfile): boolean {
   const t = block.toLowerCase();
@@ -25,18 +31,98 @@ function pickerListedInActiveStaffBlock(block: string, profile: PickingStaffProf
  * Build unique picker credentials.
  * Override with PW_PICKING_STAFF_EMAIL / PASSWORD / FIRSTNAME / LASTNAME for a pre-created staff row
  * (dropdown shows "firstname lastname" in module shift form).
+ * The unique suffix is stable within a single test-runner process so all serial
+ * tests in a describe block see the same email address.
  */
 export function buildPickingStaffProfile(workerIndex: number): PickingStaffProfile {
-  const unique = process.env.PW_PICKING_STAFF_UNIQUE
-    ? process.env.PW_PICKING_STAFF_UNIQUE
-    : `${workerIndex}-${Date.now()}`.slice(-12);
+  const unique = `${workerIndex}-${_runUnique}`;
 
   return {
     email: process.env.PW_PICKING_STAFF_EMAIL || `e2e.picker.${unique}@ramos.test`,
     password: process.env.PW_PICKING_STAFF_PASSWORD || 'PickerE2E#2026',
     firstName: process.env.PW_PICKING_STAFF_FIRSTNAME || 'E2E',
-    lastName: process.env.PW_PICKING_STAFF_LASTNAME || `Picker ${workerIndex}`,
+    lastName: process.env.PW_PICKING_STAFF_LASTNAME || `Picker${workerIndex}`,
   };
+}
+
+/**
+ * Find an existing staff member by email and set their Ramos permissions to
+ * view + manage_shifts only (removes edit/create/delete/other-module permissions).
+ * Used when PW_PICKING_STAFF_EMAIL targets a pre-existing account whose permissions may be broader.
+ * No-ops silently if the staff member can't be found (test skips permission update gracefully).
+ */
+/**
+ * Find a staff member by email (scans table rows), open their edit form and
+ * restrict them to Ramos view + manage_shifts only.
+ * Returns true if permissions were updated, false if the staff was not found or is an admin
+ * (admins cannot be permission-restricted this way — callers should handle this).
+ */
+export async function restrictStaffToManageShiftsOnly(page: Page, email: string): Promise<boolean> {
+  await page.goto('/admin/staff');
+  await page.waitForLoadState('domcontentloaded');
+
+  // Perfex staff table: rows contain email as cell text but the edit link uses the staff name.
+  // We find the row containing the email string and click its first member-edit link.
+  const memberLink = page.locator('table tbody tr').filter({ hasText: email }).locator('a[href*="staff/member"]').first();
+
+  if ((await memberLink.count()) === 0) {
+    return false;
+  }
+
+  await memberLink.click();
+  await page.waitForURL(/staff\/member\/\d+/, { timeout: 20000 }).catch(() => {});
+  await page.waitForLoadState('domcontentloaded');
+
+  // If the account is a Perfex administrator, we cannot restrict their view via permissions.
+  const adminCb = page.locator('input#administrator');
+  const isAdmin = await adminCb.isChecked().catch(() => false);
+  if (isAdmin) {
+    return false;
+  }
+
+  await applyRamosManageShiftsPermissions(page);
+
+  const saveBtn = page.locator('form.staff-form button[type="submit"].btn-primary');
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}),
+    saveBtn.click(),
+  ]);
+  // Wait for the page to fully settle so subsequent goto() calls don't get ERR_ABORTED.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  return true;
+}
+
+/**
+ * End ALL active shifts on every module (admin only).
+ * Useful as a test setup step to guarantee a clean slate before tests that need free module slots.
+ */
+export async function endAllActiveShifts(page: Page): Promise<void> {
+  // Retry the initial navigation in case a previous redirect is still in flight (ERR_ABORTED guard).
+  for (let nav = 0; nav < 3; nav++) {
+    try {
+      await page.goto('/admin/ramos/picking', { waitUntil: 'domcontentloaded', timeout: 20000 });
+      break;
+    } catch {
+      await page.waitForTimeout(800);
+    }
+  }
+  await expect(page.locator('.ramos-picking-modules')).toBeVisible({ timeout: 20000 });
+
+  const moduleCards = page.locator('.ramos-picking-modules > .col-md-6');
+  const n = await moduleCards.count();
+
+  for (let i = 0; i < n; i++) {
+    const card = moduleCards.nth(i);
+    // Click every "End shift" link in the card (exclusive lock = at most 1).
+    const endLinks = card.getByRole('link', { name: /end shift|finalizar turno/i });
+    const count = await endLinks.count();
+    for (let j = 0; j < count; j++) {
+      page.once('dialog', (d) => d.accept().catch(() => {}));
+      await endLinks.first().click().catch(() => {});
+      await page.waitForURL(/ramos\/picking/i, { timeout: 15000 }).catch(() => {});
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+    }
+  }
 }
 
 /**
@@ -55,6 +141,30 @@ export async function applyRamosViewOnlyPermissions(page: Page): Promise<void> {
     const ramosView = document.querySelector<HTMLInputElement>('#ramos_view');
     if (ramosView && !ramosView.disabled) {
       ramosView.checked = true;
+    }
+  });
+}
+
+/**
+ * On the new/edit staff member form: grant Ramos → View + manage_shifts only.
+ * This is the correct minimal set for a picker operator (Javo requirement).
+ */
+export async function applyRamosManageShiftsPermissions(page: Page): Promise<void> {
+  const permTab = page.locator('a[href="#staff_permissions"], a[aria-controls="staff_permissions"]').first();
+  await permTab.click();
+  await expect(page.locator('#staff_permissions table.roles')).toBeVisible({ timeout: 15000 });
+
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLInputElement>('input.capability:not([disabled])').forEach((el) => {
+      el.checked = false;
+    });
+    const ramosView = document.querySelector<HTMLInputElement>('#ramos_view');
+    if (ramosView && !ramosView.disabled) {
+      ramosView.checked = true;
+    }
+    const ramosManageShifts = document.querySelector<HTMLInputElement>('#ramos_manage_shifts');
+    if (ramosManageShifts && !ramosManageShifts.disabled) {
+      ramosManageShifts.checked = true;
     }
   });
 }
@@ -136,8 +246,9 @@ export async function startOperatorShiftOnFirstModule(page: Page, profile: Picki
   let chosen = false;
   for (let i = 0; i < n; i++) {
     const card = moduleCards.nth(i);
+    // Exclusive lock: only 1 active operator per module.
     const endShiftCount = await card.getByRole('link', { name: /end shift|finalizar turno/i }).count();
-    if (endShiftCount >= 2) {
+    if (endShiftCount >= 1) {
       continue;
     }
     const activeHeading = card.locator('h6').filter({ hasText: /Active staff|Personal activo|staff/i });
@@ -155,7 +266,7 @@ export async function startOperatorShiftOnFirstModule(page: Page, profile: Picki
   if (!chosen) {
     throw new Error(
       'No picking module has a free shift slot for this user, or the user already has an active shift on every reachable module. ' +
-        'End shifts on /admin/ramos/picking or free a slot (max 2 operators per module).'
+        'End shifts on /admin/ramos/picking or free a slot (max 1 operator per module).'
     );
   }
 
@@ -214,42 +325,66 @@ export async function startOperatorShiftOnFirstModule(page: Page, profile: Picki
     { selector: moduleId ? pickerId : 'select[name="staff_id"]', val: value }
   );
 
+  // Only try to select the role dropdown if it's visible (canEdit=true for admin, hidden for manage_shifts-only).
   const roleSelect = target.locator('select[name="role"]');
-  await roleSelect.selectOption('operator', { force: true });
-  await roleSelect.dispatchEvent('change');
+  const hasRoleSelect = await roleSelect.isVisible().catch(() => false);
+  if (hasRoleSelect) {
+    await roleSelect.selectOption('operator', { force: true });
+    await roleSelect.dispatchEvent('change');
+  }
 
+  // Short-circuit: if the staff member is already in the active list (stale page state), we're done.
   if ((await modulesRoot.getByText(namePattern).count()) > 0) {
     return;
   }
+
+  // Record how many end-shift links the chosen card has before submission.
+  const endLinksBefore = await target.getByRole('link', { name: /end shift|finalizar turno/i }).count();
 
   await target.locator('button[type="submit"]').filter({ hasText: /start|iniciar/i }).click();
   await page.waitForURL(/ramos\/picking/i, { timeout: 25000 }).catch(() => {});
   await page.waitForLoadState('networkidle').catch(() => {});
 
+  // Check if a warning alert was shown (shift failed).
   const shiftFailed = await page
     .locator('.alert-warning, .float-alert.alert-warning')
-    .filter({ hasText: /shift|turno|Unable|No se pudo|two active|dos empleados|start shift/i })
+    .filter({ hasText: /shift|turno|Unable|No se pudo|active operator|operador activo|start shift/i })
     .first()
     .isVisible()
     .catch(() => false);
 
+  if (shiftFailed) {
+    throw new Error(
+      'Shift did not start. Module already has an active operator (exclusive 1-per-module lock). ' +
+        'End the current shift on /admin/ramos/picking or pick another module.'
+    );
+  }
+
+  // Primary success check: name appears in active staff (works when PW_PICKING_STAFF_LASTNAME matches Perfex name).
   if ((await modulesRoot.getByText(namePattern).count()) > 0) {
     return;
   }
 
-  if (shiftFailed) {
-    throw new Error(
-      'Shift did not start. Module may have 2 active staff already, or duplicate shift for this user. ' +
-        'End a shift on /admin/ramos/picking or pick another module.'
-    );
+  // Fallback success check: the chosen module now has more "End shift" links than before.
+  // This works even when the Perfex display name differs from the env-var name.
+  const moduleCards2 = page.locator('.ramos-picking-modules > .col-md-6');
+  const n2 = await moduleCards2.count();
+  for (let i = 0; i < n2; i++) {
+    const card = moduleCards2.nth(i);
+    const endLinksAfter = await card.getByRole('link', { name: /end shift|finalizar turno/i }).count();
+    if (endLinksAfter > endLinksBefore) {
+      return; // A shift was started on this module — success.
+    }
   }
 
+  // Last resort: wait for name to appear (will eventually show with full page refresh).
   await expect(modulesRoot.getByText(namePattern).first()).toBeVisible({ timeout: 20000 });
 }
 
 /**
- * If the picker has active shifts on more than one module, end shifts on extra modules so console RBAC sees one module.
- * Keeps the first module (A→D order) where the picker is still listed under Active staff.
+ * Ensure at most 1 module has an active shift overall (exclusive lock = 1 per module and only 1 module per picker).
+ * With the exclusive lock, at most 1 module can ever have a shift, but this guard handles edge cases.
+ * If name-based lookup fails (Perfex name differs from env vars), falls back to end-shift-link count.
  */
 export async function consolidatePickerToSingleModule(page: Page, profile: PickingStaffProfile): Promise<void> {
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -259,25 +394,32 @@ export async function consolidatePickerToSingleModule(page: Page, profile: Picki
     const moduleCards = page.locator('.ramos-picking-modules > .col-md-6');
     const n = await moduleCards.count();
     const moduleIndexesWithPicker: number[] = [];
+    const moduleIndexesWithShift: number[] = [];
 
     for (let i = 0; i < n; i++) {
       const card = moduleCards.nth(i);
+      const endLinks = await card.getByRole('link', { name: /end shift|finalizar turno/i }).count();
+      if (endLinks > 0) {
+        moduleIndexesWithShift.push(i);
+      }
       const activeHeading = card.locator('h6').filter({ hasText: /Active staff|Personal activo/i });
       const activeUl = activeHeading.locator('xpath=following-sibling::ul[1]');
-      if ((await activeUl.count()) === 0) {
-        continue;
-      }
+      if ((await activeUl.count()) === 0) continue;
       const activeText = await activeUl.innerText().catch(() => '');
       if (pickerListedInActiveStaffBlock(activeText, profile)) {
         moduleIndexesWithPicker.push(i);
       }
     }
 
-    if (moduleIndexesWithPicker.length <= 1) {
+    // Use name-based list if available; fall back to end-shift-link list (exclusive lock means ≤1 anyway).
+    const relevant = moduleIndexesWithPicker.length > 0 ? moduleIndexesWithPicker : moduleIndexesWithShift;
+
+    if (relevant.length <= 1) {
       return;
     }
 
-    const endIdx = moduleIndexesWithPicker[moduleIndexesWithPicker.length - 1];
+    // End the last one (keep the first).
+    const endIdx = relevant[relevant.length - 1];
     const card = moduleCards.nth(endIdx);
     page.once('dialog', (d) => d.accept().catch(() => {}));
     await card.getByRole('link', { name: /end shift|finalizar turno/i }).first().click();
