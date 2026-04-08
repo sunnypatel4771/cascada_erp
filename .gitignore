@@ -71,6 +71,11 @@ docker-compose.*.yml
 # Playwright local picker credentials
 tests/e2e/.env.picker
 
+# Playwright — generated reports and run artifacts (do not commit)
+playwright-report/
+test-results/
+blob-report/
+
 # Misc
 *.bak
 *.old

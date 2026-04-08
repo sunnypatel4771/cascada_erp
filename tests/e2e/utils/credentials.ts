@@ -6,7 +6,8 @@ export type UserCreds = {
 export const creds = {
   admin: {
     email: process.env.PW_ADMIN_EMAIL || 'developer@3ware.mx',
-    password: process.env.PW_ADMIN_PASSWORD || 'Dev3loper*999',
+    /** Set PW_ADMIN_PASSWORD for real runs; empty skips tests that require login. */
+    password: process.env.PW_ADMIN_PASSWORD || '',
   },
   customer: {
     email: process.env.PW_CUSTOMER_EMAIL || 'usuario@3ware.mx',

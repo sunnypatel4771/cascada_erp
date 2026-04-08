@@ -456,6 +456,7 @@ $lang['ramos_routes_dispatch_proceed_button']     = 'Continuar de todas formas';
 
 // Staff module usage report
 $lang['ramos_report_menu']                        = 'Reporte de Uso de Módulos';
+$lang['ramos_report_sidebar_under_reports']       = 'Reporte de módulo (personal)';
 $lang['ramos_report_title']                       = 'Reporte de Uso de Módulos por Personal';
 $lang['ramos_report_subtitle']                    = 'Consulta qué empleado trabajó en qué módulo de picking cada día.';
 $lang['ramos_report_col_date']                    = 'Fecha';

@@ -602,6 +602,7 @@ $lang['ramos_routes_dispatch_proceed_button']     = 'Proceed anyway';
 
 // Staff module usage report
 $lang['ramos_report_menu']                        = 'Module Usage Report';
+$lang['ramos_report_sidebar_under_reports']       = 'Staff Module Report';
 $lang['ramos_report_title']                       = 'Staff Module Usage Report';
 $lang['ramos_report_subtitle']                    = 'Track which employee worked which picking module on each day.';
 $lang['ramos_report_col_date']                    = 'Date';

@@ -208,6 +208,15 @@ function ramos_init_admin_menu(): void
         'href'     => admin_url('ramos/report'),
         'position' => 12,
     ]);
+
+    // Core Perfex "Reports" sidebar (see application/helpers/menu_helper.php, slug `reports`).
+    $CI->app_menu->add_sidebar_children_item('reports', [
+        'slug'     => 'ramos-staff-module-report',
+        'name'     => _l('ramos_report_sidebar_under_reports'),
+        'href'     => admin_url('ramos/report'),
+        'position' => 28,
+        'badge'    => [],
+    ]);
 }
 
 /**

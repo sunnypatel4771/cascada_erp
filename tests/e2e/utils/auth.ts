@@ -12,9 +12,33 @@ async function fillIfPresent(page: Page, selectors: string[], value: string) {
   return false;
 }
 
+function adminLoginUrlCandidates(): string[] {
+  const envBase = (process.env.PW_BASE_URL || '').replace(/\/$/, '');
+  if (envBase) {
+    return [
+      `${envBase}/admin/authentication`,
+      `${envBase}/index.php/admin/authentication`,
+    ];
+  }
+  return ['/admin/authentication', '/index.php/admin/authentication'];
+}
+
 export async function loginAdmin(page: Page, user: UserCreds) {
-  await page.goto('/admin/authentication');
-  await expect(page).toHaveURL(/admin\/authentication|admin/i);
+  const candidates = adminLoginUrlCandidates();
+  let opened = false;
+  for (const url of candidates) {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const hasEmail = await page.locator('input[name="email"], #email').first().isVisible().catch(() => false);
+    if (hasEmail) {
+      opened = true;
+      break;
+    }
+  }
+  if (!opened) {
+    throw new Error(`Admin login page not found. Tried: ${candidates.join(' | ')}`);
+  }
+
+  await expect(page).toHaveURL(/authentication|admin/i);
 
   const emailOk = await fillIfPresent(page, ['input[name="email"]', '#email'], user.email);
   const passOk = await fillIfPresent(page, ['input[name="password"]', '#password'], user.password);

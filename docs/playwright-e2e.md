@@ -21,7 +21,7 @@ This setup validates the 6 workflow groups in headed mode on:
 
 ## Credentials
 
-Credentials are read from env vars first, then fallback to local defaults in `tests/e2e/utils/credentials.ts`.
+Credentials are read from env vars first, then fallback to local defaults in `tests/e2e/utils/credentials.ts` (admin password has **no** default — set `PW_ADMIN_PASSWORD` for any test that logs in as admin).
 
 Recommended env vars:
 
@@ -56,6 +56,19 @@ Open HTML report:
 ```bash
 npm run pw:report
 ```
+
+## Staging: complete all Picking Console lines
+
+Fills **picked qty** (= required) and **weight** for every incomplete row (skips lines already picked + weighed) until each module shows “no orders pending”.
+
+```bash
+PW_BASE_URL=https://example.com/your/erp \
+PW_ADMIN_EMAIL=you@example.com \
+PW_ADMIN_PASSWORD='...' \
+npm run pw:staging:complete-picking
+```
+
+Spec: `tests/e2e/specs/picking-console-complete-all-staging.spec.ts`.
 
 ## Notes
 

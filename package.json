@@ -12,6 +12,7 @@
     "build": "mix --production && node build.mjs",
     "pw:test": "playwright test",
     "pw:test:headed": "playwright test --headed",
+    "pw:staging:complete-picking": "playwright test tests/e2e/specs/picking-console-complete-all-staging.spec.ts --headed",
     "pw:test:ui": "playwright test --ui",
     "pw:report": "playwright show-report"
   },
