@@ -28,7 +28,18 @@
                 <!-- Filters -->
                 <div class="panel_s tw-mb-4">
                     <div class="panel-body">
-                        <?php echo form_open(admin_url('ramos/report'), ['method' => 'get', 'class' => 'tw-flex tw-flex-wrap tw-gap-3 tw-items-end']); ?>
+                        <style>
+                            /* Report filters: prevent selectpicker overlay eating Search clicks */
+                            .ramos-report-filters .bootstrap-select {
+                                position: relative;
+                                z-index: 1;
+                            }
+                            .ramos-report-filters .ramos-report-actions {
+                                position: relative;
+                                z-index: 5;
+                            }
+                        </style>
+                        <?php echo form_open(admin_url('ramos/report'), ['method' => 'get', 'class' => 'ramos-report-filters tw-flex tw-flex-wrap tw-gap-3 tw-items-end']); ?>
                             <div>
                                 <label class="control-label"><?php echo _l('ramos_report_filter_date_from'); ?></label>
                                 <input type="date" name="date_from" value="<?php echo html_escape($date_from); ?>" class="form-control" style="min-width:150px;">
@@ -59,7 +70,7 @@
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div>
+                            <div class="ramos-report-actions tw-flex tw-gap-2">
                                 <button type="submit" class="btn btn-primary"><?php echo _l('search'); ?></button>
                                 <a href="<?php echo admin_url('ramos/report'); ?>" class="btn btn-default"><?php echo _l('reset'); ?></a>
                             </div>

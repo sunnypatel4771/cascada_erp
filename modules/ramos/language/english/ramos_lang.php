@@ -552,10 +552,12 @@ $lang['ramos_pick_status_waiting_for_po']   = 'Waiting for PO';
 $lang['ramos_routes_board_move_capacity_exceeded'] = 'Route is full (%s customers max). Move another customer out first.';
 
 // Facturacion — email
-$lang['ramos_facturacion_email_sent']        = 'Invoice emailed to customer successfully.';
-$lang['ramos_facturacion_email_failed']      = 'Failed to send invoice email. Check email settings.';
-$lang['ramos_facturacion_email_no_invoice']  = 'No linked invoice found for this order. Generate an invoice first.';
-$lang['ramos_facturacion_send_email_btn']    = 'Email Invoice';
+$lang['ramos_facturacion_email_sent']           = 'Invoice emailed to customer successfully.';
+$lang['ramos_facturacion_email_failed']         = 'Failed to send invoice email. Check email settings.';
+$lang['ramos_facturacion_email_no_invoice']     = 'No linked invoice found for this order. Generate an invoice first.';
+$lang['ramos_facturacion_send_email_btn']       = 'Email Invoice';
+$lang['ramos_facturacion_btn_send_email']       = 'Email Invoice';
+$lang['ramos_facturacion_confirm_send_email']   = 'Send this invoice by email to the customer?';
 
 // Facturacion — FE-SAT
 $lang['ramos_facturacion_fesat_no_invoice']       = 'No linked invoice found. Generate an invoice before creating FE-SAT document.';

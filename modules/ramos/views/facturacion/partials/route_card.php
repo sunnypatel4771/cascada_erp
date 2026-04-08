@@ -48,6 +48,18 @@ $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
                                 <a href="<?php echo admin_url('invoices/invoice/' . $customer['invoice_id']); ?>" class="btn btn-success btn-sm" target="_blank">
                                     <i class="fa-regular fa-file-invoice tw-mr-1"></i><?php echo _l('ramos_facturacion_view_invoice'); ?>
                                 </a>
+                                <a href="<?php echo admin_url('ramos/facturacion/generate_remision/' . $customer['order_id']); ?>"
+                                   class="btn btn-default btn-sm" target="_blank">
+                                    <i class="fa-regular fa-file-lines tw-mr-1"></i><?php echo _l('ramos_facturacion_btn_remision'); ?>
+                                </a>
+                                <?php if ($can_edit) : ?>
+                                    <a href="<?php echo admin_url('ramos/facturacion/send_invoice_email/' . $customer['order_id']); ?>"
+                                       class="btn btn-default btn-sm"
+                                       onclick="return confirm('<?php echo _l('ramos_facturacion_confirm_send_email'); ?>');"
+                                       title="<?php echo _l('ramos_facturacion_btn_send_email'); ?>">
+                                        <i class="fa-regular fa-envelope tw-mr-1"></i><?php echo _l('ramos_facturacion_btn_send_email'); ?>
+                                    </a>
+                                <?php endif; ?>
                             <?php else : ?>
                                 <div class="tw-text-center">
                                     <div class="tw-text-xs tw-text-slate-500 tw-mb-1"><?php echo _l('ramos_facturacion_generate_documents'); ?></div>

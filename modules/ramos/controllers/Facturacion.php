@@ -194,7 +194,7 @@ class Facturacion extends AdminController
 
         $invoiceId = $orderRow ? (int) ($orderRow['invoice_id'] ?? 0) : 0;
 
-        // Fallback: try omni_sales / cart order by matching the exact clientnote string
+        // Fallback 1: try omni_sales / cart order by matching the exact clientnote string
         // that Clients::save_new_order() sets ("Order created from customer portal").
         // Using an exact match avoids picking up the wrong invoice when a customer has
         // placed multiple portal orders (previously only "LIKE '%portal%'" was used).
@@ -218,6 +218,18 @@ class Facturacion extends AdminController
 
                 $invoiceId = $inv ? (int) $inv['id'] : 0;
             }
+        }
+
+        // Fallback 2: ERP invoice orders — the orderId IS the Perfex invoice id.
+        if (!$invoiceId) {
+            $erpInv = $this->db
+                ->select('id')
+                ->where('id', $orderId)
+                ->where("(clientnote LIKE '%portal%' OR clientnote LIKE '%customer%')", null, false)
+                ->get(db_prefix() . 'invoices')
+                ->row_array();
+
+            $invoiceId = $erpInv ? (int) $erpInv['id'] : 0;
         }
 
         if (!$invoiceId) {
@@ -324,8 +336,9 @@ class Facturacion extends AdminController
     }
 
     /**
-     * Generate remission (delivery note) for an order
-     * This creates a PDF delivery note without generating an invoice
+     * Generate remission (delivery note) for an order.
+     * Streams a PDF when the pdf library is available; falls back to rendering
+     * the HTML version in the browser when it is not installed.
      */
     public function generate_remision($orderId): void
     {
@@ -340,16 +353,25 @@ class Facturacion extends AdminController
             redirect(admin_url('ramos/facturacion'));
         }
 
-        // Generate PDF remission
-        $this->load->library('pdf');
-
         $html = $this->load->view('ramos/facturacion/remision_pdf', ['order' => $order], true);
 
-        $this->pdf->load_html($html);
-        $this->pdf->render();
+        // Look for the PDF library in the standard CI paths before trying to load it.
+        // This prevents a fatal error when the library is not installed on the server.
+        $pdfLibFile = APPPATH . 'libraries/Pdf.php';
+        $pdfExists  = file_exists($pdfLibFile) || class_exists('CI_Pdf') || class_exists('Pdf');
 
-        $filename = 'Remision_' . $order['order_number'] . '_' . date('Ymd') . '.pdf';
-        $this->pdf->stream($filename, ['Attachment' => false]);
+        if ($pdfExists) {
+            $this->load->library('pdf');
+            $this->pdf->load_html($html);
+            $this->pdf->render();
+            $filename = 'Remision_' . $order['order_number'] . '_' . date('Ymd') . '.pdf';
+            $this->pdf->stream($filename, ['Attachment' => false]);
+        } else {
+            // PDF library not installed — render HTML version in the browser.
+            $this->output
+                ->set_content_type('text/html')
+                ->set_output($html);
+        }
     }
 
     /**
@@ -496,7 +518,12 @@ class Facturacion extends AdminController
     }
 
     /**
-     * Facturacion data for ERP portal (tblinvoices) orders
+     * Facturacion data for ERP portal (tblinvoices) orders.
+     *
+     * Joins tblramos_pick_items (source_type = 'erp_invoice') to itemable rows
+     * so that pick_id, picked_qty, weight and pick_status are real values when
+     * pick records exist (created by ensure_pick_records_for_module on console load).
+     * Falls back to synthetic zeros only when no pick records have been generated yet.
      */
     protected function get_erp_order_pick_data(int $orderId): array
     {
@@ -513,22 +540,29 @@ class Facturacion extends AdminController
             return [];
         }
 
-        // ERP invoice items come from tblitemable
+        // Join pick items (source_type = erp_invoice) to itemable rows so we get
+        // real pick_id / picked_qty / weight / pick_status when pick records exist.
+        $pickTable = db_prefix() . 'ramos_pick_items';
         $items = $this->db
             ->select([
-                '0 as pick_id',
+                'COALESCE(pi.id, 0) as pick_id',
                 'ia.id as item_id',
                 'ia.qty as required_qty',
-                '0 as picked_qty',
-                '0 as weight',
-                "'pending' as pick_status",
+                'COALESCE(pi.picked_qty, 0) as picked_qty',
+                'COALESCE(pi.weight, 0) as weight',
+                "COALESCE(pi.status, 'pending') as pick_status",
                 'ia.description as item_name',
                 'ia.unit as unit',
                 'ia.qty as quantity',
                 'ia.rate as price',
                 'ia.ripeness as ripeness',
-            ])
+            ], false)
             ->from(db_prefix() . 'itemable ia')
+            ->join(
+                $pickTable . ' pi',
+                "pi.order_item_id = ia.id AND pi.source_type = 'erp_invoice' AND pi.order_id = " . (int) $orderId,
+                'left'
+            )
             ->where('ia.rel_id', $orderId)
             ->where('ia.rel_type', 'invoice')
             ->order_by('ia.item_order', 'ASC')
@@ -546,7 +580,7 @@ class Facturacion extends AdminController
             'total'            => (float) $order['total'],
             'items'            => $items,
             'status'           => $displayStatus,
-            'invoice_id'       => $orderId, // ERP orders ARE invoices
+            'invoice_id'       => $orderId, // ERP orders ARE the invoice
         ];
     }
 
@@ -574,10 +608,17 @@ class Facturacion extends AdminController
     }
 
     /**
-     * Get full order with items for remision PDF
+     * Get full order with items for remision PDF.
+     * Tries the omni-sales (tblcart) path first; falls back to ERP invoice (tblinvoices)
+     * so that remision PDFs work for both order sources.
+     *
+     * Returned array shape must match remision_pdf.php expectations:
+     *   order_number, client_company, phonenumber, address, items[]
+     *   item: item_name, unit, quantity, picked_qty, weight
      */
     protected function get_order_with_items(int $orderId): array
     {
+        // --- Omni-sales path (tblcart) ---
         $order = $this->db
             ->select('c.*, cl.company as client_company, cl.billing_street, cl.billing_city, cl.billing_state, cl.billing_zip')
             ->from(db_prefix() . 'cart c')
@@ -586,22 +627,58 @@ class Facturacion extends AdminController
             ->get()
             ->row_array();
 
-        if (empty($order)) {
+        if (!empty($order)) {
+            $order['items'] = $this->db
+                ->select('cd.*, i.description as item_name, u.unit_name as unit, pi.picked_qty, pi.weight')
+                ->from(db_prefix() . 'cart_detailt cd')
+                ->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left')
+                ->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left')
+                ->join(db_prefix() . 'ramos_pick_items pi', "pi.order_item_id = cd.id AND pi.source_type = 'omni_sales'", 'left')
+                ->where('cd.cart_id', $orderId)
+                ->order_by('cd.id', 'ASC')
+                ->get()
+                ->result_array();
+
+            return $order;
+        }
+
+        // --- ERP invoice path (tblinvoices + tblitemable) ---
+        $erpOrder = $this->db
+            ->select('i.id, i.number as order_number, i.total, i.clientid')
+            ->select('cl.company as client_company, cl.company as phonenumber, cl.shipping_street as address')
+            ->select('cl.billing_street, cl.billing_city, cl.billing_state, cl.billing_zip')
+            ->from(db_prefix() . 'invoices i')
+            ->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left')
+            ->where('i.id', $orderId)
+            ->get()
+            ->row_array();
+
+        if (empty($erpOrder)) {
             return [];
         }
 
-        $order['items'] = $this->db
-            ->select('cd.*, i.description as item_name, u.unit_name as unit, pi.picked_qty, pi.weight')
-            ->from(db_prefix() . 'cart_detailt cd')
-            ->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left')
-            ->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left')
-            ->join(db_prefix() . 'ramos_pick_items pi', 'pi.order_item_id = cd.id', 'left')
-            ->where('cd.cart_id', $orderId)
-            ->order_by('cd.id', 'ASC')
+        $erpOrder['items'] = $this->db
+            ->select([
+                'ia.description as item_name',
+                'ia.unit as unit',
+                'ia.qty as quantity',
+                'COALESCE(pi.picked_qty, ia.qty) as picked_qty',
+                'COALESCE(pi.weight, 0) as weight',
+                'ia.rate as price',
+            ], false)
+            ->from(db_prefix() . 'itemable ia')
+            ->join(
+                db_prefix() . 'ramos_pick_items pi',
+                "pi.order_item_id = ia.id AND pi.source_type = 'erp_invoice' AND pi.order_id = " . (int) $orderId,
+                'left'
+            )
+            ->where('ia.rel_id', $orderId)
+            ->where('ia.rel_type', 'invoice')
+            ->order_by('ia.item_order', 'ASC')
             ->get()
             ->result_array();
 
-        return $order;
+        return $erpOrder;
     }
 
     /**
