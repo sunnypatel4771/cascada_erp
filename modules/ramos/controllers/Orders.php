@@ -139,9 +139,10 @@ class Orders extends AdminController
         $inventoryMap     = [];
         foreach ($inventoryList as $inventoryItem) {
             $inventoryOptions[] = [
-                'id'   => $inventoryItem['id'],
-                'name' => trim($inventoryItem['item_name'] . ' (' . $inventoryItem['unit'] . ')'),
-                'unit' => $inventoryItem['unit'],
+                'id'             => $inventoryItem['id'],
+                'name'           => trim($inventoryItem['item_name'] . ' (' . $inventoryItem['unit'] . ')'),
+                'unit'           => $inventoryItem['unit'],
+                'has_maduracion' => (int) ($inventoryItem['has_maduracion'] ?? 0),
             ];
             $inventoryMap[$inventoryItem['id']] = $inventoryItem;
         }
@@ -197,6 +198,7 @@ class Orders extends AdminController
             'inventory_item_id' => $inventoryItemId > 0 ? $inventoryItemId : null,
             'item_name'         => $itemName,
             'quantity'          => $quantity,
+            'ripeness'          => $this->input->post('ripeness'),
         ];
 
         $insertId = $this->order_items_model->create($payload);

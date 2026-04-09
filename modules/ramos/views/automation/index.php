@@ -142,7 +142,8 @@
                     if (response.success) {
                         alert_float('success', <?php echo json_encode(_l('ramos_automation_success_message')); ?>
                             .replace('%s', response.orders_processed)
-                            .replace('%s', response.purchase_orders_created));
+                            .replace('%s', response.batches_created)
+                            .replace('%s', response.routes_created));
 
                         // Refresh the page to show updated data
                         setTimeout(function() {

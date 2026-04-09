@@ -240,6 +240,15 @@ class Inventory_model extends App_Model
             $payload['image_path'] = ($value === '' || $value === null) ? null : $value;
         }
 
+        if (array_key_exists('purchase_price', $data)) {
+            $value = $data['purchase_price'];
+            $payload['purchase_price'] = ($value === '' || $value === null) ? null : max(0, (float) $value);
+        }
+
+        if (array_key_exists('has_maduracion', $data)) {
+            $payload['has_maduracion'] = (int) (bool) $data['has_maduracion'];
+        }
+
         if ($isCreate) {
             $payload['created_at'] = date('Y-m-d H:i:s');
             $payload['created_by'] = get_staff_user_id();

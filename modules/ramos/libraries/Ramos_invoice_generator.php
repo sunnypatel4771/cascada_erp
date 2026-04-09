@@ -103,6 +103,10 @@ class Ramos_invoice_generator
         $missingPrices  = 0;
         $itemOrder      = 1;
 
+        // Resolve customer markup % once for the whole order (customers_descuento custom field).
+        $markupRaw     = get_custom_field_value($clientId, 'customers_descuento', 'customers', false);
+        $markupPercent = is_numeric($markupRaw) ? (float) $markupRaw : 0.0;
+
         foreach ($items as $item) {
             $inventoryId = !empty($item['inventory_item_id']) ? (int) $item['inventory_item_id'] : null;
             $inventory   = $inventoryId ? $this->ci->inventory_model->get($inventoryId) : null;
@@ -119,6 +123,9 @@ class Ramos_invoice_generator
                 if (!empty($priceRule['discount_percent'])) {
                     $unitPrice = $unitPrice * (1 - ((float) $priceRule['discount_percent'] / 100));
                 }
+            } elseif ($inventory && isset($inventory['purchase_price']) && (float) $inventory['purchase_price'] > 0) {
+                // Fallback: purchase_price × (1 + customer markup% / 100)
+                $unitPrice = (float) $inventory['purchase_price'] * (1 + $markupPercent / 100);
             } else {
                 $unitPrice = 0.00;
                 $missingPrices++;

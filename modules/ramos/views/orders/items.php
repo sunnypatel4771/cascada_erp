@@ -44,13 +44,14 @@ $inventoryMap     = isset($inventory_map) ? $inventory_map : [];
                                                 <th><?php echo _l('ramos_orders_items_table_item'); ?></th>
                                                 <th><?php echo _l('ramos_orders_items_table_quantity'); ?></th>
                                                 <th><?php echo _l('ramos_orders_items_table_unit'); ?></th>
+                                                <th><?php echo _l('ramos_orders_items_table_ripeness'); ?></th>
                                                 <th class="tw-text-right"><?php echo _l('ramos_orders_items_table_actions'); ?></th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php if (empty($order_items)) : ?>
                                                 <tr>
-                                                    <td colspan="4" class="text-center tw-text-slate-500">
+                                                    <td colspan="5" class="text-center tw-text-slate-500">
                                                         <?php echo _l('ramos_orders_items_empty_state'); ?>
                                                     </td>
                                                 </tr>
@@ -66,6 +67,16 @@ $inventoryMap     = isset($inventory_map) ? $inventory_map : [];
                                                         <span class="tw-text-slate-400"><?php echo _l('ramos_orders_items_unit_unknown'); ?></span>
                                                     <?php else : ?>
                                                         <span class="tw-text-slate-400"><?php echo _l('ramos_orders_items_unit_custom'); ?></span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if (!empty($item['ripeness'])) : ?>
+                                                        <?php $ripenessKey = 'ramos_orders_items_ripeness_' . strtolower($item['ripeness']); ?>
+                                                        <span class="label <?php echo strtolower($item['ripeness']) === 'maduro' ? 'label-success' : 'label-warning'; ?>">
+                                                            <?php echo html_escape(_l($ripenessKey) ?: ucfirst($item['ripeness'])); ?>
+                                                        </span>
+                                                    <?php else : ?>
+                                                        <span class="tw-text-slate-300">—</span>
                                                     <?php endif; ?>
                                                 </td>
                                                         <td class="tw-text-right">
@@ -103,6 +114,14 @@ $inventoryMap     = isset($inventory_map) ? $inventory_map : [];
                                                 ); ?>
                                                 <?php echo render_input('item_name', _l('ramos_orders_items_form_name')); ?>
                                                 <?php echo render_input('quantity', _l('ramos_orders_items_form_quantity'), '', 'number', ['step' => '0.01', 'required' => 'required']); ?>
+                                                <div id="ramos-ripeness-wrap" class="form-group" style="display:none;">
+                                                    <label class="control-label"><?php echo _l('ramos_orders_items_form_ripeness'); ?></label>
+                                                    <select name="ripeness" class="form-control selectpicker" data-width="100%">
+                                                        <option value=""><?php echo _l('select'); ?></option>
+                                                        <option value="maduro"><?php echo _l('ramos_orders_items_ripeness_maduro'); ?></option>
+                                                        <option value="verde"><?php echo _l('ramos_orders_items_ripeness_verde'); ?></option>
+                                                    </select>
+                                                </div>
                                                 <div class="alert alert-info tw-text-xs tw-mt-2">
                                                     <?php echo _l('ramos_orders_items_form_hint'); ?>
                                                 </div>
@@ -125,14 +144,40 @@ $inventoryMap     = isset($inventory_map) ? $inventory_map : [];
 <script>
     (function() {
         "use strict";
-        var $inventorySelect = $('select[name=\"inventory_item_id\"]');
-        var $itemNameInput = $('input[name=\"item_name\"]');
+
+        // Map inventory item ID → has_maduracion flag
+        var inventoryMaduracion = <?php
+            $maduracionMap = [];
+            foreach ($inventory_options as $opt) {
+                if (!empty($opt['has_maduracion'])) {
+                    $maduracionMap[(int) $opt['id']] = 1;
+                }
+            }
+            echo json_encode($maduracionMap);
+        ?>;
+
+        var $inventorySelect = $('select[name="inventory_item_id"]');
+        var $itemNameInput   = $('input[name="item_name"]');
+        var $ripenessWrap    = $('#ramos-ripeness-wrap');
+
+        function updateRipenessVisibility() {
+            var selectedId = parseInt($inventorySelect.val()) || 0;
+            if (inventoryMaduracion[selectedId]) {
+                $ripenessWrap.show();
+            } else {
+                $ripenessWrap.hide();
+                $ripenessWrap.find('select').val('').selectpicker('refresh');
+            }
+        }
 
         $inventorySelect.on('changed.bs.select', function() {
             var selected = $(this).find('option:selected').text();
             if (selected && !$itemNameInput.val()) {
                 $itemNameInput.val(selected);
             }
+            updateRipenessVisibility();
         });
+
+        updateRipenessVisibility();
     })();
 </script>

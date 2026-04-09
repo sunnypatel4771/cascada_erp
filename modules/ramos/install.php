@@ -99,6 +99,18 @@ if (!$CI->db->field_exists('image_path', db_prefix() . 'ramos_inventory_items'))
     $CI->db->query('ALTER TABLE `' . db_prefix() . "ramos_inventory_items` ADD `image_path` VARCHAR(255) NULL DEFAULT NULL AFTER `supplier_id`;");
 }
 
+if (!$CI->db->field_exists('purchase_price', db_prefix() . 'ramos_inventory_items')) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . "ramos_inventory_items` ADD `purchase_price` DECIMAL(15,4) NULL DEFAULT NULL COMMENT 'Base purchase cost; used as fallback for customer markup pricing' AFTER `image_path`;");
+}
+
+if (!$CI->db->field_exists('has_maduracion', db_prefix() . 'ramos_inventory_items')) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . "ramos_inventory_items` ADD `has_maduracion` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Whether this item requires a ripeness/maturation selection' AFTER `purchase_price`;");
+}
+
+if (!$CI->db->field_exists('ripeness', db_prefix() . 'ramos_order_items')) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . "ramos_order_items` ADD `ripeness` VARCHAR(20) NULL DEFAULT NULL COMMENT 'Maturation level selected by staff (e.g. Maduro, Verde)' AFTER `quantity`;");
+}
+
 if (!$CI->db->table_exists(db_prefix() . 'ramos_suppliers')) {
     [$charset, $collation] = ramos_install_charset_collation();
 

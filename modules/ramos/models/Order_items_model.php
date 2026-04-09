@@ -114,6 +114,14 @@ class Order_items_model extends App_Model
             'created_by'        => get_staff_user_id(),
         ];
 
+        if (!empty($data['ripeness'])) {
+            $allowed = ['maduro', 'verde'];
+            $ripeness = strtolower(trim((string) $data['ripeness']));
+            $payload['ripeness'] = in_array($ripeness, $allowed) ? $ripeness : null;
+        } else {
+            $payload['ripeness'] = null;
+        }
+
         return $payload;
     }
 

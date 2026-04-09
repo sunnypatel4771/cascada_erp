@@ -86,17 +86,19 @@ foreach ($suppliers as $supplier) {
                                             $statusClass = ramos_inventory_status_badge_class($statusKey);
                                             ?>
                                             <tr data-item='<?php echo json_encode([
-                                                    'id'            => (int) $item['id'],
-                                                    'item_name'     => $item['item_name'],
-                                                    'sku'           => $item['sku'],
-                                                    'unit'          => $item['unit'],
-                                                    'quantity'      => (float) $item['quantity'],
-                                                    'safety_stock'  => (float) $item['safety_stock'],
-                                                    'buffer_percent'=> (float) $item['buffer_percent'],
-                                                    'supplier_id'   => isset($item['supplier_id']) ? (int) $item['supplier_id'] : null,
-                                                    'notes'         => $item['notes'],
-                                                    'active'        => (int) $item['active'],
-                                                    'image_path'    => $item['image_path'] ?? null,
+                                                    'id'             => (int) $item['id'],
+                                                    'item_name'      => $item['item_name'],
+                                                    'sku'            => $item['sku'],
+                                                    'unit'           => $item['unit'],
+                                                    'quantity'       => (float) $item['quantity'],
+                                                    'safety_stock'   => (float) $item['safety_stock'],
+                                                    'buffer_percent' => (float) $item['buffer_percent'],
+                                                    'purchase_price' => isset($item['purchase_price']) && $item['purchase_price'] !== null ? (float) $item['purchase_price'] : '',
+                                                    'has_maduracion' => (int) ($item['has_maduracion'] ?? 0),
+                                                    'supplier_id'    => isset($item['supplier_id']) ? (int) $item['supplier_id'] : null,
+                                                    'notes'          => $item['notes'],
+                                                    'active'         => (int) $item['active'],
+                                                    'image_path'     => $item['image_path'] ?? null,
                                                 ], JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>'>
                                                 <td style="width:56px">
                                                     <?php if (!empty($item['image_path'])) : ?>
@@ -194,8 +196,17 @@ foreach ($suppliers as $supplier) {
                         <div class="col-md-4">
                             <?php echo render_input('buffer_percent', _l('ramos_inventory_form_buffer_percent'), '25', 'number', ['step' => '0.01']); ?>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-md-4">
+                            <?php echo render_input('purchase_price', _l('ramos_inventory_form_purchase_price'), '', 'number', ['step' => '0.0001', 'min' => '0']); ?>
+                        </div>
+                        <div class="col-md-4">
                             <?php echo render_select('supplier_id', $supplierOptions, ['id', 'name'], _l('ramos_inventory_form_supplier'), '', ['data-width' => '100%', 'data-live-search' => 'true', 'data-none-selected-text' => _l('dropdown_non_selected_tex')]); ?>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox checkbox-primary">
+                            <input type="checkbox" name="has_maduracion" id="ramos_inventory_has_maduracion_add" value="1">
+                            <label for="ramos_inventory_has_maduracion_add"><?php echo _l('ramos_inventory_form_has_maduracion'); ?></label>
                         </div>
                     </div>
                     <?php echo render_textarea('notes', _l('ramos_inventory_form_notes'), '', ['rows' => 3]); ?>
@@ -241,13 +252,16 @@ foreach ($suppliers as $supplier) {
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <?php echo render_input('buffer_percent', _l('ramos_inventory_form_buffer_percent'), '25', 'number', ['step' => '0.01']); ?>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <?php echo render_input('purchase_price', _l('ramos_inventory_form_purchase_price'), '', 'number', ['step' => '0.0001', 'min' => '0']); ?>
+                        </div>
+                        <div class="col-md-3">
                             <?php echo render_select('supplier_id', $supplierOptions, ['id', 'name'], _l('ramos_inventory_form_supplier'), '', ['data-width' => '100%', 'data-live-search' => 'true', 'data-none-selected-text' => _l('dropdown_non_selected_tex')]); ?>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="active" class="control-label"><?php echo _l('ramos_inventory_form_active'); ?></label>
                                 <div class="checkbox checkbox-primary">
@@ -255,6 +269,12 @@ foreach ($suppliers as $supplier) {
                                     <label for="ramos_inventory_active"></label>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox checkbox-primary">
+                            <input type="checkbox" name="has_maduracion" id="ramos_inventory_has_maduracion_edit" value="1">
+                            <label for="ramos_inventory_has_maduracion_edit"><?php echo _l('ramos_inventory_form_has_maduracion'); ?></label>
                         </div>
                     </div>
                     <?php echo render_textarea('notes', _l('ramos_inventory_form_notes'), '', ['rows' => 3]); ?>
@@ -352,6 +372,8 @@ foreach ($suppliers as $supplier) {
             $editForm.find('input[name="quantity"]').val(item.quantity);
             $editForm.find('input[name="safety_stock"]').val(item.safety_stock);
             $editForm.find('input[name="buffer_percent"]').val(item.buffer_percent);
+            $editForm.find('input[name="purchase_price"]').val(item.purchase_price !== '' ? item.purchase_price : '');
+            $('#ramos_inventory_has_maduracion_edit').prop('checked', item.has_maduracion === 1);
             $editForm.find('textarea[name="notes"]').val(item.notes);
             var $supplierSelect = $editForm.find('select[name="supplier_id"]');
             $supplierSelect.selectpicker('val', item.supplier_id ? item.supplier_id.toString() : '');

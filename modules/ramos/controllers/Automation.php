@@ -278,6 +278,14 @@ class Automation extends AdminController
         // Execute automation with current staff user ID
         $result = ramos_execute_automation(get_staff_user_id());
 
+        // Always run route generation and picking assignment (same as cron behaviour),
+        // regardless of whether purchase batches were created.
+        $routeResult   = ramos_generate_routes_for_today();
+        $pickingResult = ramos_assign_picking_for_all_modules();
+
+        $result['routes_created']   = $routeResult['routes_count'];
+        $result['modules_assigned'] = $pickingResult['modules_assigned'];
+
         // Return result as JSON
         echo json_encode($result);
     }

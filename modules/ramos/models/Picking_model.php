@@ -464,6 +464,9 @@ class Picking_model extends App_Model
             ->result_array();
 
         // Path 2: ERP invoice orders (tblinvoices / tblitemable)
+        $hasItemableRipeness = $this->db->field_exists('ripeness', db_prefix() . 'itemable');
+        $itemableRipenessCol = $hasItemableRipeness ? 'ia.ripeness' : '"" as ripeness';
+
         $invoiceRows = $this->db
             ->select([
                 'inv.id as order_id',
@@ -483,7 +486,7 @@ class Picking_model extends App_Model
                 'u.unit_name as unit',
                 'rs.stop_number as route_priority',
                 'rs.route_id as route_id',
-                '"" as ripeness',
+                $itemableRipenessCol,
             ])
             ->from($this->pickTable . ' pi')
             ->join(db_prefix() . 'invoices inv', 'inv.id = pi.order_id', 'inner')
