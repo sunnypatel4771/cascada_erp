@@ -6,10 +6,76 @@ class Picking_model extends App_Model
 {
     protected $pickTable;
 
+    /** @var bool One-time cleanup per HTTP request (console loads many modules). */
+    private static $pickExclusiveModuleReconciled = false;
+
     public function __construct()
     {
         parent::__construct();
         $this->pickTable = db_prefix() . 'ramos_pick_items';
+    }
+
+    /**
+     * When the same warehouse product is assigned to multiple picking modules, each line would
+     * otherwise create duplicate pick rows. Assign each order line to exactly one module:
+     * the one with the smallest module id among modules that list that product.
+     */
+    protected function canonical_module_join_on_product(string $inventoryColumnSql): string
+    {
+        $mp = db_prefix() . 'ramos_module_products';
+
+        return 'mp.inventory_item_id = ' . $inventoryColumnSql
+            . ' AND mp.module_id = (SELECT MIN(mp2.module_id) FROM ' . $mp . ' mp2 WHERE mp2.inventory_item_id = ' . $inventoryColumnSql . ')';
+    }
+
+    /**
+     * Invoice lines (tblitemable) are joined to tblitems by description; duplicate catalog rows
+     * with the same description must not fan out into multiple pick rows or console lines.
+     */
+    protected function invoice_items_join_on_clause(): string
+    {
+        $items = db_prefix() . 'items';
+
+        return 'itm.id = (SELECT MIN(i2.id) FROM ' . $items . ' i2 WHERE i2.description = ia.description)';
+    }
+
+    /**
+     * Remove pick rows that sit on a non-canonical module (same line must not appear on A+B+D).
+     */
+    public function purge_noncanonical_pick_rows(): void
+    {
+        if (self::$pickExclusiveModuleReconciled) {
+            return;
+        }
+        self::$pickExclusiveModuleReconciled = true;
+
+        $mp  = db_prefix() . 'ramos_module_products';
+        $cd  = db_prefix() . 'cart_detailt';
+        $ia  = db_prefix() . 'itemable';
+        $itm = db_prefix() . 'items';
+
+        $sqlOmni = 'DELETE pi FROM ' . $this->pickTable . ' pi
+            INNER JOIN ' . $cd . ' cd ON cd.id = pi.order_item_id
+            INNER JOIN (
+                SELECT inventory_item_id, MIN(module_id) AS win_mod
+                FROM ' . $mp . '
+                GROUP BY inventory_item_id
+            ) w ON w.inventory_item_id = cd.product_id
+            WHERE pi.source_type = \'omni_sales\'
+            AND pi.module_id <> w.win_mod';
+        $this->db->query($sqlOmni);
+
+        $sqlInv = 'DELETE pi FROM ' . $this->pickTable . ' pi
+            INNER JOIN ' . $ia . ' ia ON ia.id = pi.order_item_id AND ia.rel_type = \'invoice\'
+            INNER JOIN ' . $itm . ' itm ON ' . $this->invoice_items_join_on_clause() . '
+            INNER JOIN (
+                SELECT inventory_item_id, MIN(module_id) AS win_mod
+                FROM ' . $mp . '
+                GROUP BY inventory_item_id
+            ) w ON w.inventory_item_id = itm.id
+            WHERE pi.source_type = \'erp_invoice\'
+            AND pi.module_id <> w.win_mod';
+        $this->db->query($sqlInv);
     }
 
     public function ensure_pick_records_for_order($orderId): void
@@ -23,7 +89,12 @@ class Picking_model extends App_Model
             ->select('oi.id as order_item_id, oi.order_id, oi.quantity, mp.module_id')
             ->from(db_prefix() . 'ramos_order_items oi')
             ->join(db_prefix() . 'ramos_orders o', 'o.id = oi.order_id', 'inner')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = oi.inventory_item_id', 'inner')
+            ->join(
+                db_prefix() . 'ramos_module_products mp',
+                $this->canonical_module_join_on_product('oi.inventory_item_id'),
+                'inner',
+                false
+            )
             ->where('oi.order_id', $orderId)
             ->get()
             ->result_array());
@@ -39,7 +110,12 @@ class Picking_model extends App_Model
         $rows = $this->db
             ->select('oi.id as order_item_id, oi.order_id, oi.quantity, mp.module_id')
             ->from(db_prefix() . 'ramos_order_items oi')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = oi.inventory_item_id', 'inner')
+            ->join(
+                db_prefix() . 'ramos_module_products mp',
+                $this->canonical_module_join_on_product('oi.inventory_item_id'),
+                'inner',
+                false
+            )
             ->where('oi.id', $orderItemId)
             ->get()
             ->result_array();
@@ -53,6 +129,8 @@ class Picking_model extends App_Model
         if ($moduleId <= 0) {
             return;
         }
+
+        $this->purge_noncanonical_pick_rows();
 
         // COMMENTED: Ramos orders - replaced with omni_sales orders
         // $rows = $this->db
@@ -71,7 +149,12 @@ class Picking_model extends App_Model
             ->select('cd.id as order_item_id, cd.cart_id as order_id, cd.quantity, mp.module_id')
             ->from(db_prefix() . 'cart_detailt cd')
             ->join(db_prefix() . 'cart c', 'c.id = cd.cart_id', 'inner')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = cd.product_id', 'inner')
+            ->join(
+                db_prefix() . 'ramos_module_products mp',
+                $this->canonical_module_join_on_product('cd.product_id'),
+                'inner',
+                false
+            )
             ->where('mp.module_id', $moduleId)
             ->where('c.status !=', 5) // Exclude cancelled orders
             ->where('c.channel_id IN (1,2,4,6)', null, false) // Valid sales channels
@@ -90,8 +173,13 @@ class Picking_model extends App_Model
         $invoiceRows = $this->db
             ->select('ia.id as order_item_id, ia.rel_id as order_id, ia.qty as quantity, mp.module_id')
             ->from(db_prefix() . 'itemable ia')
-            ->join(db_prefix() . 'items itm', 'itm.description = ia.description', 'inner')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = itm.id', 'inner')
+            ->join(db_prefix() . 'items itm', $this->invoice_items_join_on_clause(), 'inner', false)
+            ->join(
+                db_prefix() . 'ramos_module_products mp',
+                $this->canonical_module_join_on_product('itm.id'),
+                'inner',
+                false
+            )
             ->join(db_prefix() . 'invoices inv', 'inv.id = ia.rel_id', 'inner')
             ->where('ia.rel_type', 'invoice')
             ->where('mp.module_id', $moduleId)
@@ -123,7 +211,12 @@ class Picking_model extends App_Model
             ->select('cd.id')
             ->from(db_prefix() . 'cart_detailt cd')
             ->join(db_prefix() . 'cart c', 'c.id = cd.cart_id', 'inner')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = cd.product_id', 'inner')
+            ->join(
+                db_prefix() . 'ramos_module_products mp',
+                $this->canonical_module_join_on_product('cd.product_id'),
+                'inner',
+                false
+            )
             ->where('mp.module_id', $moduleId)
             ->where('c.status !=', 5)
             ->where('c.channel_id IN (1,2,4,6)', null, false)
@@ -136,8 +229,13 @@ class Picking_model extends App_Model
         $validInvoiceIds = $this->db
             ->select('ia.id')
             ->from(db_prefix() . 'itemable ia')
-            ->join(db_prefix() . 'items itm', 'itm.description = ia.description', 'inner')
-            ->join(db_prefix() . 'ramos_module_products mp', 'mp.inventory_item_id = itm.id', 'inner')
+            ->join(db_prefix() . 'items itm', $this->invoice_items_join_on_clause(), 'inner', false)
+            ->join(
+                db_prefix() . 'ramos_module_products mp',
+                $this->canonical_module_join_on_product('itm.id'),
+                'inner',
+                false
+            )
             ->join(db_prefix() . 'invoices inv', 'inv.id = ia.rel_id', 'inner')
             ->where('ia.rel_type', 'invoice')
             ->where('mp.module_id', $moduleId)
@@ -391,7 +489,7 @@ class Picking_model extends App_Model
             ->join(db_prefix() . 'invoices inv', 'inv.id = pi.order_id', 'inner')
             ->join(db_prefix() . 'clients cl', 'cl.userid = inv.clientid', 'left')
             ->join(db_prefix() . 'itemable ia', 'ia.id = pi.order_item_id AND ia.rel_type = \'invoice\'', 'inner')
-            ->join(db_prefix() . 'items itm', 'itm.description = ia.description', 'left')
+            ->join(db_prefix() . 'items itm', $this->invoice_items_join_on_clause(), 'left', false)
             ->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = itm.unit_id', 'left')
             ->join(db_prefix() . 'ramos_route_stops rs', "rs.id = pi.route_stop_id AND rs.order_source = 'erp_invoice'", 'left')
             ->where('pi.module_id', $moduleId)
@@ -409,9 +507,19 @@ class Picking_model extends App_Model
             return [];
         }
 
-        $orders = [];
+        $orders   = [];
+        $seenPick = [];
+
         foreach ($rows as $row) {
             $orderId = (int) $row['order_id'];
+            $pickId  = (int) $row['pick_id'];
+
+            if ($pickId > 0 && !empty($seenPick[$orderId][$pickId])) {
+                continue;
+            }
+            if ($pickId > 0) {
+                $seenPick[$orderId][$pickId] = true;
+            }
 
             if (!isset($orders[$orderId])) {
                 $orders[$orderId] = [
