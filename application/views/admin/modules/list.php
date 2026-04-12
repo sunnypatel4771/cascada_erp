@@ -8,13 +8,12 @@
             <div class="tw-mt-2 tw-max-w-xl tw-text-sm tw-text-neutral-600">
                 <p>If you have a module in a .zip format, you may install it by uploading it here.</p>
             </div>
-            <form class="">
-                <div class="w-full tw-inline-flex sm:max-w-xs">
-                    <input type="file" class="form-control" name="module">
+            <div class="w-full tw-inline-flex sm:max-w-xs">
+                <input type="file" class="form-control" name="module">
 
-                    <button type="submit" class="btn btn-primary tw-ml-2">Install</button>
-                </div>
-                <?= form_close(); ?>
+                <button type="submit" class="btn btn-primary tw-ml-2">Install</button>
+            </div>
+            <?= form_close(); ?>
         </div>
         <div class="row">
             <div class="col-md-12">
@@ -42,7 +41,7 @@
                                             data-order="<?= e($system_name); ?>">
                                             <p>
                                                 <b>
-                                                    <?= $module['headers']['module_name']; ?>
+                                                    <?= e($module['headers']['module_name'] ?? $system_name); ?>
                                                 </b>
                                             </p>
                                             <?php

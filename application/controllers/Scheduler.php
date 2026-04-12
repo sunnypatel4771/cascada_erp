@@ -69,42 +69,47 @@ class Scheduler extends App_Controller
         }
 
         $automation_enabled = get_option('ramos_automation_schedule_enabled') === '1';
-        $schedule_hours = json_decode(get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18])), true);
-        $schedule_minutes = (int)get_option('ramos_automation_schedule_minutes', 0);
-        $schedule_date = get_option('ramos_automation_schedule_date', '');
-        $schedule_run_daily = get_option('ramos_automation_schedule_run_daily') === '1';
-        $last_run = get_option('ramos_last_automation_run_date');
+        $mode             = get_option('ramos_automation_schedule_mode', 'daily_once');
+        $schedule_hour    = (int) get_option('ramos_automation_schedule_hour', 8);
+        $schedule_minutes = (int) get_option('ramos_automation_schedule_minutes', 0);
+        $schedule_date    = get_option('ramos_automation_schedule_date', '');
+        $last_run         = get_option('ramos_last_automation_run_date');
 
-        // Build task list
         $tasks = [];
         if ($automation_enabled) {
-            if ($schedule_run_daily) {
-                foreach ($schedule_hours as $hour) {
+            if ($mode === 'multi_daily') {
+                $hours = json_decode(get_option('ramos_automation_schedule_hours', json_encode([8])), true);
+                if (!is_array($hours)) {
+                    $hours = [8];
+                }
+                foreach ($hours as $hour) {
                     $time = str_pad($hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad($schedule_minutes, 2, '0', STR_PAD_LEFT);
                     $tasks[] = [
-                        'name' => 'Automation',
+                        'name'     => 'Automation',
                         'schedule' => 'Daily at ' . $time,
-                        'next_run' => $this->_calculate_next_run($hour, $schedule_minutes)
+                        'next_run' => $this->_calculate_next_run($hour, $schedule_minutes),
                     ];
                 }
             } else {
-                foreach ($schedule_hours as $hour) {
-                    $time = str_pad($hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad($schedule_minutes, 2, '0', STR_PAD_LEFT);
-                    $tasks[] = [
-                        'name' => 'Automation',
-                        'schedule' => $schedule_date . ' at ' . $time,
-                        'next_run' => $this->_calculate_next_run($hour, $schedule_minutes, $schedule_date)
-                    ];
-                }
+                $scheduleLabel = $mode === 'weekly_once'
+                    ? ucfirst($schedule_date) . 's'
+                    : 'Every day';
+                $time = str_pad($schedule_hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad($schedule_minutes, 2, '0', STR_PAD_LEFT);
+                $tasks[] = [
+                    'name'     => 'Automation',
+                    'schedule' => $scheduleLabel . ' at ' . $time,
+                    'next_run' => $this->_calculate_next_run($schedule_hour, $schedule_minutes, $mode === 'weekly_once' ? $schedule_date : null),
+                ];
             }
         }
 
         header('Content-Type: application/json');
         echo json_encode([
-            'enabled' => $automation_enabled,
-            'tasks' => $tasks,
-            'last_run' => $last_run ?: 'Never',
-            'current_time' => date('Y-m-d H:i:s')
+            'enabled'      => $automation_enabled,
+            'mode'         => $mode,
+            'tasks'        => $tasks,
+            'last_run'     => $last_run ?: 'Never',
+            'current_time' => date('Y-m-d H:i:s'),
         ]);
     }
 
@@ -134,87 +139,106 @@ class Scheduler extends App_Controller
     }
 
     /**
-     * Register scheduled tasks with Laravel scheduler
+     * Register scheduled tasks with Laravel scheduler.
+     *
+     * Reads the same option set as ramos_should_run_scheduled_automation() so
+     * both execution paths (Perfex after_cron_run hook and this Laravel
+     * scheduler) share one configuration model.  In practice only one path
+     * should be active; the ramos_automation_runs daily-date guard prevents
+     * double-execution if both happen to run on the same installation.
      */
     private function _register_scheduled_tasks(Schedule $schedule): void
     {
-        // Check if automation is enabled
         if (get_option('ramos_automation_schedule_enabled') !== '1') {
             return;
         }
 
-        // Load helper with automation functions
         $this->load->helper('ramos/ramos_automation');
 
-        // Get schedule configuration
-        $schedule_hours = json_decode(get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18])), true);
-        $schedule_minutes = (int)get_option('ramos_automation_schedule_minutes', 0);
-        $schedule_date = get_option('ramos_automation_schedule_date', '');
-        $schedule_run_daily = get_option('ramos_automation_schedule_run_daily') === '1';
+        $mode    = get_option('ramos_automation_schedule_mode', 'daily_once');
+        $hour    = (int) get_option('ramos_automation_schedule_hour', 8);
+        $minutes = (int) get_option('ramos_automation_schedule_minutes', 0);
+        $weekday = get_option('ramos_automation_schedule_date', '');
 
-        // Validate configuration
-        if (empty($schedule_hours)) {
-            log_activity('[SCHEDULER] No hours configured for automation');
-            return;
-        }
+        $registeredCount = 0;
 
-        // Register tasks for each hour
-        foreach ($schedule_hours as $hour) {
-            $hour = (int)$hour;
-            if ($hour < 0 || $hour > 23) {
-                continue;
+        if ($mode === 'multi_daily') {
+            $hours = json_decode(get_option('ramos_automation_schedule_hours', json_encode([8])), true);
+            if (!is_array($hours) || empty($hours)) {
+                log_activity('[SCHEDULER] multi_daily mode but no hours configured');
+                return;
             }
 
-            $time = str_pad($hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad($schedule_minutes, 2, '0', STR_PAD_LEFT);
-
-            if ($schedule_run_daily) {
-                // Daily automation at specified time
+            foreach ($hours as $h) {
+                $h = (int) $h;
+                if ($h < 0 || $h > 23) {
+                    continue;
+                }
+                $time = str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($minutes, 2, '0', STR_PAD_LEFT);
                 $schedule->call(function () {
                     $this->_execute_automation();
                 })->dailyAt($time)->name('ramos_automation_' . $time);
-            } else {
-                // Specific day only
-                $schedule->call(function () {
-                    $this->_execute_automation();
-                })->{$this->_get_cron_method($schedule_date)}()->at($time)->name('ramos_automation_' . $schedule_date . '_' . $time);
+                $registeredCount++;
             }
+        } elseif ($mode === 'weekly_once') {
+            if (empty($weekday)) {
+                log_activity('[SCHEDULER] weekly_once mode but no weekday configured');
+                return;
+            }
+            $time   = str_pad($hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad($minutes, 2, '0', STR_PAD_LEFT);
+            $method = $this->_get_cron_method($weekday);
+            $schedule->call(function () {
+                $this->_execute_automation();
+            })->{$method}()->at($time)->name('ramos_automation_' . $weekday . '_' . $time);
+            $registeredCount = 1;
+        } else {
+            // daily_once (default)
+            $time = str_pad($hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad($minutes, 2, '0', STR_PAD_LEFT);
+            $schedule->call(function () {
+                $this->_execute_automation();
+            })->dailyAt($time)->name('ramos_automation_' . $time);
+            $registeredCount = 1;
         }
 
-        log_activity('[SCHEDULER] Registered ' . count($schedule_hours) . ' automation task(s)');
+        log_activity('[SCHEDULER] Registered ' . $registeredCount . ' automation task(s) for mode=' . $mode);
     }
 
     /**
-     * Execute automation and routes
+     * Execute automation and routes (called by the Laravel scheduler).
+     *
+     * Uses ramos_last_automation_run_date as the idempotency key so that
+     * even if both the Perfex cron hook and this scheduler path fire on the
+     * same day, only one run takes effect.
      */
     private function _execute_automation(): void
     {
         try {
-            // Check if already ran today
-            $last_run_date = get_option('ramos_last_automation_run_date');
-            $today = date('Y-m-d');
+            $appTimezone = get_option('default_timezone');
+            $nowTz = !empty($appTimezone)
+                ? new DateTime('now', new DateTimeZone($appTimezone))
+                : new DateTime('now');
+            $today = $nowTz->format('Y-m-d');
 
+            $last_run_date = get_option('ramos_last_automation_run_date');
             if ($last_run_date === $today) {
-                log_activity('[SCHEDULER] Automation already ran today at ' . $last_run_date);
+                log_activity('[SCHEDULER] Automation already ran today (' . $today . '), skipping');
                 return;
             }
 
-            // Execute automation as system user
             $result = ramos_execute_automation(0);
 
-            if ($result['success']) {
-                // Generate routes if enabled
-                if (get_option('ramos_route_generate_on_success') === '1') {
-                    $route_result = ramos_generate_routes_for_today();
-                    $route_count = $route_result['success'] ? count($route_result['route_ids']) : 0;
-                    log_activity('[SCHEDULER] Automation successful: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches, ' . $route_count . ' routes generated');
-                } else {
-                    log_activity('[SCHEDULER] Automation successful: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches');
-                }
+            // Stamp immediately to prevent re-entry
+            update_option('ramos_last_automation_run_date', $today);
 
-                // Mark as ran today
-                update_option('ramos_last_automation_run_date', $today);
+            if ($result['success']) {
+                $routeResult  = ramos_generate_routes_for_today();
+                $pickResult   = ramos_assign_picking_for_all_modules();
+                log_activity('[SCHEDULER] Cycle complete: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches, ' . $routeResult['routes_count'] . ' routes, ' . $pickResult['modules_assigned'] . ' modules');
             } else {
-                log_activity('[SCHEDULER] Automation failed: ' . $result['message']);
+                log_activity('[SCHEDULER] PO step skipped: ' . $result['message']);
+                $routeResult = ramos_generate_routes_for_today();
+                $pickResult  = ramos_assign_picking_for_all_modules();
+                log_activity('[SCHEDULER] Routes + picking: ' . $routeResult['routes_count'] . ' routes, ' . $pickResult['modules_assigned'] . ' modules');
             }
         } catch (Exception $e) {
             log_activity('[SCHEDULER] Automation error: ' . $e->getMessage());

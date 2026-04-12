@@ -1,28 +1,32 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
+<?php init_head(); ?>
+<div id="wrapper">
+    <div class="content">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel_s">
+                    <div class="panel-body">
+                        <h4 class="tw-text-2xl tw-font-semibold tw-text-slate-900 tw-mb-1">
+                            <i class="<?php echo RAMOS_MODULE_ICON; ?> tw-mr-1"></i>
+                            <?php echo html_escape($title); ?>
+                        </h4>
+                        <p class="tw-text-slate-500 tw-mb-4">
+                            <?php echo html_escape($subtitle); ?>
+                        </p>
 
-<div class="panel panel-default">
-    <div class="panel-heading">
-        <h3 class="panel-title">
-            <i class="<?php echo RAMOS_MODULE_ICON; ?>"></i>
-            <?php echo $title; ?>
-        </h3>
-    </div>
-    <div class="panel-body">
-        <p class="text-muted"><?php echo $subtitle; ?></p>
-
-        <form id="automation-schedule-form" class="form-horizontal">
+                        <form id="automation-schedule-form" class="form-horizontal">
             
             <!-- Automation Enabled -->
             <div class="form-group">
                 <label class="col-sm-4 control-label">
-                    <?php echo _l('ramos_settings_automation_enabled'); ?>
+                    <?php echo _l('ramos_settings_enable_automation'); ?>
                 </label>
                 <div class="col-sm-8">
                     <div class="checkbox checkbox-inline">
                         <input type="checkbox" id="automation_enabled" name="automation_enabled" 
                                <?php if ($automation_enabled) echo 'checked'; ?>>
                         <label for="automation_enabled">
-                            <?php echo _l('ramos_settings_enable_scheduled_automation'); ?>
+                            <?php echo _l('ramos_settings_automation_description'); ?>
                         </label>
                     </div>
                 </div>
@@ -51,7 +55,7 @@
             <!-- Last Run Info -->
             <div class="form-group">
                 <label class="col-sm-4 control-label">
-                    <?php echo _l('ramos_settings_last_run'); ?>
+                    <?php echo _l('ramos_settings_last_automation_run'); ?>
                 </label>
                 <div class="col-sm-8">
                     <p class="form-control-static">
@@ -76,7 +80,7 @@
                         </label>
                     </div>
                     <small class="form-text text-muted">
-                        <?php echo _l('ramos_settings_auto_generate_routes_help'); ?>
+                        <?php echo _l('ramos_settings_auto_generate_routes_description'); ?>
                     </small>
                 </div>
             </div>
@@ -91,7 +95,7 @@
                            class="form-control" value="<?php echo $default_max_stops; ?>"
                            min="1" max="100">
                     <small class="form-text text-muted">
-                        <?php echo _l('ramos_settings_default_max_stops_help'); ?>
+                        <?php echo _l('ramos_settings_default_max_stops_description'); ?>
                     </small>
                 </div>
             </div>
@@ -105,6 +109,9 @@
                     <input type="text" id="default_route_prefix" name="default_route_prefix" 
                            class="form-control" value="<?php echo $default_route_prefix; ?>"
                            placeholder="Route">
+                    <small class="form-text text-muted">
+                        <?php echo _l('ramos_settings_default_route_prefix_description'); ?>
+                    </small>
                 </div>
             </div>
 
@@ -117,7 +124,7 @@
                     <input type="time" id="default_route_start_time" name="default_route_start_time" 
                            class="form-control" value="<?php echo substr($default_route_start_time, 0, 5); ?>">
                     <small class="form-text text-muted">
-                        <?php echo _l('ramos_settings_default_route_start_time_help'); ?>
+                        <?php echo _l('ramos_settings_default_route_start_time_description'); ?>
                     </small>
                 </div>
             </div>
@@ -131,18 +138,24 @@
                 </div>
             </div>
 
-        </form>
-
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
+<?php init_tail(); ?>
 <script>
 $(function() {
-    // Initialize multiple select
-    $('#schedule_hours').select2({
-        allowClear: true,
-        placeholder: '<?php echo _l("ramos_settings_select_hours"); ?>'
-    });
+    // Initialize multiple select (Perfex loads select2 in admin layout)
+    if ($.fn.select2) {
+        $('#schedule_hours').select2({
+            allowClear: true,
+            placeholder: '<?php echo _l("ramos_settings_select_hours"); ?>'
+        });
+    }
 
     // Toggle schedule hours visibility
     function toggleScheduleHours() {

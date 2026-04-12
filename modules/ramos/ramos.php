@@ -54,6 +54,14 @@ function ramos_maybe_run_scheduled_automation(): void
 
     $result = ramos_execute_automation(0); // 0 = system/cron user
 
+    // Stamp last-run date immediately so cron re-entry within the same tolerance
+    // window cannot trigger a second run.
+    $appTimezone = get_option('default_timezone');
+    $nowTz = !empty($appTimezone)
+        ? new DateTime('now', new DateTimeZone($appTimezone))
+        : new DateTime('now');
+    update_option('ramos_last_automation_run_date', $nowTz->format('Y-m-d'));
+
     if ($result['success']) {
         // Always generate routes as part of the automation cycle
         $routeResult = ramos_generate_routes_for_today();
@@ -65,9 +73,9 @@ function ramos_maybe_run_scheduled_automation(): void
 
         log_activity('[RAMOS CRON] Cycle complete: ' . $result['orders_processed'] . ' orders, ' . $result['batches_created'] . ' batches, ' . $routeCount . ' routes, ' . $modulesCount . ' modules assigned');
     } else {
-        log_activity('[RAMOS CRON] PO automation failed: ' . $result['message']);
+        log_activity('[RAMOS CRON] PO step skipped: ' . $result['message']);
 
-        // Still run routes and picking even when no POs were needed
+        // Routes and picking still run even when no POs are needed
         $routeResult   = ramos_generate_routes_for_today();
         $pickingResult = ramos_assign_picking_for_all_modules();
 
@@ -118,6 +126,15 @@ function ramos_init_admin_menu(): void
     }
 
     $CI = &get_instance();
+
+    // Quick access entry (some installations render child menus lazily).
+    $CI->app_menu->add_sidebar_menu_item('ramos-automation-settings-top', [
+        'name'     => _l('ramos_automation_settings_menu_label'),
+        'icon'     => 'fa-solid fa-sliders',
+        'href'     => admin_url('ramos/automation/settings'),
+        'position' => 15,
+    ]);
+
     $CI->app_menu->add_sidebar_menu_item('ramos-dashboard', [
         'name'     => _l('ramos_menu_label'),
         'icon'     => RAMOS_MODULE_ICON,
@@ -203,10 +220,17 @@ function ramos_init_admin_menu(): void
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+        'slug'     => 'ramos-automation-settings',
+        'name'     => _l('ramos_automation_settings_menu_label'),
+        'href'     => admin_url('ramos/automation/settings'),
+        'position' => 12,
+    ]);
+
+    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-report',
         'name'     => _l('ramos_report_menu'),
         'href'     => admin_url('ramos/report'),
-        'position' => 12,
+        'position' => 13,
     ]);
 
     // Core Perfex "Reports" sidebar (see application/helpers/menu_helper.php, slug `reports`).

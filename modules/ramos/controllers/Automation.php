@@ -73,19 +73,15 @@ class Automation extends AdminController
         // Check for edit permission to allow saving
         $canEdit = staff_can('edit', RAMOS_MODULE_NAME);
 
-        // Handle form submission
+        // Handle form submission (AJAX JSON)
         if ($this->input->post()) {
-            // Log the POST request for debugging
-            $postData = $this->input->post();
-            error_log('DEBUG: Settings form submitted - POST data: ' . json_encode($postData));
-            log_activity('DEBUG: Settings form submitted - canEdit=' . ($canEdit ? 'true' : 'false'));
-            
+            $this->output->set_content_type('application/json');
+
             if (!$canEdit) {
-                error_log('DEBUG: User does not have edit permission');
-                echo json_encode([
+                $this->output->set_output(json_encode([
                     'success' => false,
-                    'message' => _l('access_denied')
-                ]);
+                    'message' => _l('access_denied'),
+                ]));
                 return;
             }
             $this->_save_automation_schedule_settings();
@@ -99,153 +95,129 @@ class Automation extends AdminController
 
         // Automation schedule settings
         $data['automation_enabled'] = get_option('ramos_automation_schedule_enabled') === '1';
-        
-        // NEW: Load individual schedule settings
-        $data['schedule_run_daily'] = get_option('ramos_automation_schedule_run_daily') === '1';
-        $data['schedule_date'] = get_option('ramos_automation_schedule_date', '');
-        $data['schedule_hour'] = (int)get_option('ramos_automation_schedule_hour', 8);
-        $data['schedule_minutes'] = (int)get_option('ramos_automation_schedule_minutes', 0);
-        $data['schedule_end_hour'] = (int)get_option('ramos_automation_schedule_end_hour', 18);
-        $data['schedule_end_minutes'] = (int)get_option('ramos_automation_schedule_end_minutes', 0);
-        
-        // OLD: Load array format for backward compatibility
-        $hoursJson = get_option('ramos_automation_schedule_hours', json_encode([8, 14, 18]));
+
+        // Schedule mode: daily_once | weekly_once | multi_daily
+        $data['schedule_mode']    = get_option('ramos_automation_schedule_mode', 'daily_once');
+        $data['schedule_hour']    = (int) get_option('ramos_automation_schedule_hour', 8);
+        $data['schedule_minutes'] = (int) get_option('ramos_automation_schedule_minutes', 0);
+        $data['schedule_date']    = get_option('ramos_automation_schedule_date', '');
+
+        // Multi-daily hours list
+        $hoursJson             = get_option('ramos_automation_schedule_hours', json_encode([8]));
         $data['schedule_hours'] = json_decode($hoursJson, true);
         if (!is_array($data['schedule_hours'])) {
-            $data['schedule_hours'] = [8, 14, 18];
-        }
-
-        $minutesJson = get_option('ramos_automation_schedule_minutes', json_encode([0]));
-        $data['schedule_minutes_array'] = json_decode($minutesJson, true);
-        if (!is_array($data['schedule_minutes_array'])) {
-            $data['schedule_minutes_array'] = [0];
+            $data['schedule_hours'] = [8];
         }
 
         // Route generation settings
-        $data['route_generation_auto'] = get_option('ramos_route_generate_on_success') === '1';
-        $data['default_max_stops'] = (int)get_option('ramos_default_max_stops', 10);
-        $data['default_route_prefix'] = get_option('ramos_default_route_prefix', 'Route');
+        $data['route_generation_auto']    = get_option('ramos_route_generate_on_success') === '1';
+        $data['default_max_stops']        = (int) get_option('ramos_default_max_stops', 10);
+        $data['default_route_prefix']     = get_option('ramos_default_route_prefix', 'Route');
         $data['default_route_start_time'] = get_option('ramos_default_route_start_time', '08:00:00');
 
         // Last run info
         $data['last_automation_run_date'] = get_option('ramos_last_automation_run_date') ?: _l('ramos_settings_never_run');
 
-        // Available hours for selection
-        $data['available_hours'] = array_combine(range(0, 23), range(0, 23));
-
         $this->load->view('automation/settings', $data);
     }
 
     /**
-     * Save automation schedule settings (AJAX)
+     * Save automation schedule settings (AJAX POST).
      */
     private function _save_automation_schedule_settings(): void
     {
-        error_log('DEBUG: _save_automation_schedule_settings called');
-        
         if (!staff_can('edit', RAMOS_MODULE_NAME)) {
-            error_log('DEBUG: User does not have edit permission in save method');
-            echo json_encode([
-                'success' => false,
-                'message' => _l('access_denied')
-            ]);
+            $this->output->set_output(json_encode(['success' => false, 'message' => _l('access_denied')]));
             return;
         }
 
         try {
-            error_log('DEBUG: Starting to save settings');
-            
-            // Automation enabled/disabled
             $automationEnabled = $this->input->post('automation_enabled') === 'on' ? '1' : '0';
-            error_log('DEBUG: automationEnabled=' . $automationEnabled);
-            
-            $updateResult = update_option('ramos_automation_schedule_enabled', $automationEnabled);
-            error_log('DEBUG: update_option result=' . ($updateResult ? 'true' : 'false'));
-            error_log('DEBUG: Saved ramos_automation_schedule_enabled');
+            update_option('ramos_automation_schedule_enabled', $automationEnabled);
 
             if ($automationEnabled === '1') {
-                // Get settings from new form
-                $runDaily = $this->input->post('schedule_run_daily') === 'on' ? '1' : '0';
-                $selectedDate = trim((string)$this->input->post('schedule_date'));
-                $selectedHour = (int)$this->input->post('schedule_hour');
-                $selectedMinutes = (int)$this->input->post('schedule_minutes');
-                $selectedEndHour = (int)$this->input->post('schedule_end_hour');
-                $selectedEndMinutes = (int)$this->input->post('schedule_end_minutes');
+                $mode         = $this->input->post('schedule_mode');
+                $selectedHour = (int) $this->input->post('schedule_hour');
+                $selectedDate = trim((string) $this->input->post('schedule_date'));
 
-                // Validate
+                // multi_daily uses a separate minute field to avoid name collision with the
+                // single-time path; fall back to schedule_minutes for safety.
+                $selectedMinutes = ($mode === 'multi_daily')
+                    ? (int) $this->input->post('schedule_multi_minutes')
+                    : (int) $this->input->post('schedule_minutes');
+
+                // Validate mode
+                $validModes = ['daily_once', 'weekly_once', 'multi_daily'];
+                if (!in_array($mode, $validModes, true)) {
+                    $mode = 'daily_once';
+                }
+
+                // Validate hour / minute
                 if ($selectedHour < 0 || $selectedHour > 23) {
-                    echo json_encode(['success' => false, 'message' => 'Invalid start hour selected']);
+                    $this->output->set_output(json_encode(['success' => false, 'message' => _l('ramos_settings_invalid_hour')]));
                     return;
                 }
                 if ($selectedMinutes < 0 || $selectedMinutes > 59) {
-                    echo json_encode(['success' => false, 'message' => 'Invalid start minutes selected']);
-                    return;
-                }
-                if ($selectedEndHour < 0 || $selectedEndHour > 23) {
-                    echo json_encode(['success' => false, 'message' => 'Invalid end hour selected']);
-                    return;
-                }
-                if ($selectedEndMinutes < 0 || $selectedEndMinutes > 59) {
-                    echo json_encode(['success' => false, 'message' => 'Invalid end minutes selected']);
+                    $this->output->set_output(json_encode(['success' => false, 'message' => _l('ramos_settings_invalid_minutes')]));
                     return;
                 }
 
-                $startTotal = $selectedHour * 60 + $selectedMinutes;
-                $endTotal   = $selectedEndHour * 60 + $selectedEndMinutes;
-                if ($endTotal <= $startTotal) {
-                    echo json_encode(['success' => false, 'message' => 'End time must be after start time']);
+                // weekly_once requires a weekday
+                if ($mode === 'weekly_once' && empty($selectedDate)) {
+                    $this->output->set_output(json_encode(['success' => false, 'message' => _l('ramos_settings_select_day_required')]));
                     return;
                 }
 
-                if (!$runDaily && empty($selectedDate)) {
-                    echo json_encode(['success' => false, 'message' => 'Please select a day or enable "Run Daily"']);
-                    return;
+                // multi_daily: collect selected hours from checkboxes
+                if ($mode === 'multi_daily') {
+                    $multiHours = $this->input->post('schedule_multi_hours');
+                    if (!is_array($multiHours) || empty($multiHours)) {
+                        $this->output->set_output(json_encode(['success' => false, 'message' => _l('ramos_settings_select_hours_required')]));
+                        return;
+                    }
+                    $multiHours = array_values(array_unique(array_map('intval', $multiHours)));
+                    sort($multiHours);
+                    update_option('ramos_automation_schedule_hours', json_encode($multiHours));
+                } else {
+                    // Keep hours array in sync for backward-compat readers
+                    update_option('ramos_automation_schedule_hours', json_encode([$selectedHour]));
                 }
 
-                // Save settings
-                update_option('ramos_automation_schedule_run_daily', $runDaily);
+                update_option('ramos_automation_schedule_mode', $mode);
+                update_option('ramos_automation_schedule_hour', (string) $selectedHour);
+                update_option('ramos_automation_schedule_minutes', (string) $selectedMinutes);
                 update_option('ramos_automation_schedule_date', $selectedDate);
-                update_option('ramos_automation_schedule_hour', (string)$selectedHour);
-                update_option('ramos_automation_schedule_minutes', (string)$selectedMinutes);
-                update_option('ramos_automation_schedule_end_hour', (string)$selectedEndHour);
-                update_option('ramos_automation_schedule_end_minutes', (string)$selectedEndMinutes);
 
-                // For backward compatibility, also save as hours array
-                update_option('ramos_automation_schedule_hours', json_encode([$selectedHour]));
+                // Keep legacy run_daily flag in sync
+                update_option('ramos_automation_schedule_run_daily', $mode === 'daily_once' ? '1' : '0');
+
+                // Align deprecated end-time options with primary time so legacy readers stay consistent
+                update_option('ramos_automation_schedule_end_hour', (string) $selectedHour);
+                update_option('ramos_automation_schedule_end_minutes', (string) $selectedMinutes);
             }
 
-            // Route generation auto-generate on success
+            // Route generation settings
             $routeGenAuto = $this->input->post('route_generation_auto') === 'on' ? '1' : '0';
             update_option('ramos_route_generate_on_success', $routeGenAuto);
 
-            // Default max stops per route
-            $maxStops = (int)$this->input->post('default_max_stops');
-            $maxStops = max(1, min(100, $maxStops)); // Between 1-100
-            update_option('ramos_default_max_stops', (string)$maxStops);
+            $maxStops = (int) $this->input->post('default_max_stops');
+            $maxStops = max(1, min(100, $maxStops));
+            update_option('ramos_default_max_stops', (string) $maxStops);
 
-            // Default route prefix
-            $routePrefix = trim((string)$this->input->post('default_route_prefix'));
-            $routePrefix = $routePrefix ?: 'Route';
+            $routePrefix = trim((string) $this->input->post('default_route_prefix')) ?: 'Route';
             update_option('ramos_default_route_prefix', $routePrefix);
 
-            // Default route start time
-            $startTime = trim((string)$this->input->post('default_route_start_time'));
+            $startTime = trim((string) $this->input->post('default_route_start_time'));
             if ($startTime && preg_match('/^\d{2}:\d{2}$/', $startTime)) {
                 update_option('ramos_default_route_start_time', $startTime . ':00');
             }
 
             log_activity('Ramos scheduled automation settings updated');
 
-            echo json_encode([
-                'success' => true,
-                'message' => _l('settings_updated_successfully')
-            ]);
+            $this->output->set_output(json_encode(['success' => true, 'message' => _l('settings_updated_successfully')]));
         } catch (Exception $e) {
             log_activity('Error saving automation settings: ' . $e->getMessage());
-            echo json_encode([
-                'success' => false,
-                'message' => 'Error saving settings: ' . $e->getMessage()
-            ]);
+            $this->output->set_output(json_encode(['success' => false, 'message' => 'Error saving settings: ' . $e->getMessage()]));
         }
     }
 

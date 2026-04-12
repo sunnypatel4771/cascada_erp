@@ -596,16 +596,19 @@ if (!$CI->db->table_exists(db_prefix() . 'ramos_facturacion_fesat_log')) {
     );
 }
 
-// Seed automation schedule defaults (2:00 AM start, run daily enabled)
-// Only set if the option has never been configured (add_option is a no-op if key exists)
+// Seed automation schedule defaults (daily_once at 08:00).
+// add_option is a no-op when the key already exists, so this is safe to run on upgrades.
 if (function_exists('add_option')) {
-    add_option('ramos_automation_schedule_enabled', '1');
-    add_option('ramos_automation_schedule_hour', '2');
+    add_option('ramos_automation_schedule_enabled', '0');
+    add_option('ramos_automation_schedule_mode', 'daily_once');
+    add_option('ramos_automation_schedule_hour', '8');
     add_option('ramos_automation_schedule_minutes', '0');
-    add_option('ramos_automation_schedule_end_hour', '2');
-    add_option('ramos_automation_schedule_end_minutes', '0');
-    add_option('ramos_automation_schedule_run_daily', '1');
     add_option('ramos_automation_schedule_date', '');
+    add_option('ramos_automation_schedule_hours', json_encode([8]));
+    // Legacy keys kept for any external readers
+    add_option('ramos_automation_schedule_run_daily', '1');
+    add_option('ramos_automation_schedule_end_hour', '8');
+    add_option('ramos_automation_schedule_end_minutes', '0');
 }
 
 // Add ripeness (Maduración) column to omni_sales cart line items

@@ -411,7 +411,9 @@ class App_modules
             /* Sort modules by name */
 
             usort($modules, function ($a, $b) {
-                return strcmp(strtolower($a['headers']['module_name']), strtolower($b['headers']['module_name']));
+                $aName = strtolower((string) ($a['headers']['module_name'] ?? $a['system_name'] ?? ''));
+                $bName = strtolower((string) ($b['headers']['module_name'] ?? $b['system_name'] ?? ''));
+                return strcmp($aName, $bName);
             });
 
             return $modules;
@@ -543,8 +545,11 @@ class App_modules
 
         $arr = [];
 
-        if (isset($name[1])) {
+        if (isset($name[1]) && trim($name[1]) !== '') {
             $arr['module_name'] = trim($name[1]);
+        } else {
+            // Fall back to the directory basename so sorting and display never receive null
+            $arr['module_name'] = basename(dirname($module_source));
         }
 
         if (isset($uri[1])) {

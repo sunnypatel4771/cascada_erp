@@ -527,6 +527,9 @@ $lang['ramos_automation_copy_button']        = 'Copy to Clipboard';
 $lang['ramos_automation_copied_success']     = 'Copied to clipboard!';
 $lang['ramos_automation_confirm_run']        = 'This will process all unprocessed orders and create purchase orders. Continue?';
 
+// Menu
+$lang['ramos_automation_settings_menu_label'] = 'Automation Settings';
+
 // Settings page
 $lang['ramos_settings_automation_schedule_title']    = 'Automation Schedule';
 $lang['ramos_settings_automation_schedule_subtitle'] = 'Configure when the automation runs automatically via cron';
@@ -544,6 +547,41 @@ $lang['ramos_settings_default_route_prefix']         = 'Route Name Prefix';
 $lang['ramos_settings_default_route_prefix_description'] = 'Prefix used when naming auto-generated routes (e.g. "Route", "Delivery")';
 $lang['ramos_settings_default_route_start_time']     = 'Default Route Start Time';
 $lang['ramos_settings_default_route_start_time_description'] = 'Default start time assigned to auto-generated routes';
+
+// Schedule hours (Settings → Automation Schedule) – legacy keys kept for safety
+$lang['ramos_settings_schedule_hours']              = 'Schedule hours';
+$lang['ramos_settings_schedule_hours_help']         = 'Select one or more hours (24-hour clock). Automation will run once when cron hits the selected hour.';
+$lang['ramos_settings_select_hours']                = 'Select hours...';
+$lang['ramos_settings_save_error']                  = 'Unable to save settings. Please refresh the page and try again.';
+
+// Automation schedule – new frequency/mode controls
+$lang['ramos_settings_schedule_settings_heading']   = 'Schedule Settings';
+$lang['ramos_settings_frequency']                   = 'Frequency';
+$lang['ramos_settings_frequency_help']              = 'Choose how often automation should run automatically.';
+$lang['ramos_settings_schedule_mode_daily_once']    = 'Every day at a fixed time';
+$lang['ramos_settings_schedule_mode_weekly_once']   = 'Once per week on a specific day';
+$lang['ramos_settings_schedule_mode_multi_daily']   = 'Multiple times per day';
+$lang['ramos_settings_run_on_day']                  = 'Day of the week';
+$lang['ramos_settings_select_day']                  = 'Select day...';
+$lang['ramos_settings_run_at']                      = 'Run at';
+$lang['ramos_settings_run_at_help']                 = 'Set the exact time automation should fire. A ±5-minute tolerance window is applied to account for cron granularity.';
+$lang['ramos_settings_hour']                        = 'Hour';
+$lang['ramos_settings_minutes']                     = 'Minute';
+$lang['ramos_settings_multi_hours_label']           = 'Hours to run';
+$lang['ramos_settings_multi_hours_hint']            = 'Each checked hour will fire automation once at the configured minute mark.';
+$lang['ramos_settings_at_minute']                   = 'At minute';
+$lang['ramos_settings_next_run_label']              = 'Next Run';
+$lang['ramos_settings_timezone_note']               = 'Times use the application timezone (Setup → Settings → Localization).';
+$lang['ramos_settings_invalid_hour']                = 'Invalid hour selected.';
+$lang['ramos_settings_invalid_minutes']             = 'Invalid minutes value.';
+$lang['ramos_settings_select_day_required']         = 'Please select a day of the week.';
+$lang['ramos_settings_select_hours_required']       = 'Please select at least one hour.';
+$lang['ramos_settings_summary_every_day']           = 'Every day at';
+$lang['ramos_settings_summary_select_day']          = 'Select a day first';
+$lang['ramos_settings_summary_every']               = 'Every';
+$lang['ramos_settings_summary_select_hours']        = 'Select at least one hour';
+$lang['ramos_settings_route_generation_help']       = 'Automatically create optimized delivery routes after processing orders.';
+$lang['ramos_settings_saved_successfully']          = 'Settings saved successfully.';
 
 // Shared / misc
 $lang['ramos_automation_subtitle']          = 'Run purchase order automation and manage scheduled runs';

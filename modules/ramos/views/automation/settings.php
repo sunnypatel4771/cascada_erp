@@ -65,122 +65,142 @@
                                 </label>
                             </div>
 
-                            <!-- Simple Time Settings with Dropdowns -->
-                            <div id="schedule-time-picker" style="<?php echo !$automation_enabled ? 'display: none;' : ''; ?>" class="tw-mt-6 tw-transition-all tw-duration-300">
-                                <div class="tw-bg-blue-50 tw-border tw-border-blue-200 tw-rounded-lg tw-p-5">
-                                    <label class="tw-text-slate-900 tw-font-semibold tw-block tw-mb-4">
-                                        <i class="fa-solid fa-calendar-clock tw-mr-2 tw-text-blue-600"></i>Schedule Settings
+                            <!-- Schedule Settings -->
+                            <div id="schedule-time-picker" style="<?php echo !$automation_enabled ? 'display: none;' : ''; ?>" class="tw-mt-4 tw-transition-all tw-duration-300">
+                                <div class="tw-bg-blue-50 tw-border tw-border-blue-200 tw-rounded-lg tw-p-5 tw-space-y-5">
+                                    <label class="tw-text-slate-900 tw-font-semibold tw-block">
+                                        <i class="fa-solid fa-calendar-clock tw-mr-2 tw-text-blue-600"></i><?php echo _l('ramos_settings_schedule_settings_heading'); ?>
                                     </label>
 
-                                    <!-- Run Daily Option -->
-                                    <div class="tw-mb-4 tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
-                                        <label class="tw-flex tw-items-center tw-gap-3 tw-cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                name="schedule_run_daily" 
-                                                id="schedule_run_daily"
-                                                class="tw-w-5 tw-h-5 tw-cursor-pointer tw-accent-blue-600 tw-rounded"
-                                                <?php echo $schedule_run_daily ? 'checked' : ''; ?>
-                                                <?php echo !$can_edit ? 'disabled' : ''; ?>
-                                            />
-                                            <span class="tw-text-slate-900 tw-font-semibold">
-                                                <i class="fa-solid fa-repeat tw-mr-2 tw-text-blue-600"></i>Run Daily
-                                            </span>
+                                    <!-- Frequency -->
+                                    <div class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
+                                        <label class="tw-text-slate-700 tw-font-semibold tw-block tw-text-sm tw-mb-3">
+                                            <i class="fa-solid fa-repeat tw-mr-2 tw-text-blue-600"></i><?php echo _l('ramos_settings_frequency'); ?>
                                         </label>
-                                        <small class="tw-text-slate-500 tw-block tw-mt-2 tw-ml-8">
-                                            Enable to run automation every day at the same time
-                                        </small>
+                                        <div class="tw-space-y-2">
+                                            <?php
+                                            $modes = [
+                                                'daily_once'  => _l('ramos_settings_schedule_mode_daily_once'),
+                                                'weekly_once' => _l('ramos_settings_schedule_mode_weekly_once'),
+                                                'multi_daily' => _l('ramos_settings_schedule_mode_multi_daily'),
+                                            ];
+                                            foreach ($modes as $modeKey => $modeLabel) :
+                                            ?>
+                                            <label class="tw-flex tw-items-center tw-gap-3 tw-cursor-pointer <?php echo !$can_edit ? 'tw-opacity-60' : ''; ?>">
+                                                <input
+                                                    type="radio"
+                                                    name="schedule_mode"
+                                                    value="<?php echo $modeKey; ?>"
+                                                    class="schedule-mode-radio tw-accent-blue-600"
+                                                    <?php echo $schedule_mode === $modeKey ? 'checked' : ''; ?>
+                                                    <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                                />
+                                                <span class="tw-text-slate-800 tw-text-sm"><?php echo html_escape($modeLabel); ?></span>
+                                            </label>
+                                            <?php endforeach; ?>
+                                        </div>
                                     </div>
 
-                                    <!-- Date/Day Dropdown (full width) -->
-                                    <div class="tw-mb-4">
-                                        <label for="schedule_date" class="tw-text-slate-900 tw-font-semibold tw-block tw-text-sm tw-mb-2">
-                                            <i class="fa-solid fa-calendar tw-mr-2 tw-text-blue-600"></i>Date/Day
+                                    <!-- Weekday (weekly_once only) -->
+                                    <div id="schedule-weekday-row" class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100" style="<?php echo $schedule_mode !== 'weekly_once' ? 'display:none;' : ''; ?>">
+                                        <label for="schedule_date" class="tw-text-slate-700 tw-font-semibold tw-block tw-text-sm tw-mb-2">
+                                            <i class="fa-solid fa-calendar-day tw-mr-2 tw-text-blue-600"></i><?php echo _l('ramos_settings_run_on_day'); ?>
                                         </label>
-                                        <select name="schedule_date" id="schedule_date" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 focus:tw-border-transparent tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                            <option value="">Select Day...</option>
-                                            <option value="monday" <?php echo $schedule_date === 'monday' ? 'selected' : ''; ?>>Monday</option>
-                                            <option value="tuesday" <?php echo $schedule_date === 'tuesday' ? 'selected' : ''; ?>>Tuesday</option>
-                                            <option value="wednesday" <?php echo $schedule_date === 'wednesday' ? 'selected' : ''; ?>>Wednesday</option>
-                                            <option value="thursday" <?php echo $schedule_date === 'thursday' ? 'selected' : ''; ?>>Thursday</option>
-                                            <option value="friday" <?php echo $schedule_date === 'friday' ? 'selected' : ''; ?>>Friday</option>
-                                            <option value="saturday" <?php echo $schedule_date === 'saturday' ? 'selected' : ''; ?>>Saturday</option>
-                                            <option value="sunday" <?php echo $schedule_date === 'sunday' ? 'selected' : ''; ?>>Sunday</option>
+                                        <select name="schedule_date" id="schedule_date"
+                                                class="form-control"
+                                                <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                            <option value=""><?php echo _l('ramos_settings_select_day'); ?></option>
+                                            <?php
+                                            $days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+                                            foreach ($days as $d) :
+                                            ?>
+                                            <option value="<?php echo $d; ?>" <?php echo $schedule_date === $d ? 'selected' : ''; ?>>
+                                                <?php echo ucfirst($d); ?>
+                                            </option>
+                                            <?php endforeach; ?>
                                         </select>
-                                        <small class="tw-text-slate-500 tw-text-xs tw-block tw-mt-1">Which day to run (ignored when Run Daily is on)</small>
                                     </div>
 
-                                    <!-- Start Time / End Time -->
-                                    <div class="tw-grid tw-grid-cols-1 md:tw-grid-cols-2 tw-gap-4">
-                                        <!-- Start Time -->
-                                        <div class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
-                                            <p class="tw-text-slate-800 tw-font-semibold tw-text-sm tw-mb-3">
-                                                <i class="fa-solid fa-hourglass-start tw-mr-2 tw-text-green-600"></i>Start Time
-                                            </p>
-                                            <div class="tw-grid tw-grid-cols-2 tw-gap-3">
-                                                <div>
-                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Hour</label>
-                                                    <select name="schedule_hour" id="schedule_hour" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                        <?php for ($h = 0; $h < 24; $h++) : ?>
-                                                            <option value="<?php echo $h; ?>" <?php echo $schedule_hour == $h ? 'selected' : ''; ?>>
-                                                                <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00
-                                                            </option>
-                                                        <?php endfor; ?>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Minutes</label>
-                                                    <select name="schedule_minutes" id="schedule_minutes" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                        <option value="0"  <?php echo $schedule_minutes == 0  ? 'selected' : ''; ?>>:00</option>
-                                                        <option value="10" <?php echo $schedule_minutes == 10 ? 'selected' : ''; ?>>:10</option>
-                                                        <option value="20" <?php echo $schedule_minutes == 20 ? 'selected' : ''; ?>>:20</option>
-                                                        <option value="30" <?php echo $schedule_minutes == 30 ? 'selected' : ''; ?>>:30</option>
-                                                        <option value="40" <?php echo $schedule_minutes == 40 ? 'selected' : ''; ?>>:40</option>
-                                                        <option value="50" <?php echo $schedule_minutes == 50 ? 'selected' : ''; ?>>:50</option>
-                                                    </select>
-                                                </div>
+                                    <!-- Run at time (daily_once / weekly_once) -->
+                                    <div id="schedule-run-at-row" class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100" style="<?php echo $schedule_mode === 'multi_daily' ? 'display:none;' : ''; ?>">
+                                        <label class="tw-text-slate-700 tw-font-semibold tw-block tw-text-sm tw-mb-3">
+                                            <i class="fa-solid fa-clock tw-mr-2 tw-text-green-600"></i><?php echo _l('ramos_settings_run_at'); ?>
+                                        </label>
+                                        <div class="tw-grid tw-grid-cols-2 tw-gap-4">
+                                            <div>
+                                                <label class="tw-text-slate-500 tw-text-xs tw-block tw-mb-1"><?php echo _l('ramos_settings_hour'); ?></label>
+                                                <select name="schedule_hour" id="schedule_hour"
+                                                        class="form-control"
+                                                        <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                    <?php for ($h = 0; $h < 24; $h++) : ?>
+                                                    <option value="<?php echo $h; ?>" <?php echo $schedule_hour === $h ? 'selected' : ''; ?>>
+                                                        <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00
+                                                    </option>
+                                                    <?php endfor; ?>
+                                                </select>
                                             </div>
-                                        </div>
-
-                                        <!-- End Time -->
-                                        <div class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
-                                            <p class="tw-text-slate-800 tw-font-semibold tw-text-sm tw-mb-3">
-                                                <i class="fa-solid fa-hourglass-end tw-mr-2 tw-text-red-500"></i>End Time
-                                            </p>
-                                            <div class="tw-grid tw-grid-cols-2 tw-gap-3">
-                                                <div>
-                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Hour</label>
-                                                    <select name="schedule_end_hour" id="schedule_end_hour" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                        <?php for ($h = 0; $h < 24; $h++) : ?>
-                                                            <option value="<?php echo $h; ?>" <?php echo $schedule_end_hour == $h ? 'selected' : ''; ?>>
-                                                                <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00
-                                                            </option>
-                                                        <?php endfor; ?>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label class="tw-text-slate-600 tw-text-xs tw-block tw-mb-1">Minutes</label>
-                                                    <select name="schedule_end_minutes" id="schedule_end_minutes" class="form-control tw-py-2 tw-px-3 tw-border tw-border-slate-300 tw-rounded-lg focus:tw-ring-2 focus:tw-ring-blue-500 tw-transition-all" <?php echo !$can_edit ? 'disabled' : ''; ?>>
-                                                        <option value="0"  <?php echo $schedule_end_minutes == 0  ? 'selected' : ''; ?>>:00</option>
-                                                        <option value="10" <?php echo $schedule_end_minutes == 10 ? 'selected' : ''; ?>>:10</option>
-                                                        <option value="20" <?php echo $schedule_end_minutes == 20 ? 'selected' : ''; ?>>:20</option>
-                                                        <option value="30" <?php echo $schedule_end_minutes == 30 ? 'selected' : ''; ?>>:30</option>
-                                                        <option value="40" <?php echo $schedule_end_minutes == 40 ? 'selected' : ''; ?>>:40</option>
-                                                        <option value="50" <?php echo $schedule_end_minutes == 50 ? 'selected' : ''; ?>>:50</option>
-                                                    </select>
-                                                </div>
+                                            <div>
+                                                <label class="tw-text-slate-500 tw-text-xs tw-block tw-mb-1"><?php echo _l('ramos_settings_minutes'); ?></label>
+                                                <select name="schedule_minutes" id="schedule_minutes"
+                                                        class="form-control"
+                                                        <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                    <?php foreach ([0,5,10,15,20,25,30,35,40,45,50,55] as $m) : ?>
+                                                    <option value="<?php echo $m; ?>" <?php echo $schedule_minutes === $m ? 'selected' : ''; ?>>
+                                                        :<?php echo str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                                                    </option>
+                                                    <?php endforeach; ?>
+                                                </select>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Time Summary -->
-                                    <div class="tw-mt-4 tw-p-3 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
-                                        <p class="tw-text-sm tw-text-slate-700">
-                                            <i class="fa-solid fa-info-circle tw-mr-2 tw-text-blue-600"></i>
-                                            <strong>Next Run:</strong> 
-                                            <span id="schedule-summary" class="tw-font-mono tw-text-blue-600">
-                                                Select day, hour, and seconds
-                                            </span>
+                                    <!-- Multi-daily hours (multi_daily only) -->
+                                    <div id="schedule-multi-hours-row" class="tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100" style="<?php echo $schedule_mode !== 'multi_daily' ? 'display:none;' : ''; ?>">
+                                        <label class="tw-text-slate-700 tw-font-semibold tw-block tw-text-sm tw-mb-2">
+                                            <i class="fa-solid fa-list-check tw-mr-2 tw-text-blue-600"></i><?php echo _l('ramos_settings_multi_hours_label'); ?>
+                                        </label>
+                                        <div class="tw-grid tw-grid-cols-4 sm:tw-grid-cols-6 tw-gap-2">
+                                            <?php for ($h = 0; $h < 24; $h++) : ?>
+                                            <label class="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer tw-text-sm <?php echo !$can_edit ? 'tw-opacity-60' : ''; ?>">
+                                                <input
+                                                    type="checkbox"
+                                                    name="schedule_multi_hours[]"
+                                                    value="<?php echo $h; ?>"
+                                                    class="schedule-multi-hour tw-accent-blue-600"
+                                                    <?php echo in_array($h, $schedule_hours) ? 'checked' : ''; ?>
+                                                    <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                                />
+                                                <?php echo str_pad($h, 2, '0', STR_PAD_LEFT); ?>:00
+                                            </label>
+                                            <?php endfor; ?>
+                                        </div>
+                                        <small class="tw-text-slate-500 tw-block tw-mt-2">
+                                            <?php echo _l('ramos_settings_multi_hours_hint'); ?>
+                                        </small>
+                                        <!-- Shared minute for multi_daily -->
+                                        <div class="tw-mt-3">
+                                            <label class="tw-text-slate-500 tw-text-xs tw-block tw-mb-1"><?php echo _l('ramos_settings_at_minute'); ?></label>
+                                            <select name="schedule_multi_minutes" id="schedule_minutes_multi"
+                                                    class="form-control tw-w-auto"
+                                                    <?php echo !$can_edit ? 'disabled' : ''; ?>>
+                                                <?php foreach ([0,5,10,15,20,25,30,35,40,45,50,55] as $m) : ?>
+                                                <option value="<?php echo $m; ?>" <?php echo $schedule_minutes === $m ? 'selected' : ''; ?>>
+                                                    :<?php echo str_pad($m, 2, '0', STR_PAD_LEFT); ?>
+                                                </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Next run summary -->
+                                    <div class="tw-p-3 tw-bg-white tw-rounded-lg tw-border tw-border-blue-100">
+                                        <p class="tw-text-sm tw-text-slate-700 tw-mb-0">
+                                            <i class="fa-solid fa-circle-info tw-mr-2 tw-text-blue-600"></i>
+                                            <strong><?php echo _l('ramos_settings_next_run_label'); ?>:</strong>
+                                            <span id="schedule-summary" class="tw-font-mono tw-text-blue-700 tw-ml-1">—</span>
+                                        </p>
+                                        <p class="tw-text-xs tw-text-slate-400 tw-mb-0 tw-mt-1">
+                                            <?php echo _l('ramos_settings_timezone_note'); ?>
                                         </p>
                                     </div>
                                 </div>
@@ -326,9 +346,9 @@
                                 </span>
                             </div>
                             <div class="tw-flex tw-items-center tw-justify-between tw-p-3 tw-bg-emerald-50 tw-rounded-lg tw-border tw-border-emerald-100">
-                                <span class="tw-text-slate-700 tw-font-medium tw-text-sm">Max Stops</span>
+                                <span class="tw-text-slate-700 tw-font-medium tw-text-sm"><?php echo _l('ramos_settings_frequency'); ?></span>
                                 <span class="tw-px-3 tw-py-1 tw-rounded-full tw-text-xs tw-font-semibold tw-bg-slate-100 tw-text-slate-700">
-                                    <?php echo (int)$default_max_stops; ?>
+                                    <?php echo html_escape(_l('ramos_settings_schedule_mode_' . $schedule_mode)); ?>
                                 </span>
                             </div>
                         </div>
@@ -346,16 +366,23 @@
                             <div class="tw-space-y-4 tw-text-sm tw-text-slate-600">
                                 <div>
                                     <p class="tw-font-semibold tw-text-slate-700 tw-mb-1">
-                                        <i class="fa-solid fa-clock tw-mr-2 tw-text-blue-600"></i>Schedule Hours
+                                        <i class="fa-solid fa-repeat tw-mr-2 tw-text-blue-600"></i><?php echo _l('ramos_settings_frequency'); ?>
                                     </p>
-                                    <p>Select hours when automation should run automatically.</p>
+                                    <p><?php echo _l('ramos_settings_frequency_help'); ?></p>
                                 </div>
                                 <hr class="tw-border-slate-200" />
                                 <div>
                                     <p class="tw-font-semibold tw-text-slate-700 tw-mb-1">
-                                        <i class="fa-solid fa-map tw-mr-2 tw-text-purple-600"></i>Route Generation
+                                        <i class="fa-solid fa-clock tw-mr-2 tw-text-green-600"></i><?php echo _l('ramos_settings_run_at'); ?>
                                     </p>
-                                    <p>Automatically create optimized delivery routes after processing orders.</p>
+                                    <p><?php echo _l('ramos_settings_run_at_help'); ?></p>
+                                </div>
+                                <hr class="tw-border-slate-200" />
+                                <div>
+                                    <p class="tw-font-semibold tw-text-slate-700 tw-mb-1">
+                                        <i class="fa-solid fa-map tw-mr-2 tw-text-purple-600"></i><?php echo _l('ramos_settings_route_generation'); ?>
+                                    </p>
+                                    <p><?php echo _l('ramos_settings_route_generation_help'); ?></p>
                                 </div>
                             </div>
                         </div>
@@ -385,188 +412,161 @@
 
 <script>
     $(function() {
-        var $automationToggle = $('#automation_enabled');
-        var $scheduleContainer = $('#schedule-hours-container');
-        var $scheduleTimeContainer = $('#schedule-time-picker');
-        var $runDailyCheckbox = $('#schedule_run_daily');
-        var $dateDropdown = $('#schedule_date');
-        var $hourDropdown = $('#schedule_hour');
-        var $minutesDropdown = $('#schedule_minutes');
-        var $saveBtn = $('#automation-settings-form').find('button[type="submit"]');
-        var $statusEl = $('#save-status');
-        var formChanged = false;
+        var $automationToggle  = $('#automation_enabled');
+        var $scheduleContainer = $('#schedule-time-picker');
+        var $saveBtn           = $('#automation-settings-form').find('button[type="submit"]');
+        var $statusEl          = $('#save-status');
 
-        // Track form changes
+        // Track unsaved changes
         $('#automation-settings-form').on('change input', function() {
-            formChanged = true;
-            if ($saveBtn.length) {
-                $saveBtn.addClass('tw-ring-2 tw-ring-offset-2 tw-ring-blue-400');
-            }
+            $saveBtn.addClass('tw-ring-2 tw-ring-offset-2 tw-ring-blue-400');
         });
 
-        // Toggle schedule visibility
+        // Show/hide schedule block when automation is toggled
         $automationToggle.on('change', function() {
-            if (this.checked) {
-                $scheduleContainer.slideDown(300);
-                $scheduleTimeContainer.slideDown(400);
-            } else {
-                $scheduleContainer.slideUp(300);
-                $scheduleTimeContainer.slideUp(300);
-            }
+            $(this).is(':checked') ? $scheduleContainer.slideDown(350) : $scheduleContainer.slideUp(300);
         });
 
-        // Handle "Run Daily" checkbox
-        $runDailyCheckbox.on('change', function() {
-            if (this.checked) {
-                // Disable date dropdown when run daily is enabled
-                $dateDropdown.prop('disabled', true).val('').css('opacity', '0.6');
-                // Keep hour and minutes enabled
-                $hourDropdown.prop('disabled', false).css('opacity', '1');
-                $minutesDropdown.prop('disabled', false).css('opacity', '1');
+        // Show/hide mode-specific sub-rows
+        function applyModeVisibility(mode) {
+            if (mode === 'weekly_once') {
+                $('#schedule-weekday-row').slideDown(200);
             } else {
-                // Enable all dropdowns
-                $dateDropdown.prop('disabled', false).css('opacity', '1');
-                $hourDropdown.prop('disabled', false).css('opacity', '1');
-                $minutesDropdown.prop('disabled', false).css('opacity', '1');
+                $('#schedule-weekday-row').slideUp(200);
             }
+
+            if (mode === 'multi_daily') {
+                $('#schedule-run-at-row').slideUp(200);
+                $('#schedule-multi-hours-row').slideDown(200);
+            } else {
+                $('#schedule-run-at-row').slideDown(200);
+                $('#schedule-multi-hours-row').slideUp(200);
+            }
+
             updateScheduleSummary();
+        }
+
+        $('input[name="schedule_mode"]').on('change', function() {
+            applyModeVisibility(this.value);
         });
 
-        // Update summary on dropdown changes
-        $dateDropdown.on('change', updateScheduleSummary);
-        $hourDropdown.on('change', updateScheduleSummary);
-        $minutesDropdown.on('change', updateScheduleSummary);
-        $('#schedule_end_hour, #schedule_end_minutes').on('change', updateScheduleSummary);
-        $runDailyCheckbox.on('change', updateScheduleSummary);
+        // Update the Next Run summary
+        function pad(n) { return ('0' + n).slice(-2); }
 
-        function formatTime(h, m) {
-            var ampm = h < 12 ? 'AM' : 'PM';
-            var dh = h === 0 ? 12 : (h > 12 ? h - 12 : h);
-            return str_pad(dh) + ':' + str_pad(m) + ' ' + ampm;
+        function fmt24(h, m) {
+            return pad(h) + ':' + pad(m);
         }
 
         function updateScheduleSummary() {
-            var runDaily    = $runDailyCheckbox.is(':checked');
-            var selectedDay = $dateDropdown.val();
-            var startHour   = parseInt($('#schedule_hour').val());
-            var startMin    = parseInt($('#schedule_minutes').val());
-            var endHour     = parseInt($('#schedule_end_hour').val());
-            var endMin      = parseInt($('#schedule_end_minutes').val());
+            var mode = $('input[name="schedule_mode"]:checked').val();
+            var $summary = $('#schedule-summary');
 
-            var startTotal = startHour * 60 + startMin;
-            var endTotal   = endHour   * 60 + endMin;
+            if (mode === 'multi_daily') {
+                var hours = [];
+                $('.schedule-multi-hour:checked').each(function() {
+                    hours.push(parseInt(this.value));
+                });
+                hours.sort(function(a,b){ return a-b; });
 
-            if (isNaN(startHour) || isNaN(endHour)) {
-                $('#schedule-summary').text('Select start and end time');
+                if (hours.length === 0) {
+                    $summary.text('<?php echo _l("ramos_settings_summary_select_hours"); ?>');
+                    return;
+                }
+
+                var min = parseInt($('#schedule_minutes_multi').val()) || 0;
+                var times = hours.map(function(h){ return fmt24(h, min); });
+                $summary.text('<?php echo _l("ramos_settings_summary_every_day"); ?>: ' + times.join(', '));
                 return;
             }
 
-            if (endTotal <= startTotal) {
-                $('#schedule-summary').html('<span class="tw-text-red-500">End time must be after start time</span>');
+            var h   = parseInt($('#schedule_hour').val());
+            var m   = parseInt($('#schedule_minutes').val());
+            var day = $('#schedule_date').val();
+
+            if (isNaN(h)) {
+                $summary.text('—');
                 return;
             }
 
-            // Build trigger list
-            var triggers = [];
-            for (var t = startTotal; t <= endTotal; t += 30) {
-                var th = Math.floor(t / 60), tm = t % 60;
-                triggers.push(formatTime(th, tm));
+            var timeStr = fmt24(h, m);
+
+            if (mode === 'daily_once') {
+                $summary.text('<?php echo _l("ramos_settings_summary_every_day"); ?> ' + timeStr);
+            } else if (mode === 'weekly_once') {
+                if (!day) {
+                    $summary.text('<?php echo _l("ramos_settings_summary_select_day"); ?>');
+                    return;
+                }
+                var dayLabel = day.charAt(0).toUpperCase() + day.slice(1);
+                $summary.text('<?php echo _l("ramos_settings_summary_every"); ?> ' + dayLabel + ' ' + timeStr);
             }
-
-            var prefix = runDaily ? 'Every day' : (selectedDay ? capitalizeDay(selectedDay) + 's' : null);
-            if (!prefix) {
-                $('#schedule-summary').text('Select a day or enable "Run Daily"');
-                return;
-            }
-
-            var summary = prefix + ': ' + triggers.join(', ');
-            $('#schedule-summary').text(summary);
         }
 
-        function str_pad(num) {
-            return ('0' + num).slice(-2);
-        }
+        // Re-run summary when any relevant field changes
+        $('#schedule_hour, #schedule_minutes, #schedule_minutes_multi, #schedule_date').on('change', updateScheduleSummary);
+        $('.schedule-multi-hour').on('change', updateScheduleSummary);
 
-        function capitalizeDay(day) {
-            return day.charAt(0).toUpperCase() + day.slice(1);
-        }
-
-        // Handle form submission
+        // Form submission
         $('#automation-settings-form').on('submit', function(e) {
             e.preventDefault();
-            console.log('Form submit handler triggered');
 
-            var $form = $(this);
+            var $form      = $(this);
             var $submitBtn = $form.find('button[type="submit"]');
-            var originalBtnText = $submitBtn.html();
+            var origHtml   = $submitBtn.html();
 
-            // Validate
-            if ($('#automation_enabled').is(':checked')) {
-                var hour = $hourDropdown.val();
-                var runDaily = $runDailyCheckbox.is(':checked');
-                var selectedDay = $dateDropdown.val();
+            // Client-side validation when automation is enabled
+            if ($automationToggle.is(':checked')) {
+                var mode = $('input[name="schedule_mode"]:checked').val();
 
-                if (!hour) {
-                    alert_float('warning', 'Please select an hour for automation to run');
+                if (mode === 'weekly_once' && !$('#schedule_date').val()) {
+                    alert_float('warning', '<?php echo _l("ramos_settings_select_day_required"); ?>');
                     return;
                 }
 
-                if (!runDaily && !selectedDay) {
-                    alert_float('warning', 'Please select a day or enable "Run Daily"');
-                    return;
+                if (mode === 'multi_daily') {
+                    if ($('.schedule-multi-hour:checked').length === 0) {
+                        alert_float('warning', '<?php echo _l("ramos_settings_select_hours_required"); ?>');
+                        return;
+                    }
                 }
             }
 
-            // Disable button and show loading state
             $submitBtn.prop('disabled', true)
-                      .html('<i class="fa-solid fa-spinner fa-spin tw-mr-2"></i><?php echo _l("saving"); ?>');
+                .html('<i class="fa-solid fa-spinner fa-spin tw-mr-2"></i><?php echo _l("saving"); ?>');
 
-            console.log('Form data:', $form.serialize());
-            
             $.ajax({
-                url: $form.attr('action') || '',
-                type: 'POST',
-                data: $form.serialize(),
+                url:      $form.attr('action') || '',
+                type:     'POST',
+                data:     $form.serialize(),
                 dataType: 'json',
-                headers: {
+                headers:  {
                     'X-Requested-With': 'XMLHttpRequest',
                     '<?php echo $this->security->get_csrf_token_name(); ?>': '<?php echo $this->security->get_csrf_hash(); ?>'
                 },
                 success: function(response) {
-                    console.log('AJAX Success Response:', response);
                     if (response.success) {
                         alert_float('success', response.message || '<?php echo _l("settings_updated_successfully"); ?>');
-                        
-                        formChanged = false;
-                        $submitBtn.removeClass('tw-ring-2 tw-ring-offset-2 tw-ring-blue-400');
-                        
+                        $saveBtn.removeClass('tw-ring-2 tw-ring-offset-2 tw-ring-blue-400');
                         $statusEl.html('<i class="fa-solid fa-check-circle tw-mr-2 tw-text-green-600"></i><?php echo _l("saved"); ?>')
-                                .show()
-                                .delay(3000)
-                                .fadeOut(300);
+                                 .show().delay(3000).fadeOut(300);
                     } else {
                         alert_float('danger', response.message || '<?php echo _l("problem_updating_settings"); ?>');
                     }
                 },
                 error: function(xhr, status, error) {
-                    console.error('AJAX Error:', error);
-                    console.error('Status:', status);
-                    console.error('XHR:', xhr);
                     alert_float('danger', '<?php echo _l("problem_updating_settings"); ?>: ' + error);
                 },
                 complete: function() {
-                    $submitBtn.prop('disabled', false).html(originalBtnText);
+                    $submitBtn.prop('disabled', false).html(origHtml);
                 }
             });
         });
 
-        // Add fade-in animation
-        $('.panel_s').each(function() {
-            $(this).addClass('tw-fade-in');
-        });
+        // Fade-in panels
+        $('.panel_s').addClass('tw-fade-in');
 
-        // Initialize summary on page load
-        updateScheduleSummary();
+        // Initialise on page load
+        applyModeVisibility($('input[name="schedule_mode"]:checked').val() || 'daily_once');
     });
 </script>
 

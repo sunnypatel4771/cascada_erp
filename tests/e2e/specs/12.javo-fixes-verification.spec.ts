@@ -18,7 +18,10 @@ import { assertPageLoaded } from '../utils/guards';
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function goAdmin(page: Page, path: string) {
-  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  // IMPORTANT: Do not start with "/" so Playwright preserves baseURL subpaths
+  // (e.g. staging baseURL ends with "/erp").
+  const rel = path.replace(/^\/+/, '');
+  await page.goto(rel, { waitUntil: 'domcontentloaded' });
 }
 
 /** Wait for and dismiss any alert_float toast (success or danger). */
@@ -39,7 +42,7 @@ test.describe('Fix 1-3 — Automation dashboard', () => {
 
   test('automation page loads: trigger button + unprocessed count visible', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/automation');
+    await goAdmin(page, 'admin/ramos/automation');
     await assertPageLoaded(page);
     await expect(page.locator('body')).not.toContainText(/Fatal error|Call to undefined|SQLSTATE/i);
 
@@ -50,7 +53,7 @@ test.describe('Fix 1-3 — Automation dashboard', () => {
 
   test('Fix 1+2: Run Automation AJAX returns batches_created AND routes_created (not undefined)', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/automation');
+    await goAdmin(page, 'admin/ramos/automation');
     await assertPageLoaded(page);
 
     // Intercept the POST to automation/run
@@ -83,7 +86,7 @@ test.describe('Fix 1-3 — Automation dashboard', () => {
 
   test('Fix 3: automation success message language string has 3 substitution points', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/automation');
+    await goAdmin(page, 'admin/ramos/automation');
     await assertPageLoaded(page);
 
     const html = await page.content();
@@ -114,14 +117,14 @@ test.describe('Fix 4 — Inventory: purchase_price & has_maduracion', () => {
 
   test('inventory page loads without errors', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/inventory');
+    await goAdmin(page, 'admin/ramos/inventory');
     await assertPageLoaded(page);
     await expect(page.locator('body')).not.toContainText(/Fatal error|Call to undefined|SQLSTATE/i);
   });
 
   test('Add Item modal contains purchase_price input and has_maduracion checkbox', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/inventory');
+    await goAdmin(page, 'admin/ramos/inventory');
     await assertPageLoaded(page);
 
     const addBtn = page.locator('button[data-target="#ramosInventoryModal"]');
@@ -142,7 +145,7 @@ test.describe('Fix 4 — Inventory: purchase_price & has_maduracion', () => {
 
   test('Edit Item modal contains purchase_price input and has_maduracion checkbox', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/inventory');
+    await goAdmin(page, 'admin/ramos/inventory');
     await assertPageLoaded(page);
 
     const editBtn = page.locator('.ramos-edit-item').first();
@@ -165,7 +168,7 @@ test.describe('Fix 4 — Inventory: purchase_price & has_maduracion', () => {
 
   test('can save a new inventory item with purchase_price and has_maduracion=1', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/inventory');
+    await goAdmin(page, 'admin/ramos/inventory');
     await assertPageLoaded(page);
 
     const addBtn = page.locator('button[data-target="#ramosInventoryModal"]');
@@ -202,7 +205,7 @@ test.describe('Fix 5 — Admin order items: Maturation column & ripeness dropdow
 
   test('order items page has Maturation column header', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/orders');
+    await goAdmin(page, 'admin/ramos/orders');
     await assertPageLoaded(page);
 
     const itemsLink = page.locator('a[href*="ramos/orders/items/"]').first();
@@ -225,7 +228,7 @@ test.describe('Fix 5 — Admin order items: Maturation column & ripeness dropdow
 
   test('add-item form has hidden #ramos-ripeness-wrap div with maduro/verde options', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/orders');
+    await goAdmin(page, 'admin/ramos/orders');
     await assertPageLoaded(page);
 
     const itemsLink = page.locator('a[href*="ramos/orders/items/"]').first();
@@ -254,7 +257,7 @@ test.describe('Fix 5 — Admin order items: Maturation column & ripeness dropdow
 
   test('ripeness wrap becomes visible when an item with has_maduracion=1 is selected', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/inventory');
+    await goAdmin(page, 'admin/ramos/inventory');
     await assertPageLoaded(page);
 
     // Find an item with has_maduracion=1 from the data attributes on the table rows
@@ -284,7 +287,7 @@ test.describe('Fix 5 — Admin order items: Maturation column & ripeness dropdow
     }
 
     // Navigate to any order items page
-    await goAdmin(page, '/admin/ramos/orders');
+    await goAdmin(page, 'admin/ramos/orders');
     await assertPageLoaded(page);
 
     const itemsLink = page.locator('a[href*="ramos/orders/items/"]').first();
@@ -322,14 +325,14 @@ test.describe('Fix 5 — Picking console', () => {
 
   test('picking console loads without PHP errors', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/picking/console');
+    await goAdmin(page, 'admin/ramos/picking/console');
     await assertPageLoaded(page);
     await expect(page.locator('body')).not.toContainText(/Fatal error|Call to undefined|SQLSTATE/i);
   });
 
   test('picking console page source includes the ripeness label render code', async ({ page }) => {
     await loginAdmin(page, creds.admin);
-    await goAdmin(page, '/admin/ramos/picking/console');
+    await goAdmin(page, 'admin/ramos/picking/console');
     await assertPageLoaded(page);
 
     // The module_card.php renders ripeness using label-info class.

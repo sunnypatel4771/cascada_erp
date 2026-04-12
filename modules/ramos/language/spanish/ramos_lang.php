@@ -621,6 +621,9 @@ $lang['ramos_automation_copy_button']        = 'Copiar al Portapapeles';
 $lang['ramos_automation_copied_success']     = '¡Copiado al portapapeles!';
 $lang['ramos_automation_confirm_run']        = 'Esto procesará todos los pedidos sin procesar y creará órdenes de compra. ¿Continuar?';
 
+// Menú
+$lang['ramos_automation_settings_menu_label'] = 'Ajustes de Automatización';
+
 // Settings
 $lang['ramos_settings_automation_schedule_title']    = 'Programación de Automatización';
 $lang['ramos_settings_automation_schedule_subtitle'] = 'Configura cuándo se ejecuta la automatización automáticamente vía cron';
@@ -638,3 +641,38 @@ $lang['ramos_settings_default_route_prefix']         = 'Prefijo del Nombre de Ru
 $lang['ramos_settings_default_route_prefix_description'] = 'Prefijo usado al nombrar rutas generadas automáticamente (ej. "Ruta", "Entrega")';
 $lang['ramos_settings_default_route_start_time']     = 'Hora de Inicio Predeterminada de Ruta';
 $lang['ramos_settings_default_route_start_time_description'] = 'Hora de inicio predeterminada asignada a las rutas generadas automáticamente';
+
+// Horas de programación (Configuración → Programación de Automatización) – claves heredadas mantenidas
+$lang['ramos_settings_schedule_hours']              = 'Horas programadas';
+$lang['ramos_settings_schedule_hours_help']         = 'Selecciona una o más horas (formato 24 horas). La automatización se ejecutará una vez cuando el cron llegue a la hora seleccionada.';
+$lang['ramos_settings_select_hours']                = 'Selecciona horas...';
+$lang['ramos_settings_save_error']                  = 'No se pudieron guardar los ajustes. Actualiza la página e inténtalo de nuevo.';
+
+// Controles de frecuencia/modo – nuevos
+$lang['ramos_settings_schedule_settings_heading']   = 'Configuración de Horario';
+$lang['ramos_settings_frequency']                   = 'Frecuencia';
+$lang['ramos_settings_frequency_help']              = 'Elige con qué frecuencia se ejecuta la automatización automáticamente.';
+$lang['ramos_settings_schedule_mode_daily_once']    = 'Todos los días a una hora fija';
+$lang['ramos_settings_schedule_mode_weekly_once']   = 'Una vez por semana en un día específico';
+$lang['ramos_settings_schedule_mode_multi_daily']   = 'Varias veces al día';
+$lang['ramos_settings_run_on_day']                  = 'Día de la semana';
+$lang['ramos_settings_select_day']                  = 'Seleccionar día...';
+$lang['ramos_settings_run_at']                      = 'Ejecutar a las';
+$lang['ramos_settings_run_at_help']                 = 'Define la hora exacta en que debe dispararse la automatización. Se aplica una tolerancia de ±5 minutos para la granularidad del cron.';
+$lang['ramos_settings_hour']                        = 'Hora';
+$lang['ramos_settings_minutes']                     = 'Minuto';
+$lang['ramos_settings_multi_hours_label']           = 'Horas de ejecución';
+$lang['ramos_settings_multi_hours_hint']            = 'Cada hora marcada disparará la automatización una vez al minuto configurado.';
+$lang['ramos_settings_at_minute']                   = 'Al minuto';
+$lang['ramos_settings_next_run_label']              = 'Próxima ejecución';
+$lang['ramos_settings_timezone_note']               = 'Los horarios usan la zona horaria de la aplicación (Configuración → Ajustes → Localización).';
+$lang['ramos_settings_invalid_hour']                = 'Hora seleccionada no válida.';
+$lang['ramos_settings_invalid_minutes']             = 'Valor de minutos no válido.';
+$lang['ramos_settings_select_day_required']         = 'Por favor selecciona un día de la semana.';
+$lang['ramos_settings_select_hours_required']       = 'Por favor selecciona al menos una hora.';
+$lang['ramos_settings_summary_every_day']           = 'Todos los días a las';
+$lang['ramos_settings_summary_select_day']          = 'Selecciona un día primero';
+$lang['ramos_settings_summary_every']               = 'Cada';
+$lang['ramos_settings_summary_select_hours']        = 'Selecciona al menos una hora';
+$lang['ramos_settings_route_generation_help']       = 'Crear automáticamente rutas de entrega optimizadas después de procesar pedidos.';
+$lang['ramos_settings_saved_successfully']          = 'Ajustes guardados exitosamente.';

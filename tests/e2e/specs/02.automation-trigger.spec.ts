@@ -5,18 +5,33 @@ import { assertPageLoaded } from '../utils/guards';
 
 test.describe('2. Automation Trigger', () => {
   test('automation settings: enabled checkbox, hour/minutes selects, and save controls are present', async ({ page }) => {
+    test.skip(!creds.admin.password, 'Set PW_ADMIN_PASSWORD to run admin UI tests.');
+
     await loginAdmin(page, creds.admin);
     await page.goto('/admin/ramos/automation/settings');
     await assertPageLoaded(page);
 
     // Enabled toggle must exist
-    await expect(page.locator('#automation_enabled')).toBeVisible();
+    const automationToggle = page.locator('#automation_enabled');
+    await expect(automationToggle).toBeVisible();
 
-    // Hour and minutes dropdowns for schedule
+    // Schedule controls live inside #schedule-time-picker, hidden until automation is enabled
+    if (!(await automationToggle.isChecked())) {
+      await automationToggle.check();
+      await expect(page.locator('#schedule-time-picker')).toBeVisible();
+    }
+
+    // Frequency modes — #schedule_hour is hidden when mode is multi_daily
+    await page.locator('input[name="schedule_mode"][value="daily_once"]').check();
+    await expect(page.locator('#schedule-run-at-row')).toBeVisible();
+
+    await expect(page.locator('input[name="schedule_mode"][value="daily_once"]')).toBeVisible();
+
+    // Hour and minutes dropdowns for schedule (single run-at row for daily/weekly modes)
     await expect(page.locator('#schedule_hour')).toBeVisible();
     await expect(page.locator('#schedule_minutes')).toBeVisible();
 
-    // The minutes dropdown must include a :30 option (30-minute cadence requirement)
+    // Minutes dropdown includes :30 (among 5-minute steps)
     const minutesOptions = page.locator('#schedule_minutes option');
     const values = await minutesOptions.evaluateAll((opts) =>
       (opts as HTMLOptionElement[]).map((o) => o.value)
@@ -33,6 +48,8 @@ test.describe('2. Automation Trigger', () => {
   });
 
   test('automation dashboard is reachable and manual trigger button is present', async ({ page }) => {
+    test.skip(!creds.admin.password, 'Set PW_ADMIN_PASSWORD to run admin UI tests.');
+
     await loginAdmin(page, creds.admin);
     await page.goto('/admin/ramos/automation');
     await assertPageLoaded(page);

@@ -15,11 +15,22 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /**
  * Check if scheduled automation should run right now.
  *
- * Conditions:
- *  1. Automation is enabled
- *  2. Current hour & minute match configured schedule
- *  3. Has not already run today
- *  4. If not "run daily", today's weekday must match configured day
+ * Three modes (controlled by ramos_automation_schedule_mode):
+ *
+ *  daily_once   – fires once per calendar day at the configured hour:minute.
+ *                 Guarded by ramos_last_automation_run_date (today in app TZ).
+ *
+ *  weekly_once  – fires once per week on the configured weekday at hour:minute.
+ *                 Uses same daily-date guard, so it can only fire once on the
+ *                 matching day each week.
+ *
+ *  multi_daily  – fires at each hour listed in ramos_automation_schedule_hours
+ *                 JSON array, at the configured :minute mark.  Each slot is
+ *                 guarded by a 25-minute recent-run check (allows several
+ *                 configured times per day independently).
+ *
+ * All modes use a ±5-minute tolerance window around the target time so cron
+ * granularity (typically 1–5 min) does not cause a missed run.
  *
  * @return bool
  */
@@ -29,61 +40,69 @@ function ramos_should_run_scheduled_automation(): bool
         return false;
     }
 
-    $startHour    = (int) get_option('ramos_automation_schedule_hour', 2);
-    $startMinutes = (int) get_option('ramos_automation_schedule_minutes', 0);
-    $endHour      = (int) get_option('ramos_automation_schedule_end_hour', 2);
-    $endMinutes   = (int) get_option('ramos_automation_schedule_end_minutes', 0);
-    $runDaily     = get_option('ramos_automation_schedule_run_daily') === '1';
-    $scheduledDate = strtolower(trim((string) get_option('ramos_automation_schedule_date', '')));
+    $mode    = get_option('ramos_automation_schedule_mode', 'daily_once');
+    $runHour = (int) get_option('ramos_automation_schedule_hour', 8);
+    $runMin  = (int) get_option('ramos_automation_schedule_minutes', 0);
+    $weekday = strtolower(trim((string) get_option('ramos_automation_schedule_date', '')));
 
-    // Use the app's configured timezone
     $appTimezone = get_option('default_timezone');
     $now = !empty($appTimezone)
         ? new DateTime('now', new DateTimeZone($appTimezone))
         : new DateTime('now');
-    $currentHour   = (int) $now->format('G');
-    $currentMinute = (int) $now->format('i');
 
-    $startTotal   = $startHour   * 60 + $startMinutes;
-    $endTotal     = $endHour     * 60 + $endMinutes;
-    $currentTotal = $currentHour * 60 + $currentMinute;
+    $todayYmd    = $now->format('Y-m-d');
+    $currentHour = (int) $now->format('G');
+    $currentMin  = (int) $now->format('i');
+    $currentTotal = $currentHour * 60 + $currentMin;
 
-    // Build the list of trigger minutes: start, start+30, start+60, … up to and including end
-    $triggerMinutes = [];
-    for ($t = $startTotal; $t <= $endTotal; $t += 30) {
-        $triggerMinutes[] = $t;
-    }
-
-    // Check if current time falls within a 6-minute window of any trigger point
-    $inWindow = false;
-    foreach ($triggerMinutes as $trigger) {
-        if ($currentTotal >= $trigger && $currentTotal <= $trigger + 5) {
-            $inWindow = true;
-            break;
+    if ($mode === 'multi_daily') {
+        $hoursJson = get_option('ramos_automation_schedule_hours', json_encode([8]));
+        $hours     = json_decode($hoursJson, true);
+        if (!is_array($hours) || empty($hours)) {
+            return false;
         }
+
+        $inWindow = false;
+        foreach ($hours as $h) {
+            $triggerTotal = ((int) $h) * 60 + $runMin;
+            if ($currentTotal >= $triggerTotal && $currentTotal <= $triggerTotal + 5) {
+                $inWindow = true;
+                break;
+            }
+        }
+        if (!$inWindow) {
+            return false;
+        }
+
+        $CI          = &get_instance();
+        $windowStart = (clone $now)->modify('-25 minutes')->format('Y-m-d H:i:s');
+        $recentRun   = $CI->db
+            ->where('run_at >=', $windowStart)
+            ->where('status', 'completed')
+            ->count_all_results(db_prefix() . 'ramos_automation_runs');
+
+        return $recentRun === 0;
     }
-    if (!$inWindow) {
+
+    // daily_once / weekly_once: single target time, ±5-min tolerance window
+    $targetTotal = $runHour * 60 + $runMin;
+    if ($currentTotal < $targetTotal || $currentTotal > $targetTotal + 5) {
         return false;
     }
 
-    // If not daily, check day of week
-    if (!$runDaily && !empty($scheduledDate)) {
-        $todayName = strtolower(date('l')); // e.g. "friday"
-        if ($todayName !== $scheduledDate) {
+    // weekly_once: also require the correct weekday
+    if ($mode === 'weekly_once') {
+        if (empty($weekday)) {
+            return false;
+        }
+        if (strtolower($now->format('l')) !== $weekday) {
             return false;
         }
     }
 
-    // Guard: do not run again if a completed run already fired within the last 25 minutes.
-    // Using a per-window check (instead of a daily check) lets subsequent 30-minute
-    // trigger points each fire once, satisfying the "every 30 minutes" requirement.
-    $CI = &get_instance();
-    $windowStart = (clone $now)->modify('-25 minutes')->format('Y-m-d H:i:s');
-    $recentRun = $CI->db
-        ->where('run_at >=', $windowStart)
-        ->where('status', 'completed')
-        ->count_all_results(db_prefix() . 'ramos_automation_runs');
-    if ($recentRun > 0) {
+    // Once-per-day guard: skip if already ran today (app-timezone date)
+    $lastRun = get_option('ramos_last_automation_run_date', '');
+    if ($lastRun === $todayYmd) {
         return false;
     }
 
