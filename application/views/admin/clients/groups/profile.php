@@ -185,6 +185,18 @@ echo render_select('default_currency', $currencies, ['id', 'name', 'symbol'], 'i
                             <?php } ?>
                         </div>
 
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="week"><?php echo _l('customer_week_pricing'); ?></label>
+                                    <select name="week" id="week" class="form-control selectpicker">
+                                        <option value="0" <?php echo (isset($client) && (int)$client->week === 0) ? 'selected' : ''; ?>><?php echo _l('settings_no'); ?></option>
+                                        <option value="1" <?php echo (isset($client) && (int)$client->week === 1) ? 'selected' : ''; ?>><?php echo _l('settings_yes'); ?></option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
                         <hr />
 
                         <?php $value = (isset($client) ? $client->address : ''); ?>

@@ -51,10 +51,11 @@ class Facturacion_model extends App_Model
             $uid = (int)($c[$this->cart_userid] ?? 0);
             if (!isset($groups[$uid])) {
                 $groups[$uid] = [
-                    'userid' => $uid,
+                    'userid'      => $uid,
                     'client_name' => $this->resolve_client_name($c),
-                    'plist' => $this->get_client_plist($uid),
-                    'rows' => [],
+                    'plist'       => $this->get_client_plist($uid),
+                    'use_week'    => $this->get_client_week($uid),
+                    'rows'        => [],
                 ];
             }
             $cart_id = (int)$c[$this->cart_pk];
@@ -62,12 +63,19 @@ class Facturacion_model extends App_Model
 
             foreach ($items as $it) {
                 $status = $this->row_status($uid, $c, $it);
+                $rate_client = $this->calc_client_price_for_item(
+                    $groups[$uid]['plist'],
+                    $it['purchase_price'],
+                    $it['product_id'],
+                    $uid,
+                    $groups[$uid]['use_week']
+                );
                 $groups[$uid]['rows'][] = array_merge($it, [
-                    'cart_id' => $cart_id,
+                    'cart_id'      => $cart_id,
                     'order_number' => $c['order_number'] ?? $cart_id,
-                    'status' => $status['status'],
-                    'reason' => $status['reason'],
-                    'rate_client' => $this->calc_client_price($groups[$uid]['plist'], $it['purchase_price']),
+                    'status'       => $status['status'],
+                    'reason'       => $status['reason'],
+                    'rate_client'  => $rate_client,
                 ]);
             }
         }
@@ -104,6 +112,47 @@ class Facturacion_model extends App_Model
         $row = $this->db->select('plist')->from('tblclients')->where('userid', $userid)->get()->row_array();
         if (!$row || $row['plist'] === null || $row['plist'] === '') return 0.0;
         return (float)$row['plist'];
+    }
+
+    public function get_client_week($userid)
+    {
+        $userid = (int)$userid;
+        if ($userid <= 0 || !$this->db->table_exists('tblclients')) {
+            return false;
+        }
+        $row = $this->db->select('week')->from('tblclients')->where('userid', $userid)->get()->row_array();
+        if (!$row) return false;
+        return (int)($row['week'] ?? 0) === 1;
+    }
+
+    private function get_weekly_price_for_product($product_id, $customer_id)
+    {
+        $table = db_prefix() . 'ramos_price_rules';
+        if (!$this->db->table_exists($table)) {
+            return null;
+        }
+
+        // Customer-specific rule first.
+        $this->db->from($table)
+            ->where('inventory_item_id', (int)$product_id)
+            ->where('active', 1)
+            ->where('customer_id', (int)$customer_id)
+            ->order_by('created_at', 'DESC')
+            ->limit(1);
+        $rule = $this->db->get()->row_array();
+
+        if ($rule) return $rule;
+
+        // Default (no customer) rule as fallback.
+        $this->db->from($table)
+            ->where('inventory_item_id', (int)$product_id)
+            ->where('active', 1)
+            ->where('customer_id IS NULL', null, false)
+            ->order_by('created_at', 'DESC')
+            ->limit(1);
+        $rule = $this->db->get()->row_array();
+
+        return $rule ?: null;
     }
 
     private function get_cart_items_with_stock($cart_id)
@@ -180,10 +229,27 @@ class Facturacion_model extends App_Model
 
     private function calc_client_price($plist_percent, $purchase_price)
     {
-        $plist_percent = (float)$plist_percent;
+        $plist_percent  = (float)$plist_percent;
         $purchase_price = (float)$purchase_price;
-        $mult = 1.0 + ($plist_percent / 100.0);
+        $mult           = 1.0 + ($plist_percent / 100.0);
         return round($purchase_price * $mult, 2);
+    }
+
+    private function calc_client_price_for_item($plist_percent, $purchase_price, $product_id, $customer_id, $use_week)
+    {
+        if ($use_week) {
+            $rule = $this->get_weekly_price_for_product($product_id, $customer_id);
+            if ($rule) {
+                $base = (float)$rule['price'];
+                if (!empty($rule['discount_percent'])) {
+                    $base = $base * (1.0 - ((float)$rule['discount_percent'] / 100.0));
+                }
+                // Apply plist (customer %) the same way as the cost-price path.
+                return round($base * (1.0 + ((float)$plist_percent / 100.0)), 2);
+            }
+        }
+        // week=0 or no rule found: use purchase_price + plist%.
+        return $this->calc_client_price($plist_percent, $purchase_price);
     }
 
     public function create_invoice_from_details($detail_ids)
@@ -209,7 +275,8 @@ class Facturacion_model extends App_Model
         }
 
         // Recompute inventory and validate green only
-        $plist = $this->get_client_plist($userid);
+        $plist     = $this->get_client_plist($userid);
+        $use_week  = $this->get_client_week($userid);
 
         $product_ids = array_values(array_unique(array_map(function($r){ return (int)$r[$this->detail_product_fk]; }, $rows)));
         $inv = [];
@@ -237,7 +304,7 @@ class Facturacion_model extends App_Model
             }
 
             $purchase_price = (float)($invrow[$this->inv_manage_purchase_price] ?? 0);
-            $rate = $this->calc_client_price($plist, $purchase_price);
+            $rate = $this->calc_client_price_for_item($plist, $purchase_price, $pid, $userid, $use_week);
 
             $invoice_items[] = [
                 'description' => (string)($r[$this->detail_product_name] ?? ('Producto #' . $pid)),

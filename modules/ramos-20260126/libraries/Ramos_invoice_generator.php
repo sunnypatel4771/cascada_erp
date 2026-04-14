@@ -103,11 +103,21 @@ class Ramos_invoice_generator
         $missingPrices  = 0;
         $itemOrder      = 1;
 
+        // Resolve customer markup % (customers_descuento custom field).
+        $markupRaw     = get_custom_field_value($clientId, 'customers_descuento', 'customers', false);
+        $markupPercent = is_numeric($markupRaw) ? (float) $markupRaw : 0.0;
+
+        // Determine if this customer uses weekly list pricing.
+        $useWeekPricing = isset($client->week) && (int) $client->week === 1;
+
         foreach ($items as $item) {
             $inventoryId = !empty($item['inventory_item_id']) ? (int) $item['inventory_item_id'] : null;
             $inventory   = $inventoryId ? $this->ci->inventory_model->get($inventoryId) : null;
 
-            $priceRule = $inventoryId ? $this->ci->pricing_model->get_price_for_customer($inventoryId, $clientId) : null;
+            // When week=1, look up the price rule first; when week=0, skip to cost price.
+            $priceRule = ($useWeekPricing && $inventoryId)
+                ? $this->ci->pricing_model->get_price_for_customer($inventoryId, $clientId)
+                : null;
 
             if ($priceRule) {
                 $lineCurrency = $priceRule['currency'] ? (int) $priceRule['currency'] : null;
@@ -115,10 +125,17 @@ class Ramos_invoice_generator
                     $currencyId = $lineCurrency;
                 }
 
-                $unitPrice = (float) $priceRule['price'];
+                // Base price from the weekly price list (rule price minus rule discount).
+                $basePrice = (float) $priceRule['price'];
                 if (!empty($priceRule['discount_percent'])) {
-                    $unitPrice = $unitPrice * (1 - ((float) $priceRule['discount_percent'] / 100));
+                    $basePrice = $basePrice * (1 - ((float) $priceRule['discount_percent'] / 100));
                 }
+
+                // Apply customer markup % the same way as the cost-price path.
+                $unitPrice = $basePrice * (1 + $markupPercent / 100);
+            } elseif ($inventory && isset($inventory['purchase_price']) && (float) $inventory['purchase_price'] > 0) {
+                // Fallback (or week=0 path): purchase_price × (1 + customer markup% / 100)
+                $unitPrice = (float) $inventory['purchase_price'] * (1 + $markupPercent / 100);
             } else {
                 $unitPrice = 0.00;
                 $missingPrices++;

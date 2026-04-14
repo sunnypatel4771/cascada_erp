@@ -27,7 +27,18 @@ export async function loginAdmin(page: Page, user: UserCreds) {
   const candidates = adminLoginUrlCandidates();
   let opened = false;
   for (const url of candidates) {
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+        break;
+      } catch (err) {
+        const msg = String(err);
+        if (!/interrupted|ERR_ABORTED|Timeout/i.test(msg) || attempt === 2) {
+          throw err;
+        }
+        await page.waitForTimeout(600);
+      }
+    }
     const hasEmail = await page.locator('input[name="email"], #email').first().isVisible().catch(() => false);
     if (hasEmail) {
       opened = true;

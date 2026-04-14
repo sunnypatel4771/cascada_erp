@@ -2849,6 +2849,7 @@ $lang['your_version']                            = 'Your Version';
 $lang['using_latest_version']                    = 'You are using the latest version';
 $lang['mark_as_active']                          = 'Mark as active';
 $lang['customer_inactive_message']               = 'This is inactive customer profile and some features may be disabled';
+$lang['customer_week_pricing']                   = 'Weekly Pricing (use price list)';
 $lang['active_customers']                        = 'Active Customers';
 $lang['inactive_active_customers']               = 'Inactive Customers';
 $lang['include_proposal_items_merge_field_help'] = 'Include proposal items with merge field anywhere in proposal content as %s';

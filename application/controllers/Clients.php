@@ -187,6 +187,13 @@ class Clients extends ClientsController
         $markup_percent = is_numeric($markup_percent) ? floatval($markup_percent) : 0;
         $discount_percent = 0; // no invoice-level discount; pricing is done at item rate level
 
+        // Determine if this customer uses weekly list pricing (week flag on tblclients).
+        $use_week_pricing = isset($client->week) && (int) $client->week === 1;
+        if ($use_week_pricing) {
+            $this->load->model('ramos/pricing_model', 'ramos_pricing_model');
+            $this->load->model('ramos/inventory_model', 'ramos_inventory_model');
+        }
+
         // Get customer's zone and priority from profile custom fields
         $customer_zone = get_validated_customer_zone($client_id, DEFAULT_DELIVERY_ZONE);
         $customer_priority = get_validated_customer_priority($client_id, DEFAULT_PRIORITY_LEVEL);
@@ -235,9 +242,11 @@ class Clients extends ClientsController
                 continue;
             }
 
-            // Server-side price validation: recompute expected rate from purchase_price + markup.
-            // Override client-supplied rate if it deviates by more than 1% to prevent manipulation.
+            // Server-side price validation: recompute expected rate to prevent manipulation.
+            // When week=1: base = price rule (minus rule discount), then apply markup%.
+            // When week=0: base = purchase_price, then apply markup%.
             $rate = (float) $item['rate'];
+
             $item_record = $this->db
                 ->select('purchase_price')
                 ->where('description', $item['description'])
@@ -245,11 +254,38 @@ class Clients extends ClientsController
                 ->get(db_prefix() . 'items')
                 ->row();
 
-            if ($item_record && (float) $item_record->purchase_price > 0) {
-                $expected_rate = (float) $item_record->purchase_price * (1 + $markup_percent / 100);
-                if ($expected_rate > 0 && abs($rate - $expected_rate) / $expected_rate > 0.01) {
-                    $rate = round($expected_rate, 4);
+            $expected_rate = null;
+
+            if ($use_week_pricing) {
+                // Look up the ramos inventory item by name to find the price rule.
+                $inv_row = $this->db
+                    ->select('id')
+                    ->where('item_name', $item['description'])
+                    ->limit(1)
+                    ->get(db_prefix() . 'ramos_inventory_items')
+                    ->row();
+
+                if ($inv_row) {
+                    $price_rule = $this->ramos_pricing_model->get_price_for_customer((int) $inv_row->id, $client_id);
+                    if ($price_rule) {
+                        $base_price = (float) $price_rule['price'];
+                        if (!empty($price_rule['discount_percent'])) {
+                            $base_price = $base_price * (1 - ((float) $price_rule['discount_percent'] / 100));
+                        }
+                        $expected_rate = $base_price * (1 + $markup_percent / 100);
+                    }
                 }
+
+                // Fallback to purchase_price when no rule found.
+                if ($expected_rate === null && $item_record && (float) $item_record->purchase_price > 0) {
+                    $expected_rate = (float) $item_record->purchase_price * (1 + $markup_percent / 100);
+                }
+            } elseif ($item_record && (float) $item_record->purchase_price > 0) {
+                $expected_rate = (float) $item_record->purchase_price * (1 + $markup_percent / 100);
+            }
+
+            if ($expected_rate !== null && $expected_rate > 0 && abs($rate - $expected_rate) / $expected_rate > 0.01) {
+                $rate = round($expected_rate, 4);
             }
 
             $item_total = $item['qty'] * $rate;

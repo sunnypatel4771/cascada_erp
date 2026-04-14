@@ -69,7 +69,7 @@ $config['migration_auto_latest'] = true;
 | be upgraded / downgraded to.
 |
 */
-$config['migration_version'] = 332; // 3.3.2 - Added priority and zone fields to invoices
+$config['migration_version'] = 333; // Added week column to tblclients for weekly pricing toggle
 
 /*
 |--------------------------------------------------------------------------

@@ -2624,6 +2624,7 @@ $lang['your_version']                            = 'Su versión';
 $lang['using_latest_version']                    = 'Está usando la versión más reciente';
 $lang['mark_as_active']                          = 'Marcad como activo';
 $lang['customer_inactive_message']               = 'Este es el perfil del cliente inactivo y algunas características pueden estar deshabilitadas';
+$lang['customer_week_pricing']                   = 'Precio Semanal (usar lista de precios)';
 $lang['active_customers']                        = 'Clientes activos';
 $lang['inactive_active_customers']               = 'Clientes desactivados';
 $lang['include_proposal_items_merge_field_help'] = 'Incluya elementos en la propuesta con los campos combinados en cualquier parte de la propuesta, como %s';
