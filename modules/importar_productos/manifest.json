@@ -1,0 +1,6 @@
+{
+  "name": "Importar Productos",
+  "author": "Ramos",
+  "version": "1.0.0",
+  "description": "Importa productos (tblitems) desde CSV/XLS/XLSX con encabezados, mapeo de columnas, simulación e importación con validaciones."
+}

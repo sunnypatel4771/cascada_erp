@@ -3405,7 +3405,11 @@ class warehouse extends AdminController {
 	 * @param  [integer] $commodity_id
 	 * @return [type]
 	 */
-	public function view_commodity_detail($commodity_id) {
+	public function view_commodity_detail($commodity_id = '') {
+		if ($commodity_id === '' || $commodity_id === null) {
+			redirect(admin_url('warehouse/commodity_list'));
+		}
+
 		$commodity_item = get_commodity_name($commodity_id);
 
 		if (!$commodity_item) {

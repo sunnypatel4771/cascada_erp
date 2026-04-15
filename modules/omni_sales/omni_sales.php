@@ -478,12 +478,8 @@ if (!(strpos($viewuri,'/omni_sales/omni_sales_client/return') === false)) {
  * redirect to pages 
  */
 function redirect_to_pages(){
-    if(get_option('omni_display_shopping_cart') == 1){
-        maybe_redirect_to_previous_url();
-        redirect(site_url('omni_sales/omni_sales_client/index/1/0/0'));
-    }else{
-        redirect(site_url('clients/invoices'));
-    }
+    maybe_redirect_to_previous_url();
+    redirect(site_url('clients'));
 }
 
 /**

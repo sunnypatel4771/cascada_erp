@@ -57,7 +57,7 @@
                                      </tr> 
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('tax_2'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->tax2) != '' && get_tax_rate($commodity_item->tax2) != null ? get_tax_rate($commodity_item->tax2)->name : '';  ?></td>
+                                        <td><?php echo (($commodity_item->tax2 ?? '') !== '') && get_tax_rate($commodity_item->tax2) != null ? get_tax_rate($commodity_item->tax2)->name : '';  ?></td>
                                      </tr> 
                                      
                                      <tr class="project-overview">

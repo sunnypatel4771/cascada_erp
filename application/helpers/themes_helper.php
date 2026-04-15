@@ -51,13 +51,14 @@ function add_default_theme_menu_items()
         //             'position' => 10,
         //         ]);
         // }
-        if (has_contact_permission('invoices')) {
-            add_theme_menu_item('invoices', [
-                    'name'     => _l('clients_nav_invoices'),
-                    'href'     => site_url('clients/invoices'),
-                    'position' => 15,
-                ]);
-        }
+        // HIDDEN: Invoices nav — customer ordering uses /clients; invoices list not shown in top bar
+        // if (has_contact_permission('invoices')) {
+        //     add_theme_menu_item('invoices', [
+        //             'name'     => _l('clients_nav_invoices'),
+        //             'href'     => site_url('clients/invoices'),
+        //             'position' => 15,
+        //         ]);
+        // }
         // HIDDEN: Contracts menu item - not needed for warehouse/logistics system
         // if (has_contact_permission('contracts')) {
         //     add_theme_menu_item('contracts', [

