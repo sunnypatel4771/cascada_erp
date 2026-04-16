@@ -14,6 +14,8 @@ class Purchase_model extends App_Model
     public function __construct()
     {
         parent::__construct();
+
+        $this->load->helper('purchase/purchase');
         
         $this->contact_columns = hooks()->apply_filters('contact_columns', ['firstname', 'lastname', 'email', 'phonenumber', 'title', 'password', 'send_set_password_email', 'donotsendwelcomeemail', 'permissions', 'direction', 'invoice_emails', 'estimate_emails', 'credit_note_emails', 'contract_emails', 'task_emails', 'project_emails', 'ticket_emails', 'is_primary']);
     }
@@ -4464,94 +4466,118 @@ class Purchase_model extends App_Model
       <br><br><br>
       ';
 
-      $html .=  '<table class="table purorder-item">
+      if (function_exists('purchase_po_hides_prices') && purchase_po_hides_prices()) {
+          $html .= '<table class="table purorder-item">
         <thead>
           <tr>
-            <th class="thead-dark" style="width: 30%;">'._l('items').'</th>
-            <th class="thead-dark" style="width: 15%;" align="right">'._l('purchase_unit_price').'</th>
-            <th class="thead-dark" style="width: 15%;" align="right">'._l('purchase_quantity').'</th>';
-         
-            if(get_option('show_purchase_tax_column') == 1){ 
-
-                $html .= '<th class="thead-dark" align="right" style="width: 10%;">'._l('tax').'</th>';
-            }
- 
-            $html .= '<th class="thead-dark" align="right" style="width: 15%;">'._l('discount').'</th>
-            <th class="thead-dark" align="right" style="width: 15%;">'._l('total').'</th>
+            <th class="thead-dark" style="width: 70%;">' . _l('items') . '</th>
+            <th class="thead-dark" style="width: 30%;" align="right">' . _l('purchase_quantity') . '</th>
           </tr>
           </thead>
           <tbody>';
-        $t_mn = 0;
-        $item_discount = 0;
-      foreach($pur_order_detail as $row){
-        $items = $this->get_items_by_id($row['item_code']);
-        $des_html = ($items) ? $items->commodity_code.' - '.$items->description : $row['item_name'];
+          foreach ($pur_order_detail as $row) {
+              $items    = $this->get_items_by_id($row['item_code']);
+              $des_html = ($items) ? $items->commodity_code . ' - ' . $items->description : $row['item_name'];
 
-        $units = $this->get_units_by_id($row['unit_id']);
-        $unit_name = isset($units->unit_name) ? $units->unit_name : '';
-        
-        $html .= '<tr nobr="true" class="sortable">
-            <td style="width: 30%;"><strong>'.$des_html.'</strong><br><span>'.$row['description'].'</span></td>
-            <td style="width: 15%;"align="right">'.app_format_money($row['unit_price'],$base_currency->symbol).'</td>
-            <td style="width: 15%;" align="right">'.app_format_number($row['quantity'],'').' '. $unit_name.'</td>';
-         
-            if(get_option('show_purchase_tax_column') == 1){  
-                $html .= '<td align="right" style="width: 10%;">'.app_format_money($row['total'] - $row['into_money'],$base_currency->symbol).'</td>';
-            }
-       
-            $html .= '<td align="right" style="width: 15%;">'.app_format_money($row['discount_money'],$base_currency->symbol).'</td>
-            <td align="right" style="width: 15%;">'.app_format_money($row['total_money'],$base_currency->symbol).'</td>
+              $units     = $this->get_units_by_id($row['unit_id']);
+              $unit_name = isset($units->unit_name) ? $units->unit_name : '';
+
+              $html .= '<tr nobr="true" class="sortable">
+            <td><strong>' . $des_html . '</strong><br><span>' . $row['description'] . '</span></td>
+            <td align="right">' . app_format_number($row['quantity'], '') . ' ' . $unit_name . '</td>
+          </tr>';
+          }
+          $html .= '</tbody>
+      </table><br><br>';
+      } else {
+          $html .= '<table class="table purorder-item">
+        <thead>
+          <tr>
+            <th class="thead-dark" style="width: 30%;">' . _l('items') . '</th>
+            <th class="thead-dark" style="width: 15%;" align="right">' . _l('purchase_unit_price') . '</th>
+            <th class="thead-dark" style="width: 15%;" align="right">' . _l('purchase_quantity') . '</th>';
+
+          if (get_option('show_purchase_tax_column') == 1) {
+              $html .= '<th class="thead-dark" align="right" style="width: 10%;">' . _l('tax') . '</th>';
+          }
+
+          $html .= '<th class="thead-dark" align="right" style="width: 15%;">' . _l('discount') . '</th>
+            <th class="thead-dark" align="right" style="width: 15%;">' . _l('total') . '</th>
+          </tr>
+          </thead>
+          <tbody>';
+          $t_mn          = 0;
+          $item_discount = 0;
+          foreach ($pur_order_detail as $row) {
+              $items    = $this->get_items_by_id($row['item_code']);
+              $des_html = ($items) ? $items->commodity_code . ' - ' . $items->description : $row['item_name'];
+
+              $units     = $this->get_units_by_id($row['unit_id']);
+              $unit_name = isset($units->unit_name) ? $units->unit_name : '';
+
+              $html .= '<tr nobr="true" class="sortable">
+            <td style="width: 30%;"><strong>' . $des_html . '</strong><br><span>' . $row['description'] . '</span></td>
+            <td style="width: 15%;"align="right">' . app_format_money($row['unit_price'], $base_currency->symbol) . '</td>
+            <td style="width: 15%;" align="right">' . app_format_number($row['quantity'], '') . ' ' . $unit_name . '</td>';
+
+              if (get_option('show_purchase_tax_column') == 1) {
+                  $html .= '<td align="right" style="width: 10%;">' . app_format_money($row['total'] - $row['into_money'], $base_currency->symbol) . '</td>';
+              }
+
+              $html .= '<td align="right" style="width: 15%;">' . app_format_money($row['discount_money'], $base_currency->symbol) . '</td>
+            <td align="right" style="width: 15%;">' . app_format_money($row['total_money'], $base_currency->symbol) . '</td>
           </tr>';
 
-        $t_mn += $row['total_money'];
-        $item_discount += $row['discount_money'];
-      }  
-      $html .=  '</tbody>
+              $t_mn += $row['total_money'];
+              $item_discount += $row['discount_money'];
+          }
+          $html .= '</tbody>
       </table><br><br>';
 
-      $html .= '<table class="table text-right"><tbody>';
-      $html .= '<tr id="subtotal">
+          $html .= '<table class="table text-right"><tbody>';
+          $html .= '<tr id="subtotal">
                     <td style="width: 33%"></td>
-                     <td>'._l('subtotal').' </td>
+                     <td>' . _l('subtotal') . ' </td>
                      <td class="subtotal">
-                        '.app_format_money($pur_order->subtotal,$base_currency->symbol).'
+                        ' . app_format_money($pur_order->subtotal, $base_currency->symbol) . '
                      </td>
                   </tr>';
 
-      $html .= $tax_data['pdf_html'];
+          $html .= $tax_data['pdf_html'];
 
-      if(($pur_order->discount_total + $item_discount) > 0){
-        $html .= '
+          if (($pur_order->discount_total + $item_discount) > 0) {
+              $html .= '
                   
                   <tr id="subtotal">
                   <td style="width: 33%"></td>
-                     <td>'._l('discount_total(money)').'</td>
+                     <td>' . _l('discount_total(money)') . '</td>
                      <td class="subtotal">
-                        '.app_format_money(($pur_order->discount_total + $item_discount), $base_currency->symbol).'
+                        ' . app_format_money(($pur_order->discount_total + $item_discount), $base_currency->symbol) . '
                      </td>
                   </tr>';
-      }
+          }
 
-      if($pur_order->shipping_fee  > 0){
-        $html .= '
+          if ($pur_order->shipping_fee > 0) {
+              $html .= '
                   
                   <tr id="subtotal">
                   <td style="width: 33%"></td>
-                     <td>'._l('pur_shipping_fee').'</td>
+                     <td>' . _l('pur_shipping_fee') . '</td>
                      <td class="subtotal">
-                        '.app_format_money($pur_order->shipping_fee, $base_currency->symbol).'
+                        ' . app_format_money($pur_order->shipping_fee, $base_currency->symbol) . '
                      </td>
                   </tr>';
-      }
-      $html .= '<tr id="subtotal">
+          }
+          $html .= '<tr id="subtotal">
                  <td style="width: 33%"></td>
-                 <td>'. _l('total').'</td>
+                 <td>' . _l('total') . '</td>
                  <td class="subtotal">
-                    '. app_format_money($pur_order->total, $base_currency->symbol).'
+                    ' . app_format_money($pur_order->total, $base_currency->symbol) . '
                  </td>
               </tr>';
 
-      $html .= ' </tbody></table><br><br>';
+          $html .= ' </tbody></table><br><br>';
+      }
 
     $custom_fields = get_custom_fields('pur_order');
      foreach($custom_fields as $field){
@@ -10650,6 +10676,87 @@ class Purchase_model extends App_Model
     }
 
     /**
+     * Purchase order line row without visible pricing (hidden zero amounts for save compatibility).
+     *
+     * @param string $name
+     * @param string $item_name
+     * @param string $item_description
+     * @param mixed  $quantity
+     * @param string $unit_name
+     * @param string $item_code
+     * @param mixed  $unit_id
+     * @param mixed  $item_key
+     *
+     * @return string
+     */
+    protected function build_purchase_order_row_template_no_prices($name, $item_name, $item_description, $quantity, $unit_name, $item_code, $unit_id, $item_key)
+    {
+        $text_right_class = 'text-right';
+        $zero             = '0';
+
+        if ($name === '') {
+            $row = '<tr class="main"><td></td>';
+            $row .= '<td>' . render_textarea('item_name', '', '', ['rows' => 2, 'placeholder' => _l('pur_item_name')]) . '</td>';
+            $row .= '<td>' . render_textarea('description', '', '', ['rows' => 2, 'placeholder' => _l('item_description')]) . '</td>';
+            $qtyVal = ($quantity !== '' && $quantity !== null) ? $quantity : '';
+            $row .= '<td class="quantities">' .
+                render_input('quantity', '', $qtyVal, 'number', ['min' => '0.0', 'step' => 'any', 'data-quantity' => (float) ($qtyVal === '' ? 0 : $qtyVal)], [], 'no-margin', $text_right_class) .
+                render_input('unit_name', '', '', 'text', ['placeholder' => _l('unit'), 'readonly' => true], [], 'no-margin', 'input-transparent text-right pur_input_none') .
+                form_hidden('item_code', '') .
+                form_hidden('unit_id', '') .
+                form_hidden('unit_price', $zero) .
+                form_hidden('tax_value', $zero) .
+                form_hidden('total', $zero) .
+                form_hidden('into_money', $zero) .
+                form_hidden('discount', $zero) .
+                form_hidden('discount_money', $zero) .
+                form_hidden('total_money', $zero) .
+                '<select name="tax_select[]" class="selectpicker taxes hide" multiple="multiple" tabindex="-1" data-width="100%"></select>' .
+                '</td>';
+            $row .= '<td><button type="button" onclick="pur_add_item_to_table(\'undefined\',\'undefined\'); return false;" class="btn pull-right btn-info"><i class="fa fa-check"></i></button></td>';
+            $row .= '</tr>';
+
+            return $row;
+        }
+
+        $name_item_code        = $name . '[item_code]';
+        $name_item_name        = $name . '[item_name]';
+        $name_item_description = $name . '[item_description]';
+        $name_unit_id          = $name . '[unit_id]';
+        $name_unit_name        = $name . '[unit_name]';
+        $name_quantity         = $name . '[quantity]';
+        $name_unit_price       = $name . '[unit_price]';
+        $name_tax_value        = $name . '[tax_value]';
+        $name_total            = $name . '[total]';
+        $name_into_money       = $name . '[into_money]';
+        $name_discount         = $name . '[discount]';
+        $name_discount_money   = $name . '[discount_money]';
+        $name_total_money      = $name . '[total_money]';
+
+        $row = '<tr class="sortable item"><td class="dragger"><input type="hidden" class="order" name="' . $name . '[order]" value=""><input type="hidden" class="ids" name="' . $name . '[id]" value="' . ($item_key === '' || $item_key === null ? '' : $item_key) . '"></td>';
+        $row .= '<td>' . render_textarea($name_item_name, '', $item_name, ['rows' => 2, 'placeholder' => _l('pur_item_name'), 'readonly' => true]) . '</td>';
+        $row .= '<td>' . render_textarea($name_item_description, '', $item_description, ['rows' => 2, 'placeholder' => _l('item_description')]) . '</td>';
+        $row .= '<td class="quantities">' .
+            render_input($name_quantity, '', $quantity, 'number', ['min' => '0.0', 'step' => 'any', 'data-quantity' => (float) ($quantity === '' ? 0 : $quantity)], [], 'no-margin', $text_right_class) .
+            render_input($name_unit_name, '', $unit_name, 'text', ['placeholder' => _l('unit'), 'readonly' => true], [], 'no-margin', 'input-transparent text-right pur_input_none') .
+            form_hidden($name_unit_price, $zero) .
+            form_hidden($name_into_money, $zero) .
+            form_hidden($name_total, $zero) .
+            form_hidden($name_tax_value, $zero) .
+            form_hidden($name_discount, $zero) .
+            form_hidden($name_discount_money, $zero) .
+            form_hidden($name_total_money, $zero) .
+            form_hidden($name_item_code, (string) $item_code) .
+            form_hidden($name_unit_id, (string) ($unit_id ?? '')) .
+            '<select name="' . $name . '[tax_select][]" class="selectpicker taxes hide" multiple="multiple" tabindex="-1" data-width="100%"></select>' .
+            '</td>';
+        $row .= '<td><a href="#" class="btn btn-danger pull-right" onclick="pur_delete_item(this,' . $item_key . ',\'.invoice-item\'); return false;"><i class="fa fa-trash"></i></a></td>';
+        $row .= '</tr>';
+
+        return $row;
+    }
+
+    /**
      * Creates a purchase order row template.
      *
      * @param      string      $name              The name
@@ -10674,8 +10781,18 @@ class Purchase_model extends App_Model
      *
      * @return     string      
      */
-    public function create_purchase_order_row_template($name = '', $item_name = '', $item_description = '', $quantity = '', $unit_name = '', $unit_price = '', $taxname = '',  $item_code = '', $unit_id = '', $tax_rate = '', $total_money = '', $discount = '', $discount_money = '', $total = '', $into_money = '', $tax_id = '', $tax_value = '', $item_key = '',$is_edit = false, $currency_rate = 1, $to_currency = '') {
+    public function create_purchase_order_row_template($name = '', $item_name = '', $item_description = '', $quantity = '', $unit_name = '', $unit_price = '', $taxname = '',  $item_code = '', $unit_id = '', $tax_rate = '', $total_money = '', $discount = '', $discount_money = '', $total = '', $into_money = '', $tax_id = '', $tax_value = '', $item_key = '',$is_edit = false, $currency_rate = 1, $to_currency = '', $hide_prices = null) {
         
+        if ($hide_prices === null && function_exists('purchase_po_hides_prices')) {
+            $hide_prices = purchase_po_hides_prices();
+        } elseif ($hide_prices === null) {
+            $hide_prices = false;
+        }
+
+        if ($hide_prices) {
+            return $this->build_purchase_order_row_template_no_prices($name, $item_name, $item_description, $quantity, $unit_name, $item_code, $unit_id, $item_key);
+        }
+
         $this->load->model('invoice_items_model');
         $row = '';
 

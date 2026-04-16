@@ -3,6 +3,7 @@
 <?php if($pur_order->currency != 0){
   $base_currency = pur_get_currency_by_id($pur_order->currency);
 }
+$po_hide_prices = function_exists('purchase_po_hides_prices') && purchase_po_hides_prices();
  ?>
 <div id="wrapper">
   <div class="content">
@@ -100,10 +101,12 @@
                       <td><?php echo _l('delivery_date'); ?></td>
                       <td><?php echo pur_render_date_input('delivery_date', '', _d($pur_order->delivery_date), array('onchange' => 'update_delivery_date(this); return false;')); ?></td>
                     </tr>
+                    <?php if (!$po_hide_prices) : ?>
                     <tr>
                       <td><?php echo _l('total'); ?></td>
                       <td><?php echo app_format_money($pur_order->total,'') ?></td>
                     </tr>
+                    <?php endif; ?>
                   </table>
                </div>
                </div>
@@ -251,6 +254,7 @@
                       <th align="center">#</th>
                       <th class="description" width="25%" align="left"><?php echo _l('items'); ?></th>
                       <th align="right"><?php echo _l('purchase_quantity'); ?></th>
+                      <?php if (!$po_hide_prices) : ?>
                       <th align="right"><?php echo _l('purchase_unit_price'); ?></th>
                       <th align="right"><?php echo _l('into_money'); ?></th>
                       <?php if(get_option('show_purchase_tax_column') == 1){ ?>
@@ -260,6 +264,7 @@
                       <th align="right"><?php echo _l('discount(%)'); ?></th>
                       <th align="right"><?php echo _l('discount(money)'); ?></th>
                       <th align="right"><?php echo _l('total'); ?></th>
+                      <?php endif; ?>
                    </tr>
                 </thead>
                 <tbody class="ui-sortable">
@@ -268,7 +273,14 @@
                       $count = 1;
                       $t_mn = 0;
                       $item_discount = 0;
-                   foreach($pur_order_detail as $es) { ?>
+                   foreach($pur_order_detail as $es) {
+                      $CIv = &get_instance();
+                      $unit_nv = '';
+                      if (isset($CIv->purchase_model)) {
+                          $u_nv = $CIv->purchase_model->get_units_by_id($es['unit_id']);
+                          $unit_nv = isset($u_nv->unit_name) ? $u_nv->unit_name : '';
+                      }
+                      ?>
                    <tr nobr="true" class="sortable">
                       <td class="dragger item_no ui-sortable-handle" align="center"><?php echo pur_html_entity_decode($count); ?></td>
                       <td class="description" align="left;"><span><strong><?php 
@@ -279,7 +291,8 @@
                          echo pur_html_entity_decode($es['item_name']);
                       }
                       ?></strong><?php if($es['description'] != ''){ ?><br><span><?php echo pur_html_entity_decode($es['description']); ?></span><?php } ?></td>
-                      <td align="right"  width="12%"><?php echo pur_html_entity_decode($es['quantity']); ?></td>
+                      <td align="right"  width="12%"><?php echo pur_html_entity_decode($es['quantity']) . ($unit_nv !== '' ? ' ' . html_escape($unit_nv) : ''); ?></td>
+                      <?php if (!$po_hide_prices) : ?>
                       <td align="right"><?php echo app_format_money($es['unit_price'],$base_currency->symbol); ?></td>
                       <td align="right"><?php echo app_format_money($es['into_money'],$base_currency->symbol); ?></td>
                       <?php if(get_option('show_purchase_tax_column') == 1){ ?>
@@ -289,6 +302,7 @@
                       <td class="amount" width="12%" align="right"><?php echo ($es['discount_%'].'%'); ?></td>
                       <td class="amount" align="right"><?php echo app_format_money($es['discount_money'],$base_currency->symbol); ?></td>
                       <td class="amount" align="right"><?php echo app_format_money($es['total_money'],$base_currency->symbol); ?></td>
+                      <?php endif; ?>
                    </tr>
                 <?php 
                 $t_mn += $es['total_money'];
@@ -297,6 +311,7 @@
                 </tbody>
              </table>
           </div>
+         <?php if (!$po_hide_prices) : ?>
          <div class="col-md-6 col-md-offset-6">
            <table class="table text-right">
                <tbody>
@@ -342,7 +357,8 @@
                   </tr>
                </tbody>
             </table>
-         </div> 
+         </div>
+         <?php endif; ?> 
 
          <?php if($pur_order->vendornote != ''){ ?>
            <div class="col-md-12 mtop15">

@@ -34,6 +34,7 @@ import {
  */
 test.describe('7. Picking staff RBAC (Javo workflow)', () => {
   test.describe.configure({ mode: 'serial' });
+  test.skip(!creds.admin.password, 'PW_ADMIN_PASSWORD not set – skipping picking staff RBAC tests');
 
   test('admin: all modules visible in console (no access restriction for admin)', async ({ page }) => {
     await loginAdmin(page, creds.admin);

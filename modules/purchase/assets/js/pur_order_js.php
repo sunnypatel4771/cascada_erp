@@ -64,6 +64,9 @@ $(function(){
     });
 
     $("input[name='currency_rate']").on('change', function () { 
+        if ($('#wrapper.pur-order-no-prices').length > 0) {
+          return;
+        }
         var currency_rate = $(this).val();
         var rows = $('.table.has-calculations tbody tr.item');
         $.each(rows, function () { 
@@ -236,6 +239,18 @@ function coppy_sale_invoice(){
 
 function pur_calculate_total(from_discount_money){
   "use strict";
+  if ($('#wrapper.pur-order-no-prices').length > 0) {
+    if ($('input[name="total_mn"]').length) {
+      $('input[name="total_mn"]').val('0');
+    }
+    if ($('input[name="grand_total"]').length) {
+      $('input[name="grand_total"]').val('0');
+    }
+    if ($('input[name="dc_total"]').length) {
+      $('input[name="dc_total"]').val('0');
+    }
+    return false;
+  }
   if ($('body').hasClass('no-calculate-total')) {
     return false;
   }

@@ -62,9 +62,20 @@ var expenseDropzone;
         $a.attr('href', href);
     }
 
-    // Ensure voucher links include the currently selected date filters
-    $('body').on('click', '.po-voucher-action', function() {
-        append_po_voucher_date_filters($(this));
+    function refresh_all_po_voucher_links() {
+        $('.po-voucher-action').each(function() {
+            append_po_voucher_date_filters($(this));
+        });
+    }
+
+    // Keep PO voucher links in sync with current date filters (tests read href before clicking).
+    refresh_all_po_voucher_links();
+    $('input[name="from_date"], input[name="to_date"]').on('change', function() {
+        refresh_all_po_voucher_links();
+    });
+    // Also ensure up-to-date when the dropdown is opened.
+    $('body').on('click', '.btn-group .dropdown-toggle', function() {
+        refresh_all_po_voucher_links();
     });
 
     

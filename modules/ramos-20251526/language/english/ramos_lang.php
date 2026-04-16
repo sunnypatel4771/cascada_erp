@@ -159,6 +159,7 @@ $lang['ramos_inventory_form_quantity']       = 'Quantity';
 $lang['ramos_inventory_form_safety_stock']   = 'Safety stock';
 $lang['ramos_inventory_form_buffer_percent'] = 'Low stock buffer (%)';
 $lang['ramos_inventory_form_supplier']       = 'Supplier';
+$lang['ramos_inventory_supplier_active_only_hint'] = 'Only active suppliers are listed here. If a supplier is missing, go to Ramos → Suppliers and enable Active for that supplier.';
 $lang['ramos_inventory_form_notes']          = 'Notes';
 $lang['ramos_inventory_form_active']         = 'Active';
 $lang['ramos_inventory_status_green']        = 'In Stock';

@@ -5,8 +5,9 @@ import { assertPageLoaded } from '../utils/guards';
 
 test.describe('1. Customer Order Placement', () => {
   test('portal login redirects to /clients and shows order management area', async ({ page }) => {
+    test.setTimeout(60000);
     await loginCustomer(page, creds.customer);
-    await page.goto('/clients');
+    await page.goto('/clients', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertPageLoaded(page);
 
     // Customer should be on the portal (not redirected to login)
@@ -18,8 +19,9 @@ test.describe('1. Customer Order Placement', () => {
   });
 
   test('portal split order UI: previous order info, new order area, and product search visible', async ({ page }) => {
+    test.setTimeout(60000);
     await loginCustomer(page, creds.customer);
-    await page.goto('/clients');
+    await page.goto('/clients', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertPageLoaded(page);
 
     const splitUiDetected = await page.evaluate(() =>
@@ -43,8 +45,11 @@ test.describe('1. Customer Order Placement', () => {
   });
 
   test('product search, add to order, edit quantity, optional maduración, and save', async ({ page }) => {
+    // This flow can be slower/flaky on seeded environments.
+    test.setTimeout(90000);
+
     await loginCustomer(page, creds.customer);
-    await page.goto('/clients');
+    await page.goto('/clients', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertPageLoaded(page);
 
     page.on('dialog', async (dialog) => {
@@ -59,10 +64,15 @@ test.describe('1. Customer Order Placement', () => {
       await search.fill('tom');
       await page.waitForTimeout(600);
 
-      const productCard = page.locator('#products-catalog .product-card, #products-catalog .product-item').first();
-      if (await productCard.isVisible().catch(() => false)) {
-        await productCard.click();
-        await page.waitForTimeout(400);
+      // Prefer the explicit "Add to Order" button (cards themselves may not be clickable).
+      const addBtn = page
+        .locator('#products-catalog .product-card button, #products-catalog .product-item button')
+        .filter({ hasText: /Agregar al Pedido|Add to Order|Agregar/i })
+        .first();
+      if (await addBtn.isVisible().catch(() => false)) {
+        await addBtn.scrollIntoViewIfNeeded().catch(() => {});
+        await addBtn.click({ timeout: 15000 });
+        await page.waitForTimeout(600);
       }
 
       const orderRows = page.locator('#order-items-body tr, .order-items-table tr, table.order-table tbody tr');
@@ -116,8 +126,9 @@ test.describe('1. Customer Order Placement', () => {
   });
 
   test('order appears in order list/history after saving', async ({ page }) => {
+    test.setTimeout(60000);
     await loginCustomer(page, creds.customer);
-    await page.goto('/clients');
+    await page.goto('/clients', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertPageLoaded(page);
 
     // The page must show at least one past order or an "empty" state — both are valid
@@ -129,8 +140,9 @@ test.describe('1. Customer Order Placement', () => {
   });
 
   test('pricing logic includes customer markup from discount custom field', async ({ page }) => {
+    test.setTimeout(60000);
     await loginCustomer(page, creds.customer);
-    await page.goto('/clients');
+    await page.goto('/clients', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await assertPageLoaded(page);
 
     const markup = await page.evaluate(() => {

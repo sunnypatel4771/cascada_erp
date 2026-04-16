@@ -1,6 +1,17 @@
 <?php
 defined('BASEPATH') or exit('No direct script access allowed');
 
+/**
+ * When true, purchase order screens, previews, PDFs, and row templates omit monetary columns;
+ * line items submit with zero amounts for compatibility with existing save logic.
+ *
+ * @return bool
+ */
+function purchase_po_hides_prices()
+{
+    return true;
+}
+
 hooks()->add_action('after_email_templates', 'add_purchase_email_templates');
 /**
  * Check whether column exists in a table

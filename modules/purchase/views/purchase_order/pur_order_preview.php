@@ -6,6 +6,7 @@
     if($estimate->currency != 0){
       $base_currency = pur_get_currency_by_id($estimate->currency);
     }
+    $po_hide_prices = function_exists('purchase_po_hides_prices') && purchase_po_hides_prices();
  ?>
 <div class="col-md-12 no-padding">
    <div class="panel_s">
@@ -412,7 +413,7 @@
                   <div class="row">
                      <div class="col-md-12">
 
-                        <?php if($estimate->approve_status != 2){ ?>
+                        <?php if($estimate->approve_status != 2 && !$po_hide_prices){ ?>
                           <a href="javascript:void(0)" onclick="refresh_order_value(<?php echo pur_html_entity_decode($estimate->id); ?>); return false;" class="btn btn-sm btn-warning" data-toggle="tooltip" data-placement="top" title="<?php echo _l('refresh_value_note'); ?>"><i class="fa fa-refresh"></i> <?php echo ' '._l('refresh_order_value'); ?></a>
                         <?php } ?>
                        
@@ -424,6 +425,7 @@
                                     <th align="center">#</th>
                                     <th class="description" width="50%" align="left"><?php echo _l('items'); ?></th>
                                     <th align="right"><?php echo _l('purchase_quantity'); ?></th>
+                                    <?php if (!$po_hide_prices) : ?>
                                     <th align="right"><?php echo _l('purchase_unit_price'); ?></th>
                                     <th align="right"><?php echo _l('into_money'); ?></th>
                                     <?php if(get_option('show_purchase_tax_column') == 1){ ?>
@@ -433,6 +435,7 @@
                                     <th align="right"><?php echo _l('discount(%)'); ?></th>
                                     <th align="right"><?php echo _l('discount(money)'); ?></th>
                                     <th align="right"><?php echo _l('total'); ?></th>
+                                    <?php endif; ?>
                                  </tr>
                               </thead>
                               <tbody class="ui-sortable">
@@ -441,7 +444,14 @@
                                     $count = 1;
                                     $t_mn = 0;
                                     $item_discount = 0;
-                                 foreach($estimate_detail as $es) { ?>
+                                 foreach($estimate_detail as $es) {
+                                    $CIpv = &get_instance();
+                                    $unit_name_preview = '';
+                                    if (isset($CIpv->purchase_model)) {
+                                        $u_prev = $CIpv->purchase_model->get_units_by_id($es['unit_id']);
+                                        $unit_name_preview = isset($u_prev->unit_name) ? $u_prev->unit_name : '';
+                                    }
+                                    ?>
                                  <tr nobr="true" class="sortable">
                                     <td class="dragger item_no ui-sortable-handle" align="center"><?php echo pur_html_entity_decode($count); ?></td>
                                     <td class="description" align="left;"><span><strong><?php 
@@ -452,7 +462,8 @@
                                        echo pur_html_entity_decode($es['item_name']);
                                     }
                                     ?></strong><?php if($es['description'] != ''){ ?><br><span><?php echo pur_html_entity_decode($es['description']); ?></span><?php } ?></td>
-                                    <td align="right"  width="12%"><?php echo pur_html_entity_decode($es['quantity']); ?></td>
+                                    <td align="right"  width="12%"><?php echo pur_html_entity_decode($es['quantity']) . ($unit_name_preview !== '' ? ' ' . html_escape($unit_name_preview) : ''); ?></td>
+                                    <?php if (!$po_hide_prices) : ?>
                                     <td align="right"><?php echo app_format_money($es['unit_price'],$base_currency->symbol); ?></td>
                                     <td align="right"><?php echo app_format_money($es['into_money'],$base_currency->symbol); ?></td>
                                     <?php if(get_option('show_purchase_tax_column') == 1){ ?>
@@ -462,6 +473,7 @@
                                     <td class="amount" width="12%" align="right"><?php echo ($es['discount_%'].'%'); ?></td>
                                     <td class="amount" align="right"><?php echo app_format_money($es['discount_money'],$base_currency->symbol); ?></td>
                                     <td class="amount" align="right"><?php echo app_format_money($es['total_money'],$base_currency->symbol); ?></td>
+                                    <?php endif; ?>
                                  </tr>
                               <?php 
                               $t_mn += $es['total_money'];
@@ -471,6 +483,7 @@
                            </table>
                         </div>
                      </div>
+                     <?php if (!$po_hide_prices) : ?>
                      <div class="col-md-5 col-md-offset-7">
                         <table class="table text-right">
                            <tbody>
@@ -517,7 +530,8 @@
                               </tr>
                            </tbody>
                         </table>
-                     </div>   
+                     </div>
+                     <?php endif; ?>   
 
                      <?php if($estimate->vendornote != ''){ ?>
                      <div class="col-md-12 mtop15">

@@ -1,6 +1,9 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
+<?php
+$po_hide_prices = function_exists('purchase_po_hides_prices') && purchase_po_hides_prices();
+?>
 <?php init_head(); ?>
-<div id="wrapper">
+<div id="wrapper" class="<?php echo $po_hide_prices ? 'pur-order-no-prices' : ''; ?>">
   <div class="content">
     <div class="row">
       <?php
@@ -246,6 +249,7 @@
                       
                    </div>  
 
+                   <?php if (!$po_hide_prices) : ?>
                    <div class="row">
                     <div class="col-md-12 ">
                        <div class="form-group select-placeholder">
@@ -271,6 +275,12 @@
                       </div>
                     </div>
                    </div>
+                   <?php else : ?>
+                   <?php
+                    $discount_type_hidden = (isset($pur_order) && $pur_order->discount_type === 'before_tax') ? 'before_tax' : 'after_tax';
+                    echo form_hidden('discount_type', $discount_type_hidden);
+                    ?>
+                   <?php endif; ?>
                  </div>
                 </div>
 
@@ -385,14 +395,18 @@
                     <th></th>
                     <th width="12%" align="left"><i class="fa fa-exclamation-circle" aria-hidden="true" data-toggle="tooltip" data-title="<?php echo _l('item_description_new_lines_notice'); ?>"></i> <?php echo _l('invoice_table_item_heading'); ?></th>
                     <th width="15%" align="left"><?php echo _l('item_description'); ?></th>
+                    <?php if (!$po_hide_prices) : ?>
                     <th width="10%" align="right"><?php echo _l('unit_price'); ?><span class="th_currency"><?php echo '('.$po_currency->name.')'; ?></span></th>
+                    <?php endif; ?>
                     <th width="10%" align="right" class="qty"><?php echo _l('quantity'); ?></th>
+                    <?php if (!$po_hide_prices) : ?>
                     <th width="12%" align="right"><?php echo _l('invoice_table_tax_heading'); ?></th>
                     <th width="10%" align="right"><?php echo _l('tax_value'); ?><span class="th_currency"><?php echo '('.$po_currency->name.')'; ?></span></th>
                     <th width="10%" align="right"><?php echo _l('pur_subtotal_after_tax'); ?><span class="th_currency"><?php echo '('.$po_currency->name.')'; ?></span></th>
                     <th width="7%" align="right"><?php echo _l('discount').'(%)'; ?></th>
                     <th width="10%" align="right"><?php echo _l('discount'); ?><span class="th_currency"><?php echo '('.$po_currency->name.')'; ?></span></th>
                     <th width="10%" align="right"><?php echo _l('total'); ?><span class="th_currency"><?php echo '('.$po_currency->name.')'; ?></span></th>
+                    <?php endif; ?>
                     <th align="center"><i class="fa fa-cog"></i></th>
                   </tr>
                 </thead>
@@ -402,6 +416,7 @@
               </table>
             </div>
           </div>
+         <?php if (!$po_hide_prices) : ?>
          <div class="col-md-8 col-md-offset-4">
           <table class="table text-right">
             <tbody>
@@ -469,6 +484,18 @@
             </tbody>
           </table>
         </div>
+        <?php else : ?>
+        <div class="hide pur-order-hidden-totals">
+          <?php
+            echo form_hidden('total_mn', '0');
+            echo form_hidden('dc_total', '0');
+            echo form_hidden('grand_total', '0');
+            echo form_hidden('order_discount', '0');
+            echo form_hidden('add_discount_type', 'amount');
+            echo form_hidden('shipping_fee', '0');
+            ?>
+        </div>
+        <?php endif; ?>
         <div id="removed-items"></div> 
         </div>
         </div>

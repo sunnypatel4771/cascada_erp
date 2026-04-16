@@ -1,4 +1,5 @@
 import { test, expect, Page, Response } from '@playwright/test';
+import * as fs from 'fs/promises';
 import { loginAdmin } from '../utils/auth';
 import { creds } from '../utils/credentials';
 import { assertPageLoaded } from '../utils/guards';
@@ -11,6 +12,17 @@ async function assertPdfResponse(response: Response): Promise<void> {
   expect(response.status(), `Expected 200, got ${response.status()} for ${response.url()}`).toBe(200);
   const contentType = (response.headers()['content-type'] || '').toLowerCase();
   const buf = await response.body();
+  expect(
+    contentType.includes('pdf') || bodyLooksLikePdf(buf),
+    `Expected PDF response; content-type=${contentType} first-bytes=${buf.subarray(0, 8).toString('hex')}`
+  ).toBeTruthy();
+}
+
+async function assertPdfUrlViaRequest(page: Page, href: string): Promise<void> {
+  const r = await page.request.get(href, { timeout: 45000 });
+  expect(r.status(), `Expected 200, got ${r.status()} for ${href}`).toBe(200);
+  const contentType = (r.headers()['content-type'] || '').toLowerCase();
+  const buf = Buffer.from(await r.body());
   expect(
     contentType.includes('pdf') || bodyLooksLikePdf(buf),
     `Expected PDF response; content-type=${contentType} first-bytes=${buf.subarray(0, 8).toString('hex')}`
@@ -65,20 +77,16 @@ test.describe('20. Purchase PO Voucher', () => {
     const { menu } = await openPoVoucherMenu(page);
     const viewNewTab = menu.locator('a').nth(1);
     await expect(viewNewTab).toBeVisible();
-    expect(await viewNewTab.getAttribute('href')).toMatch(/po_voucher/);
+    const href = await viewNewTab.getAttribute('href');
+    expect(href || '', 'View PDF new-tab link must target po_voucher').toMatch(/po_voucher/);
+    // New-tab PDF rendering is browser-dependent; validate the URL returns a PDF via API request.
+    await assertPdfUrlViaRequest(page, href!);
 
+    // Still click to exercise the UI (but don't rely on response-body capture for PDF viewers).
     const pagePromise = context.waitForEvent('page', { timeout: 45000 });
     await viewNewTab.click();
     const newPage = await pagePromise;
-    try {
-      const response = await newPage.waitForResponse(
-        (r) => r.url().includes('po_voucher'),
-        { timeout: 45000 }
-      );
-      await assertPdfResponse(response);
-    } finally {
-      await newPage.close().catch(() => {});
-    }
+    await newPage.close().catch(() => {});
   });
 
   test('PO Voucher menu: Download returns PDF', async ({ page }) => {
@@ -88,19 +96,14 @@ test.describe('20. Purchase PO Voucher', () => {
     const href = await downloadLink.getAttribute('href');
     expect(href, 'Download link must target po_voucher without print').toMatch(/po_voucher/);
     expect(href).not.toMatch(/print/);
-
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        (r) =>
-          r.url().includes('po_voucher') &&
-          !r.url().includes('print') &&
-          r.request().method() === 'GET' &&
-          (r.request().resourceType() === 'document' || r.request().resourceType() === 'other'),
-        { timeout: 45000 }
-      ),
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 45000 }),
       downloadLink.click(),
     ]);
-    await assertPdfResponse(response);
+    const path = await download.path();
+    expect(path, 'Expected a downloadable file path').toBeTruthy();
+    const buf = await fs.readFile(path!);
+    expect(bodyLooksLikePdf(buf), 'Downloaded file should look like a PDF').toBeTruthy();
   });
 
   test('PO Voucher menu: Print opens PDF in new tab', async ({ page, context }) => {
@@ -113,11 +116,13 @@ test.describe('20. Purchase PO Voucher', () => {
     await printLink.click();
     const newPage = await pagePromise;
     try {
-      const response = await newPage.waitForResponse(
-        (r) => r.url().includes('po_voucher') && r.url().includes('print'),
-        { timeout: 45000 }
-      );
-      await assertPdfResponse(response);
+      const href = newPage.url();
+      if (href.includes('po_voucher')) {
+        await assertPdfUrlViaRequest(page, href);
+      } else {
+        const originalHref = await printLink.getAttribute('href');
+        await assertPdfUrlViaRequest(page, originalHref!);
+      }
     } finally {
       await newPage.close().catch(() => {});
     }

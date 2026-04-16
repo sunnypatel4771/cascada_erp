@@ -182,6 +182,7 @@ foreach ($suppliers as $supplier) {
                         </div>
                         <div class="col-md-8">
                             <?php echo render_select('supplier_id', $supplierOptions, ['id', 'name'], _l('ramos_inventory_form_supplier'), '', ['data-width' => '100%', 'data-live-search' => 'true', 'data-none-selected-text' => _l('dropdown_non_selected_tex')]); ?>
+                            <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0"><?php echo _l('ramos_inventory_supplier_active_only_hint'); ?></p>
                         </div>
                     </div>
                     <?php echo render_textarea('notes', _l('ramos_inventory_form_notes'), '', ['rows' => 3]); ?>
@@ -232,6 +233,7 @@ foreach ($suppliers as $supplier) {
                         </div>
                         <div class="col-md-4">
                             <?php echo render_select('supplier_id', $supplierOptions, ['id', 'name'], _l('ramos_inventory_form_supplier'), '', ['data-width' => '100%', 'data-live-search' => 'true', 'data-none-selected-text' => _l('dropdown_non_selected_tex')]); ?>
+                            <p class="tw-text-xs tw-text-slate-500 tw-mt-1 tw-mb-0"><?php echo _l('ramos_inventory_supplier_active_only_hint'); ?></p>
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">

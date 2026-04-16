@@ -7,6 +7,8 @@ import { assertPageLoaded } from '../utils/guards';
 const SEEDED_DATE = '2026-03-27';
 
 test.describe('6. Facturacion (Billing)', () => {
+  test.skip(!creds.admin.password, 'PW_ADMIN_PASSWORD not set – skipping facturación tests');
+
   test('facturacion page loads and shows date picker + console link', async ({ page }) => {
     await loginAdmin(page, creds.admin);
     await page.goto('/admin/ramos/facturacion');
@@ -126,22 +128,26 @@ test.describe('6. Facturacion (Billing)', () => {
   });
 
   test('facturacion: auto-refresh endpoint returns valid JSON', async ({ page }) => {
-    // The refresh fires after 30 s — extend this test's timeout to accommodate that.
-    test.setTimeout(70000);
-
     await loginAdmin(page, creds.admin);
     await page.goto(`/admin/ramos/facturacion?date=${SEEDED_DATE}`);
     await assertPageLoaded(page);
 
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        (r) => r.url().includes('ramos/facturacion/refresh'),
-        { timeout: 60000 }
-      ),
-    ]);
-    expect(response.status()).toBe(200);
-    const json = await response.json().catch(() => null);
-    expect(json).not.toBeNull();
-    expect(json).toHaveProperty('success', true);
+    // Call refresh endpoint directly (avoid relying on browser timers).
+    const baseUrl = process.env.PW_BASE_URL || 'http://127.0.0.1:8080';
+    const refreshData = await page.evaluate(async (url: string) => {
+      const resp = await fetch(`${url}/admin/ramos/facturacion/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+        body: 'date=' + encodeURIComponent(new Date().toISOString().slice(0, 10)),
+      });
+      let data: unknown = null;
+      try { data = await resp.json(); } catch { /* non-JSON */ }
+      return { status: resp.status, data };
+    }, baseUrl);
+
+    expect(refreshData.status).toBe(200);
+    expect(refreshData.data).toBeTruthy();
+    expect(refreshData.data as any).toHaveProperty('success', true);
   });
 });

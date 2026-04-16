@@ -167,6 +167,7 @@ $lang['ramos_inventory_form_quantity']       = 'Cantidad';
 $lang['ramos_inventory_form_safety_stock']   = 'Stock de seguridad';
 $lang['ramos_inventory_form_buffer_percent'] = 'Margen de stock bajo (%)';
 $lang['ramos_inventory_form_supplier']       = 'Proveedor';
+$lang['ramos_inventory_supplier_active_only_hint'] = 'Solo se listan proveedores activos. Si falta uno, vaya a Ramos → Proveedores y active la casilla Activo para ese proveedor.';
 $lang['ramos_inventory_form_notes']          = 'Notas';
 $lang['ramos_inventory_form_active']         = 'Activo';
 $lang['ramos_inventory_form_purchase_price'] = 'Precio de Compra';
