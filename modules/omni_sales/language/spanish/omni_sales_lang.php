@@ -601,6 +601,7 @@ $lang['paid'] = 'Pagado';
 $lang['the_order_has_been_paid'] = 'El pedido ha sido pagado';
 $lang['omni_client_portal'] = 'Portal del cliente';
 $lang['omni_display_shopping_cart'] = 'Mostrar carrito de compras y productos en el portal del cliente';
+$lang['omni_hide_guest_product_catalog'] = 'Ocultar el catálogo de productos para visitantes en la tienda pública (los clientes con sesión iniciada siguen viendo el catálogo completo)';
 $lang['fixed_amount'] = 'Cantidad fija';
 $lang['percentage'] = 'Porcentaje';
 $lang['omni_pos_shipping_fee_form'] = 'Formulario de tarifa de envío';

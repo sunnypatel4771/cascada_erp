@@ -862,6 +862,7 @@ if (!$CI->db->field_exists('hash' ,db_prefix() . 'cart')) {
 }
 
 add_option('omni_display_shopping_cart', 1, 1);
+add_option('omni_hide_guest_product_catalog', 1);
 
 if (!$CI->db->field_exists('estimate_id' ,db_prefix() . 'cart')) { 
   $CI->db->query('ALTER TABLE `' . db_prefix() . "cart`

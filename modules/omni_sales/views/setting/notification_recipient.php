@@ -139,8 +139,14 @@ echo render_select('omni_order_statuses_are_allowed_to_sync[]',get_list_woo_stat
         <label for="omni_display_shopping_cart" ><?php echo _l('omni_display_shopping_cart'); ?>
       </label>
     </div>
+    </div>
+    <div class="form-group">
+      <div class="checkbox checkbox-primary">
+        <input type="checkbox" id="omni_hide_guest_product_catalog" name="omni_hide_guest_product_catalog" <?php if (get_option('omni_hide_guest_product_catalog') !== '0') { echo 'checked'; } ?> value="1">
+        <label for="omni_hide_guest_product_catalog"><?php echo _l('omni_hide_guest_product_catalog'); ?></label>
+      </div>
+    </div>
   </div>
-</div>
 </div>
 
 

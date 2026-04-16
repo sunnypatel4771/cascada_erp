@@ -1824,6 +1824,12 @@ class Omni_sales extends AdminController
 				}else{
 					update_option('omni_display_shopping_cart', 0);
 				}
+
+				if (isset($data['omni_hide_guest_product_catalog'])) {
+					update_option('omni_hide_guest_product_catalog', $data['omni_hide_guest_product_catalog']);
+				} else {
+					update_option('omni_hide_guest_product_catalog', 0);
+				}
 				update_option('omni_pos_shipping_fee_form', $data['omni_pos_shipping_fee_form']);
 				update_option('omni_synch_invoice_from_woo', $data['omni_synch_invoice_from_woo']);
 

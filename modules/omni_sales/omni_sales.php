@@ -378,8 +378,10 @@ function omni_sales_module_init_client_menu_items()
             </li>'; 
 
             if(is_client_logged_in()){
+                $order_list_label = html_escape(_l('order_list'));
                 echo '<li class="customers-nav-item-Insurances-plan">
-                <a href="'.site_url('omni_sales/omni_sales_client/order_list').'" '.$add_tooltip.'>'._l('order_list').'
+                <a href="'.site_url('omni_sales/omni_sales_client/order_list').'" '.$add_tooltip.' title="'.$order_list_label.'" aria-label="'.$order_list_label.'">
+                <i class="fa fa-list-ul"></i>
                 </a>
                 </li>';
             } 

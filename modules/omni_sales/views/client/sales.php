@@ -1,5 +1,8 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
 <?php hooks()->do_action('head_element_client'); ?>
+<?php if (isset($hide_guest_product_catalog) && $hide_guest_product_catalog) { ?>
+<div class="col-md-12 omni-sales-guest-minimal-catalog" style="min-height: 50vh;"></div>
+<?php } else { ?>
 <div class="col-md-3 left_bar">
 	<ul class="nav-tabs--vertical nav" role="navigation">
 		<li class="head text-center">
@@ -46,6 +49,7 @@
 	<?php $this->load->view('client/list_product/list_product_with_page',$data); ?>
 	<hr>
 </div>
+<?php } ?>
 
 <div class="modal fade" id="select_variation" tabindex="-1" role="dialog">
 	<div class="modal-dialog">

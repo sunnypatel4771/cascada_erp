@@ -55,37 +55,51 @@ class Omni_sales_client extends ClientsController
 			
 			$data['ofset'] = 24;
 			$data['title'] = _l('sales');
-			$data['group_product'] = $this->omni_sales_model->get_group_product();      
-			$data['group_id'] = $id;
-			$data_product = $this->omni_sales_model->get_list_product_by_group(2, $id, $warehouse, $key,($page-1)*$data['ofset'], $data['ofset']);
-			$data['product'] = [];
-			$date = date('Y-m-d');
-			foreach ($data_product['list_product'] as $item) {
-				$discount_percent = 0;
-				$data_discount = $this->omni_sales_model->check_discount($item['id'], $date, 2);
-				if($data_discount){
-					$discount_percent = $data_discount->discount;
+			// Hide for guests unless admin explicitly allows catalog (option value '0').
+			$guest_catalog_opt = get_option('omni_hide_guest_product_catalog');
+			$data['hide_guest_product_catalog'] = !is_client_logged_in() && $guest_catalog_opt !== '0';
+
+			if (!$data['hide_guest_product_catalog']) {
+				$data['group_product'] = $this->omni_sales_model->get_group_product();
+				$data['group_id'] = $id;
+				$data_product = $this->omni_sales_model->get_list_product_by_group(2, $id, $warehouse, $key,($page-1)*$data['ofset'], $data['ofset']);
+				$data['product'] = [];
+				$date = date('Y-m-d');
+				foreach ($data_product['list_product'] as $item) {
+					$discount_percent = 0;
+					$data_discount = $this->omni_sales_model->check_discount($item['id'], $date, 2);
+					if($data_discount){
+						$discount_percent = $data_discount->discount;
+					}
+					$price = 0;
+					$data_prices = $this->omni_sales_model->get_price_channel($item['id'],2);
+					if($data_prices){
+						$price = $data_prices->prices;
+					}
+					array_push($data['product'], array(
+						'id' => $item['id'],
+						'name' => $item['description'],
+						'without_checking_warehouse' => $item['without_checking_warehouse'],
+						'price' => $price,
+						'w_quantity' => ($item['without_checking_warehouse'] == 1 ? 1000 : $this->get_stock($item['id'])),
+						'discount_percent' => $discount_percent,
+						'has_variation' => $this->omni_sales_model->has_variation($item['parent_attributes']),
+						'price_discount' => $this->get_price_discount($price, $discount_percent)
+					));
 				}
-				$price = 0;
-				$data_prices = $this->omni_sales_model->get_price_channel($item['id'],2);
-				if($data_prices){
-					$price = $data_prices->prices;
-				}
-				array_push($data['product'], array(
-					'id' => $item['id'],
-					'name' => $item['description'],
-					'without_checking_warehouse' => $item['without_checking_warehouse'],
-					'price' => $price,
-					'w_quantity' => ($item['without_checking_warehouse'] == 1 ? 1000 : $this->get_stock($item['id'])), 
-					'discount_percent' => $discount_percent,
-					'has_variation' => $this->omni_sales_model->has_variation($item['parent_attributes']),
-					'price_discount' => $this->get_price_discount($price, $discount_percent)
-				));
+				$data['title_group'] = _l('all_products');
+				$data['page'] = $page;
+				$data['ofset_count'] = $data_product['count'];
+				$data['total_page'] = ceil($data['ofset_count']/$data['ofset']);
+			} else {
+				$data['group_product'] = [];
+				$data['group_id'] = $id;
+				$data['product'] = [];
+				$data['title_group'] = _l('all_products');
+				$data['page'] = $page;
+				$data['ofset_count'] = 0;
+				$data['total_page'] = 0;
 			}
-			$data['title_group'] = _l('all_products');
-			$data['page'] = $page;
-			$data['ofset_count'] = $data_product['count'];
-			$data['total_page'] = ceil($data['ofset_count']/$data['ofset']);
 			$this->load->model('currencies_model');
 			$data['base_currency'] = $this->currencies_model->get_base_currency();
 			$this->data($data);

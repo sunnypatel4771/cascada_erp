@@ -599,6 +599,7 @@ $lang['paid'] = 'Paid';
 $lang['the_order_has_been_paid'] = 'The order has been paid';
 $lang['omni_client_portal'] = 'Client portal';
 $lang['omni_display_shopping_cart'] = 'Display Shopping cart and Products on Client portal';
+$lang['omni_hide_guest_product_catalog'] = 'Hide product catalog for guests on the public store (logged-in clients still see the full catalog)';
 $lang['fixed_amount'] = 'Fixed amount';
 $lang['percentage'] = 'Percentage';
 $lang['omni_pos_shipping_fee_form'] = 'Shipping fee Form';

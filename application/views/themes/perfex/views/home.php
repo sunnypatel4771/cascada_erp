@@ -78,22 +78,24 @@
                     </div>
                     <div class="panel-body">
                         <form id="new-order-form">
-                            <table class="table table-bordered" id="new-order-table">
-                                <thead>
-                                    <tr>
-                                        <th width="50"><?php echo _l('image'); ?></th>
-                                        <th width="180"><?php echo _l('product'); ?></th>
-                                        <th width="90"><?php echo _l('maduracion'); ?></th>
-                                        <th width="70"><?php echo _l('unit'); ?></th>
-                                        <th width="60"><?php echo _l('quantity'); ?></th>
-                                        <th width="90" class="text-right"><?php echo _l('rate'); ?></th>
-                                        <th width="40"><?php echo _l('action'); ?></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="order-items-body">
-                                    <!-- Order items will be added here dynamically -->
-                                </tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="table table-bordered" id="new-order-table">
+                                    <thead>
+                                        <tr>
+                                            <th width="50"><?php echo _l('image'); ?></th>
+                                            <th width="180"><?php echo _l('product'); ?></th>
+                                            <th width="90"><?php echo _l('maduracion'); ?></th>
+                                            <th width="70"><?php echo _l('unit'); ?></th>
+                                            <th width="60"><?php echo _l('quantity'); ?></th>
+                                            <th width="90" class="text-right"><?php echo _l('rate'); ?></th>
+                                            <th width="40"><?php echo _l('action'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="order-items-body">
+                                        <!-- Order items will be added here dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
 
                             <div class="row">
                                 <div class="col-md-12">
@@ -929,8 +931,23 @@
         }
 
         #new-order-table {
-            /*table-layout: fixed;*/
+            table-layout: fixed;
             width: 100%;
+            margin-bottom: 0;
+        }
+
+        #new-order-table th,
+        #new-order-table td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+        }
+
+        #new-order-table .bootstrap-select,
+        #new-order-table .bootstrap-select > .dropdown-toggle,
+        #new-order-table .bootstrap-select > button {
+            width: 100% !important;
+            max-width: 100%;
         }
 
         #new-order-table input.form-control,
@@ -938,6 +955,8 @@
             padding: 5px 8px;
             font-size: 13px;
             width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         #new-order-table input[type="number"] {
