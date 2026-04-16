@@ -4302,16 +4302,25 @@ class purchase extends AdminController
      * { po voucher }
      */
     public function po_voucher(){
+        if (!has_permission('purchase_orders', '', 'view') && !is_admin() && !has_permission('purchase_orders', '', 'view_own')) {
+            access_denied('purchase');
+        }
 
-        $po_voucher = $this->purchase_model->get_po_voucher_html();
+        $prevDisplayErrors = ini_get('display_errors');
+        ini_set('display_errors', '0');
+
+        $from_date = $this->input->get('from_date');
+        $to_date   = $this->input->get('to_date');
+        $po_voucher = $this->purchase_model->get_po_voucher_html($from_date, $to_date);
 
         try {
             $pdf = $this->purchase_model->povoucher_pdf($po_voucher);
         } catch (Exception $e) {
+            ini_set('display_errors', $prevDisplayErrors);
             echo pur_html_entity_decode($e->getMessage());
             die;
         }
-        
+
         $type = 'D';
 
         if ($this->input->get('output_type')) {
@@ -4322,7 +4331,13 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output('PO_voucher.pdf', $type);
+        ini_set('display_errors', $prevDisplayErrors);
+        exit;
     }
 
 

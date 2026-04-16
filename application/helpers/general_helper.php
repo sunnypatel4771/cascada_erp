@@ -582,6 +582,11 @@ function _l($line, $label = '', $log_errors = true)
 
     $line  = $hook_data['line'];
     $label = $hook_data['label'];
+    if ($line === null) {
+        $line = '';
+    } elseif (! is_string($line)) {
+        $line = is_scalar($line) && ! is_bool($line) ? (string) $line : '';
+    }
 
     if (is_array($label) && count($label) > 0) {
         $_line = vsprintf($CI->lang->line(trim($line), $log_errors), $label);
@@ -601,6 +606,11 @@ function _l($line, $label = '', $log_errors = true)
 
     $_line = $hook_data['formatted_line'];
     $line  = $hook_data['line'];
+    if ($line === null) {
+        $line = '';
+    } elseif (! is_string($line)) {
+        $line = is_scalar($line) && ! is_bool($line) ? (string) $line : '';
+    }
 
     if ($_line != '') {
         if (preg_match('/"/', $_line) && ! is_html($_line)) {

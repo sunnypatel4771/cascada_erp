@@ -5924,8 +5924,22 @@ class Purchase_model extends App_Model
      *
      * @return     string  The request quotation pdf html.
      */
-    public function get_po_voucher_html(){
+    public function get_po_voucher_html($from_date = '', $to_date = ''){
         $this->load->model('departments_model');
+        $this->load->model('projects_model');
+
+        if (!empty($from_date)) {
+            $from_date = to_sql_date($from_date);
+            if (!empty($from_date)) {
+                $this->db->where('order_date >=', $from_date);
+            }
+        }
+        if (!empty($to_date)) {
+            $to_date = to_sql_date($to_date);
+            if (!empty($to_date)) {
+                $this->db->where('order_date <=', $to_date);
+            }
+        }
 
         $po_voucher = $this->db->get(db_prefix().'pur_orders')->result_array();
         
@@ -6014,7 +6028,7 @@ class Purchase_model extends App_Model
         $html .= '<tr>
             <td>'.$row['pur_order_number'].'</td>
             <td>'._d($row['order_date']).'</td>
-            <td>'._l($row['type']).'</td>
+            <td>'.(! empty($row['type']) ? _l($row['type']) : '').'</td>
             <td>'.$project_name.'</td>
             <td>'.$department_name.'</td>
             <td>'.$vendor_name.'</td>

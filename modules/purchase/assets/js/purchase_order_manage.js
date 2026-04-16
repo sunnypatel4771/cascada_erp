@@ -39,6 +39,34 @@ var expenseDropzone;
                 .responsive.recalc();
     });
 
+    function append_po_voucher_date_filters($a) {
+        var baseHref = $a.attr('data-po-voucher-base-href') || $a.attr('href') || '';
+        if (!baseHref) {
+            return;
+        }
+
+        var fromDate = $('input[name="from_date"]').val() || '';
+        var toDate = $('input[name="to_date"]').val() || '';
+
+        // If no date is selected, keep the base href (default behavior)
+        if (!fromDate && !toDate) {
+            $a.attr('href', baseHref);
+            return;
+        }
+
+        var glue = baseHref.indexOf('?') !== -1 ? '&' : '?';
+        var href = baseHref + glue + $.param({
+            from_date: fromDate,
+            to_date: toDate
+        });
+        $a.attr('href', href);
+    }
+
+    // Ensure voucher links include the currently selected date filters
+    $('body').on('click', '.po-voucher-action', function() {
+        append_po_voucher_date_filters($(this));
+    });
+
     
     if ($('#pur_order-expense-form').length > 0) {
           expenseDropzone = new Dropzone("#pur_order-expense-form", appCreateDropzoneOptions({

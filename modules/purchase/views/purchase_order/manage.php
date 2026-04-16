@@ -15,11 +15,11 @@
                            <div class="btn-group pull-left">
                               <a href="#" class="btn btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><?php echo _l('po_voucher'); ?>&nbsp;<span class="caret"></span></a>
                               <ul class="dropdown-menu dropdown-menu-right">
-                                 <li class="hidden-xs"><a href="<?php echo admin_url('purchase/po_voucher?output_type=I'); ?>"><?php echo _l('view_pdf'); ?></a></li>
-                                 <li class="hidden-xs"><a href="<?php echo admin_url('purchase/po_voucher?output_type=I'); ?>" target="_blank"><?php echo _l('view_pdf_in_new_window'); ?></a></li>
-                                 <li><a href="<?php echo admin_url('purchase/po_voucher'); ?>"><?php echo _l('download'); ?></a></li>
+                                 <li class="hidden-xs"><a class="po-voucher-action" data-po-voucher-base-href="<?php echo admin_url('purchase/po_voucher?output_type=I'); ?>" href="<?php echo admin_url('purchase/po_voucher?output_type=I'); ?>"><?php echo _l('view_pdf'); ?></a></li>
+                                 <li class="hidden-xs"><a class="po-voucher-action" data-po-voucher-base-href="<?php echo admin_url('purchase/po_voucher?output_type=I'); ?>" href="<?php echo admin_url('purchase/po_voucher?output_type=I'); ?>" target="_blank"><?php echo _l('view_pdf_in_new_window'); ?></a></li>
+                                 <li><a class="po-voucher-action" data-po-voucher-base-href="<?php echo admin_url('purchase/po_voucher'); ?>" href="<?php echo admin_url('purchase/po_voucher'); ?>"><?php echo _l('download'); ?></a></li>
                                  <li>
-                                    <a href="<?php echo admin_url('purchase/po_voucher?print=true'); ?>" target="_blank">
+                                    <a class="po-voucher-action" data-po-voucher-base-href="<?php echo admin_url('purchase/po_voucher?print=true'); ?>" href="<?php echo admin_url('purchase/po_voucher?print=true'); ?>" target="_blank">
                                     <?php echo _l('print'); ?>
                                     </a>
                                  </li>
@@ -34,10 +34,10 @@
 	              	<div class="row">
 	              		<hr>
 	              		<div class="col-md-2">
-	                        <?php echo render_date_input('from_date',_l('from_date'),''); ?>
+	                        <?php echo render_date_input('from_date', _l('from_date'), _d(date('Y-m-d'))); ?>
 	                    </div>
 	                    <div class="col-md-2">
-	                        <?php echo render_date_input('to_date',_l('to_date'),''); ?>
+	                        <?php echo render_date_input('to_date', _l('to_date'), _d(date('Y-m-d'))); ?>
 	                    </div>
 
                        <div class=" col-md-2 form-group">
