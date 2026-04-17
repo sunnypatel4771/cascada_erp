@@ -10020,6 +10020,29 @@ class Purchase_model extends App_Model
     }
 
     /**
+     * PO / purchase pickers: tblitems.can_be_purchased must equal $expected_value, except when
+     * $expected_value is the standard token "can_be_purchased" — then also allow NULL/empty (legacy rows / UI cleared field).
+     *
+     * @param string $expected_value Value compared against can_be_purchased (callers pass 'can_be_purchased')
+     */
+    protected function apply_items_can_be_purchased_for_po($expected_value)
+    {
+        if (strlen($expected_value) === 0) {
+            return;
+        }
+        $col = db_prefix() . 'items.can_be_purchased';
+        if ($expected_value !== 'can_be_purchased') {
+            $this->db->where($col, $expected_value);
+
+            return;
+        }
+        $this->db->group_start();
+        $this->db->where($col, 'can_be_purchased');
+        $this->db->or_where('(' . $col . ' IS NULL OR ' . $col . " = '')", null, false);
+        $this->db->group_end();
+    }
+
+    /**
      * wh get grouped
      * @return [type] 
      */
@@ -10036,9 +10059,7 @@ class Purchase_model extends App_Model
 
         foreach ($groups as $group) {
             $this->db->select('*,' . db_prefix() . 'items_groups.name as group_name,' . db_prefix() . 'items.id as id');
-            if(strlen($can_be) > 0){
-                $this->db->where(db_prefix().'items.can_be_purchased', $can_be);
-            }
+            $this->apply_items_can_be_purchased_for_po($can_be);
          
             if($vendor != ''){
                 $this->db->where(db_prefix().'items.id in (SELECT items from '.db_prefix().'pur_vendor_items WHERE vendor = '.$vendor.')');
@@ -10401,10 +10422,8 @@ class Purchase_model extends App_Model
         $this->db->or_like('commodity_code', $q);
         $this->db->or_like('sku_code', $q);
         $this->db->group_end();
-        if(strlen($can_be) > 0){
-            $this->db->where($can_be, $can_be);
-        }
-        $this->db->where('active', 1);
+        $this->apply_items_can_be_purchased_for_po($can_be);
+        $this->db->where(db_prefix() . 'items.active', 1);
 
         if($vendor != ''){
             $this->db->where('id in (SELECT items from '.db_prefix().'pur_vendor_items WHERE vendor = '.$vendor.')');

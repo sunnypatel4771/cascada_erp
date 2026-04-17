@@ -5,6 +5,9 @@ defined('BASEPATH') or exit('No direct script access allowed');
  * When true, purchase order screens, previews, PDFs, and row templates omit monetary columns;
  * line items submit with zero amounts for compatibility with existing save logic.
  *
+ * Keep this file in sync on every deploy: if production still shows price columns on PO preview/PDF,
+ * this function is missing or overridden (client "NEEDED" layout requires true here).
+ *
  * @return bool
  */
 function purchase_po_hides_prices()

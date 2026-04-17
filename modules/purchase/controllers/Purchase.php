@@ -2648,6 +2648,11 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        // Discard buffered output so TCPDF can emit PDF headers (core App_pdf::build only clears buffers when ENVIRONMENT is production).
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output('purchase_order.pdf', $type);
     }
 
