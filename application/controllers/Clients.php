@@ -104,6 +104,10 @@ class Clients extends ClientsController
         $all_products = [];
         foreach ($grouped_products as $group => $products) {
             foreach ($products as $product) {
+                // Alternate sale units for the client portal (empty until wired to inventory/CF).
+                if (!isset($product['equivalences']) || !is_array($product['equivalences'])) {
+                    $product['equivalences'] = [];
+                }
                 $all_products[] = $product;
             }
         }

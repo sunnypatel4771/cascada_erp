@@ -83,11 +83,12 @@
                                     <thead>
                                         <tr>
                                             <th width="50"><?php echo _l('image'); ?></th>
-                                            <th width="180"><?php echo _l('product'); ?></th>
-                                            <th width="90"><?php echo _l('maduracion'); ?></th>
-                                            <th width="70"><?php echo _l('unit'); ?></th>
-                                            <th width="60"><?php echo _l('quantity'); ?></th>
-                                            <th width="90" class="text-right"><?php echo _l('rate'); ?></th>
+                                            <th width="170"><?php echo _l('product'); ?></th>
+                                            <th width="68"><?php echo _l('unit'); ?></th>
+                                            <th width="88" class="new-order-col-equivalencias"><?php echo _l('equivalencias'); ?></th>
+                                            <th width="88" class="new-order-col-maduracion"><?php echo _l('maduracion'); ?></th>
+                                            <th width="58"><?php echo _l('quantity'); ?></th>
+                                            <th width="86" class="text-right"><?php echo _l('rate'); ?></th>
                                             <th width="40"><?php echo _l('action'); ?></th>
                                         </tr>
                                     </thead>
@@ -200,9 +201,169 @@
             return price * (1 + customerMarkupPercent / 100);
         }
 
+        function escapeHtmlAttr(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;');
+        }
+
+        function productNeedsEquivalenciasSlot(product) {
+            if (!product || !Array.isArray(product.equivalences) || product.equivalences.length === 0) {
+                return false;
+            }
+            const base = (product.unit || '').trim();
+            const set = new Set();
+            if (base) {
+                set.add(base);
+            }
+            product.equivalences.forEach((e) => {
+                if (e) {
+                    set.add(String(e).trim());
+                }
+            });
+            return set.size >= 2;
+        }
+
+        function recomputeColumnVisibility() {
+            const table = document.getElementById('new-order-table');
+            if (!table) {
+                return;
+            }
+
+            let anyMad = false;
+            document.querySelectorAll('#order-items-body tr').forEach((row) => {
+                const sel = row.querySelector('select.product-select');
+                const opt = sel && sel.options[sel.selectedIndex];
+                if (opt && opt.value && (parseInt(opt.getAttribute('data-has-maduracion'), 10) === 1)) {
+                    anyMad = true;
+                }
+            });
+
+            const madDisplay = anyMad ? '' : 'none';
+            const madTh = table.querySelector('th.new-order-col-maduracion');
+            if (madTh) {
+                madTh.style.display = madDisplay;
+            }
+            table.querySelectorAll('td.new-order-col-maduracion').forEach((td) => {
+                td.style.display = madDisplay;
+            });
+
+            let anyEq = false;
+            document.querySelectorAll('#order-items-body tr').forEach((row) => {
+                const sel = row.querySelector('select.product-select');
+                const opt = sel && sel.options[sel.selectedIndex];
+                if (!opt || !opt.value) {
+                    return;
+                }
+                const p = allProducts.find((x) => x.description === opt.value);
+                if (p && productNeedsEquivalenciasSlot(p)) {
+                    anyEq = true;
+                }
+            });
+
+            const eqDisplay = anyEq ? '' : 'none';
+            const eqTh = table.querySelector('th.new-order-col-equivalencias');
+            if (eqTh) {
+                eqTh.style.display = eqDisplay;
+            }
+            table.querySelectorAll('td.new-order-col-equivalencias').forEach((td) => {
+                td.style.display = eqDisplay;
+            });
+        }
+
+        function syncRowAuxiliaryControls(counter) {
+            const row = document.getElementById(`order-row-${counter}`);
+            if (!row) {
+                return;
+            }
+            const select = row.querySelector('select.product-select');
+            const selectedOption = select && select.options[select.selectedIndex];
+            const selectedProduct = selectedOption ? selectedOption.value : '';
+            if (!selectedProduct) {
+                updateMaduracionVisibility(counter, false);
+                updateEquivalenciasVisibility(counter, null);
+                return;
+            }
+            const hasMad = parseInt(selectedOption.getAttribute('data-has-maduracion'), 10) || 0;
+            updateMaduracionVisibility(counter, hasMad === 1);
+            const product = allProducts.find((p) => p.description === selectedProduct);
+            updateEquivalenciasVisibility(counter, product || null);
+        }
+
+        function updateEquivalenciasVisibility(counter, product) {
+            const cell = document.getElementById(`equivalencias-cell-${counter}`);
+            const select = document.getElementById(`equivalencias-select-${counter}`);
+            const unitInput = document.getElementById(`unit-${counter}`);
+            if (!cell || !select) {
+                return;
+            }
+            const wrap = cell.querySelector('.equivalencias-select-wrap');
+            const placeholder = cell.querySelector('.equivalencias-placeholder');
+            if (!wrap || !placeholder) {
+                return;
+            }
+
+            if (!product || !productNeedsEquivalenciasSlot(product)) {
+                wrap.style.display = 'none';
+                placeholder.style.display = '';
+                select.innerHTML = '';
+                select.removeAttribute('required');
+                return;
+            }
+
+            const baseUnit = (product.unit || '').trim();
+            const unitSet = new Set();
+            if (baseUnit) {
+                unitSet.add(baseUnit);
+            }
+            product.equivalences.forEach((e) => {
+                if (e) {
+                    unitSet.add(String(e).trim());
+                }
+            });
+            const units = Array.from(unitSet);
+            if (units.length < 2) {
+                wrap.style.display = 'none';
+                placeholder.style.display = '';
+                select.innerHTML = '';
+                select.removeAttribute('required');
+                return;
+            }
+
+            wrap.style.display = '';
+            placeholder.style.display = 'none';
+
+            let current = unitInput && unitInput.value ? unitInput.value.trim() : '';
+            if (!current || units.indexOf(current) === -1) {
+                current = baseUnit && units.indexOf(baseUnit) !== -1 ? baseUnit : units[0];
+            }
+
+            select.innerHTML = units.map((u) => {
+                const esc = escapeHtmlAttr(u);
+                const label = escapeHtml(u);
+                const sel = u === current ? ' selected' : '';
+                return `<option value="${esc}"${sel}>${label}</option>`;
+            }).join('');
+
+            select.setAttribute('required', 'required');
+            if (unitInput) {
+                unitInput.value = current;
+            }
+        }
+
+        function onEquivalenciaChange(counter) {
+            const select = document.getElementById(`equivalencias-select-${counter}`);
+            const unitInput = document.getElementById(`unit-${counter}`);
+            if (select && unitInput) {
+                unitInput.value = select.value || '';
+            }
+            calculateTotal();
+        }
+
         // Create product options HTML
         function getProductOptionsHTML(selectedDescription = '') {
-            let options = '<option value="" data-image="' + defaultImageUrl + '" data-purchase-price="0" data-has-maduracion="0">-- Select Product --</option>';
+            let options = '<option value="" data-image="' + defaultImageUrl + '" data-purchase-price="0" data-has-maduracion="0" data-has-equivalencias="0">-- Select Product --</option>';
             allProducts.forEach(product => {
                 const selected = product.description === selectedDescription ? 'selected' : '';
                 const imageUrl = product.image_url || defaultImageUrl;
@@ -212,6 +373,7 @@
                 const finalRate = purchasePrice > 0 ? sellingPrice : (parseFloat(product.rate) || 0);
                 // Check if product has maduración (ripeness) options
                 const hasMaduracion = parseInt(product.has_maduracion) || 0;
+                const hasEquivalencias = productNeedsEquivalenciasSlot(product) ? 1 : 0;
                 options += `<option value="${product.description}"
                                 data-unit="${product.unit || ''}"
                                 data-rate="${finalRate.toFixed(2)}"
@@ -219,6 +381,7 @@
                                 data-long="${product.long_description || ''}"
                                 data-image="${imageUrl}"
                                 data-has-maduracion="${hasMaduracion}"
+                                data-has-equivalencias="${hasEquivalencias}"
                                 ${selected}>
                                 ${product.description}
                             </option>`;
@@ -231,6 +394,8 @@
             const tbody = document.getElementById('order-items-body');
             const row = createOrderRow('', '', 1, 0);
             tbody.appendChild(row);
+            syncRowAuxiliaryControls(orderItemsCounter);
+            recomputeColumnVisibility();
             calculateTotal();
         }
 
@@ -292,7 +457,25 @@
                     </select>
                     <input type="hidden" name="items[${orderItemsCounter}][long_description]" value="${longDescription}">
                 </td>
-                <td class="maduracion-cell" id="maduracion-cell-${orderItemsCounter}">
+                <td>
+                    <input type="text" class="form-control input-sm"
+                        id="unit-${orderItemsCounter}"
+                        name="items[${orderItemsCounter}][unit]"
+                        value="${unit}"
+                        readonly
+                        style="background-color: #f5f5f5;">
+                </td>
+                <td class="equivalencias-cell new-order-col-equivalencias" id="equivalencias-cell-${orderItemsCounter}">
+                    <div class="equivalencias-select-wrap" style="display: none;">
+                        <select class="form-control input-sm equivalencias-select"
+                                name="items[${orderItemsCounter}][equivalencia]"
+                                id="equivalencias-select-${orderItemsCounter}"
+                                onchange="onEquivalenciaChange(${orderItemsCounter})">
+                        </select>
+                    </div>
+                    <span class="equivalencias-placeholder text-muted">&mdash;</span>
+                </td>
+                <td class="maduracion-cell new-order-col-maduracion" id="maduracion-cell-${orderItemsCounter}">
                     <div class="maduracion-select-wrap" style="${maduracionWrapStyle}">
                     <select class="form-control input-sm maduracion-select"
                             name="items[${orderItemsCounter}][maduracion]"
@@ -304,14 +487,6 @@
                     </select>
                     </div>
                     <span class="maduracion-placeholder text-muted" style="${maduracionPlaceholderStyle}">&mdash;</span>
-                </td>
-                <td>
-                    <input type="text" class="form-control input-sm"
-                        id="unit-${orderItemsCounter}"
-                        name="items[${orderItemsCounter}][unit]"
-                        value="${unit}"
-                        readonly
-                        style="background-color: #f5f5f5;">
                 </td>
                 <td>
                     <input type="number" class="form-control input-sm"
@@ -378,6 +553,8 @@
                             document.getElementById(`rate-${counter}`).value = 0;
                             // Hide maduración cell when no product selected
                             updateMaduracionVisibility(counter, false);
+                            updateEquivalenciasVisibility(counter, null);
+                            recomputeColumnVisibility();
                             calculateTotal();
                             return;
                         }
@@ -402,8 +579,11 @@
                 imgElement.alt = selectedProduct;
             }
 
-            // Show/hide maduración dropdown based on product's has_maduracion flag
+            // Show/hide maduración / equivalencias based on product flags
+            const productRow = allProducts.find((p) => p.description === selectedProduct);
             updateMaduracionVisibility(counter, hasMaduracion === 1);
+            updateEquivalenciasVisibility(counter, productRow || null);
+            recomputeColumnVisibility();
 
             calculateTotal();
         }
@@ -453,6 +633,7 @@
             const row = document.getElementById(`order-row-${id}`);
             if (row) {
                 row.remove();
+                recomputeColumnVisibility();
                 calculateTotal();
             }
         }
@@ -486,8 +667,10 @@
                     hasMaduracion
                 );
                 tbody.appendChild(row);
+                syncRowAuxiliaryControls(orderItemsCounter);
             });
 
+            recomputeColumnVisibility();
             calculateTotal();
         }
 
@@ -511,6 +694,8 @@
                 hasMaduracion
             );
             tbody.appendChild(row);
+            syncRowAuxiliaryControls(orderItemsCounter);
+            recomputeColumnVisibility();
             calculateTotal();
         }
 
@@ -554,6 +739,7 @@
             const rows = document.querySelectorAll('#order-items-body tr');
             let hasEmptyProduct = false;
             let hasMissingMaduracion = false;
+            let hasMissingEquivalencia = false;
 
             rows.forEach(row => {
                 const select = row.querySelector('select.product-select');
@@ -562,6 +748,7 @@
                 const unitInput = row.querySelector('input[name*="[unit]"]');
                 const longDescInput = row.querySelector('input[name*="[long_description]"]');
                 const maduracionSelect = row.querySelector('select.maduracion-select');
+                const equivalenciasSelect = row.querySelector('select.equivalencias-select');
 
                 if (!select) {
                     return;
@@ -582,6 +769,14 @@
                 // Validate maduración is selected for products that require it
                 if (hasMaduracion === 1 && (!maduracion || maduracion.trim() === '')) {
                     hasMissingMaduracion = true;
+                }
+
+                const portalProduct = allProducts.find((p) => p.description === selectedValue);
+                if (portalProduct && productNeedsEquivalenciasSlot(portalProduct)) {
+                    const eqVal = equivalenciasSelect ? equivalenciasSelect.value : '';
+                    if (!eqVal || eqVal.trim() === '') {
+                        hasMissingEquivalencia = true;
+                    }
                 }
 
                 const productKey = selectedValue;
@@ -613,6 +808,11 @@
 
             if (hasMissingMaduracion) {
                 alert('<?php echo _l('please_select_maduracion'); ?>');
+                return;
+            }
+
+            if (hasMissingEquivalencia) {
+                alert('<?php echo _l('please_select_equivalencias'); ?>');
                 return;
             }
             

@@ -3853,6 +3853,8 @@ $lang['product_already_in_order'] = 'Este producto ya está en el pedido. Por fa
 $lang['maduracion'] = 'Maduración';
 $lang['maduracion_maduro'] = 'Maduro';
 $lang['maduracion_verde'] = 'Verde';
+$lang['equivalencias'] = 'Equivalencias';
+$lang['please_select_equivalencias'] = 'Por favor seleccione una equivalencia (unidad) para los productos que lo requieran.';
 $lang['select'] = 'Seleccionar';
 
 // Búsqueda y paginación de productos

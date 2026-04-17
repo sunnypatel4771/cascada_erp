@@ -4103,6 +4103,8 @@ $lang['product_already_in_order'] = 'This product is already in the order. Pleas
 $lang['maduracion'] = 'Ripeness';
 $lang['maduracion_maduro'] = 'Ripe';
 $lang['maduracion_verde'] = 'Green';
+$lang['equivalencias'] = 'Equivalences';
+$lang['please_select_equivalencias'] = 'Please select an equivalence (unit) for all items that require it.';
 $lang['select'] = 'Select';
 
 // Product search/pagination
