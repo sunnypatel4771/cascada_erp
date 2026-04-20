@@ -256,4 +256,164 @@ class Inventory_model extends App_Model
 
         return $payload;
     }
+
+    // -----------------------------------------------------------------------
+    // Equivalencias (alternate unit definitions per catalog item)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Get all equivalencias for a catalog item (tblitems.id).
+     *
+     * @param  int $itemId  tblitems.id
+     * @return array
+     */
+    public function get_equivalences(int $itemId): array
+    {
+        return $this->db
+            ->where('item_id', $itemId)
+            ->where('active', 1)
+            ->order_by('sort_order', 'ASC')
+            ->order_by('unit_name', 'ASC')
+            ->get(db_prefix() . 'ramos_item_equivalences')
+            ->result_array();
+    }
+
+    /**
+     * Get all equivalencias grouped by item_id (bulk fetch).
+     *
+     * @param  array $itemIds  List of tblitems.id values
+     * @return array  [ item_id => [ ['unit_name'=>..,'conversion_factor'=>..], ... ] ]
+     */
+    public function get_equivalences_bulk(array $itemIds): array
+    {
+        if (empty($itemIds)) {
+            return [];
+        }
+
+        // Fetch all active equivalences (small table) and filter in PHP to avoid
+        // large WHERE IN clauses that exceed CodeIgniter's query-builder regex limit.
+        $rows = $this->db
+            ->where('active', 1)
+            ->order_by('item_id', 'ASC')
+            ->order_by('sort_order', 'ASC')
+            ->get(db_prefix() . 'ramos_item_equivalences')
+            ->result_array();
+
+        $idSet = array_flip($itemIds);
+        $grouped = [];
+        foreach ($rows as $row) {
+            if (isset($idSet[(int) $row['item_id']])) {
+                $grouped[(int) $row['item_id']][] = $row;
+            }
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Get has_maduracion for multiple tblitems by matching item description.
+     *
+     * @param  array $descriptions  List of item descriptions (tblitems.description)
+     * @return array  [ description => has_maduracion (0|1) ]
+     */
+    public function get_maduracion_map(array $descriptions): array
+    {
+        if (empty($descriptions)) {
+            return [];
+        }
+
+        // Fetch all inventory items with maduracion (small table) and filter in PHP.
+        // Using where_in with a large array causes CodeIgniter's query-builder regex to fail.
+        $rows = $this->db
+            ->select('item_name, has_maduracion')
+            ->where('has_maduracion', 1)
+            ->get($this->table)
+            ->result_array();
+
+        $descSet = array_flip($descriptions);
+        $map = [];
+        foreach ($rows as $row) {
+            if (isset($descSet[$row['item_name']])) {
+                $map[$row['item_name']] = (int) $row['has_maduracion'];
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Add or update an equivalencia entry.
+     *
+     * @param  array $data  ['item_id', 'unit_name', 'conversion_factor', 'sort_order']
+     * @return int  Inserted/updated ID
+     */
+    public function save_equivalence(array $data): int
+    {
+        $payload = [
+            'item_id'           => (int) $data['item_id'],
+            'unit_name'         => trim((string) $data['unit_name']),
+            'conversion_factor' => (float) ($data['conversion_factor'] ?? 1.0),
+            'sort_order'        => (int) ($data['sort_order'] ?? 0),
+            'active'            => 1,
+            'created_by'        => get_staff_user_id(),
+        ];
+
+        if (!empty($data['id'])) {
+            $this->db->where('id', (int) $data['id']);
+            $this->db->update(db_prefix() . 'ramos_item_equivalences', $payload);
+            return (int) $data['id'];
+        }
+
+        $this->db->insert(db_prefix() . 'ramos_item_equivalences', $payload);
+        return (int) $this->db->insert_id();
+    }
+
+    /**
+     * Delete an equivalencia entry.
+     *
+     * @param  int $id
+     * @return bool
+     */
+    public function delete_equivalence(int $id): bool
+    {
+        $this->db->where('id', $id);
+        return (bool) $this->db->delete(db_prefix() . 'ramos_item_equivalences');
+    }
+
+    /**
+     * Get all catalog items (tblitems) with their maduracion and equivalencias.
+     * Used for the admin equivalencias management page.
+     *
+     * @return array
+     */
+    public function get_items_with_equivalences(): array
+    {
+        $items = $this->db
+            ->select('i.id, i.description, i.unit, COALESCE(inv.has_maduracion, 0) as has_maduracion')
+            ->from(db_prefix() . 'items i')
+            ->join(
+                db_prefix() . 'ramos_inventory_items inv',
+                'inv.item_name = i.description',
+                'left'
+            )
+            ->where('i.parent_id', 0)
+            ->or_where('i.parent_id IS NULL', null, false)
+            ->order_by('i.description', 'ASC')
+            ->get()
+            ->result_array();
+
+        if (empty($items)) {
+            return [];
+        }
+
+        $ids = array_column($items, 'id');
+        $equivMap = $this->get_equivalences_bulk($ids);
+
+        foreach ($items as &$item) {
+            $item['equivalences'] = $equivMap[(int) $item['id']] ?? [];
+        }
+        unset($item);
+
+        return $items;
+    }
 }

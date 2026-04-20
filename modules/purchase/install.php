@@ -416,10 +416,17 @@ if (!$CI->db->table_exists(db_prefix() . 'pur_vendor_items')) {
     `vendor` int(11) NOT NULL,
     `group_items` int(11) NULL,
     `items` int(11) NOT NULL,
+    `priority` int(11) NOT NULL DEFAULT 0,
     `add_from` int(11) NULL,
     `datecreate` DATE NULL,
     PRIMARY KEY (`id`)
   ) ENGINE=InnoDB DEFAULT CHARSET=" . $CI->db->char_set . ';');
+}
+
+if ($CI->db->table_exists(db_prefix() . 'pur_vendor_items') && !$CI->db->field_exists('priority', db_prefix() . 'pur_vendor_items')) {
+  $CI->db->query('ALTER TABLE `' . db_prefix() . "pur_vendor_items`
+    ADD COLUMN `priority` int(11) NOT NULL DEFAULT 0 AFTER `items`
+  ;");
 }
 
 // Version 1.0.4

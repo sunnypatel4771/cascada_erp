@@ -35,10 +35,13 @@ $canEdit = $can_edit ?? (staff_can('edit', RAMOS_MODULE_NAME) || is_admin());
                     <?php foreach ($routes_data as $entry) : ?>
                         <?php
                         $this->load->view('ramos/facturacion/partials/route_card', [
-                            'route'        => $entry['route'],
-                            'customers'    => $entry['customers'],
-                            'statusLabels' => $statusLabels,
-                            'can_edit'     => $canEdit,
+                            'route'             => $entry['route'],
+                            'customers'         => $entry['customers'],
+                            'pick_summary_line' => $entry['pick_summary_line'] ?? null,
+                            'route_board_url'   => $entry['route_board_url'] ?? '',
+                            'route_view_url'    => $entry['route_view_url'] ?? '',
+                            'statusLabels'      => $statusLabels,
+                            'can_edit'          => $canEdit,
                         ]);
                         ?>
                     <?php endforeach; ?>

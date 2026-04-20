@@ -123,7 +123,7 @@ hooks()->add_filter('other_merge_fields_available_for', 'purchase_register_other
 define('PURCHASE_PATH', 'modules/purchase/uploads/');
 define('PURCHASE_MODULE_ITEM_UPLOAD_FOLDER', 'modules/purchase/uploads/item_img/');
 
-define('PURCHASE_REVISION', 150);
+define('PURCHASE_REVISION', 151);
 define('COMMODITY_ERROR_PUR', FCPATH );
 define('COMMODITY_EXPORT_PUR', FCPATH );
 define('PURCHASE_IMPORT_ITEM_ERROR', 'modules/purchase/uploads/import_item_error/');

@@ -33,6 +33,14 @@ $emptyText        = _l('ramos_routes_board_empty_route');
                     <div class="tw-text-xs tw-text-slate-400" data-route-pending data-route-id="<?php echo $routeId; ?>" data-template="<?php echo html_escape($pendingTemplate); ?>">
                         <?php echo sprintf($pendingTemplate, $pendingStops); ?>
                     </div>
+                    <?php
+                    $incompletePickStops = (int) ($route['incomplete_pick_stop_count'] ?? 0);
+                    if ($incompletePickStops > 0) :
+                        ?>
+                    <div class="tw-text-xs tw-text-amber-700 tw-mt-1">
+                        <?php echo html_escape(str_replace('{count}', (string) $incompletePickStops, _l('ramos_routes_board_incomplete_picks_line'))); ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

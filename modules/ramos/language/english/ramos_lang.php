@@ -398,6 +398,7 @@ $lang['ramos_routes_date_label']             = 'Route date';
 $lang['ramos_routes_start_time_label']       = 'First start time';
 $lang['ramos_routes_max_stops_label']        = 'Max customers per route';
 $lang['ramos_routes_prefix_label']           = 'Route name prefix';
+$lang['ramos_routes_prefix_help']            = 'Prefix for auto-generated names. Result: "{prefix} {zone} {hour} am/pm" e.g. "Ruta Andares 9 am". If >max customers, second chunk becomes "{prefix}2 …"';
 $lang['ramos_routes_generate_button']        = 'Generate routes';
 $lang['ramos_routes_list_heading']           = 'Routes for %s';
 $lang['ramos_routes_none_created']           = 'No routes generated for this date.';
@@ -644,6 +645,24 @@ $lang['ramos_routes_dispatch_warning_intro']      = 'The following issues were f
 $lang['ramos_routes_dispatch_issue_not_picked']   = 'Not all orders have been fully picked.';
 $lang['ramos_routes_dispatch_issue_not_invoiced'] = 'Not all orders have invoices generated.';
 $lang['ramos_routes_dispatch_proceed_button']     = 'Proceed anyway';
+$lang['ramos_routes_dispatch_issue_pick_pending_detail'] = '{order} — {customer}: {incomplete} line(s) not completed (of {total}).';
+$lang['ramos_routes_dispatch_issue_packaging']   = 'Packaging requirements are not complete for this route.';
+$lang['ramos_routes_dispatch_invoice_informational'] = 'Facturación note: {missing} of {total} route stop(s) (omni) have no linked invoice yet. Printing is allowed; this does not block dispatch once picking is complete.';
+$lang['ramos_routes_dispatch_force_button']      = 'Force dispatch (admin)';
+$lang['ramos_routes_dispatch_force_confirm']     = 'Force dispatch while picking or packaging is incomplete? This will be recorded on the route.';
+$lang['ramos_routes_force_dispatch_reason_label'] = 'Reason (stored in route notes)';
+$lang['ramos_routes_force_dispatch_reason_placeholder'] = 'Optional note for the audit log';
+$lang['ramos_routes_force_dispatch_no_reason']   = 'no reason given';
+$lang['ramos_routes_dispatch_blocked_fulfillment'] = 'This route cannot be dispatched until all stops are fully picked (and packaging rules are met). Ask an administrator if a forced dispatch is required.';
+$lang['ramos_routes_stop_pick_status_column']    = 'Pick status';
+$lang['ramos_routes_stop_pick_status_no_picks']  = 'No pick lines';
+$lang['ramos_routes_stop_pick_status_waiting_po'] = 'Waiting for PO';
+$lang['ramos_routes_stop_pick_status_in_progress'] = 'Picking in progress';
+$lang['ramos_routes_stop_pick_status_complete']  = 'Picking complete';
+$lang['ramos_routes_board_incomplete_picks_line'] = '{count} stop(s) with incomplete picking';
+$lang['ramos_facturacion_route_pick_summary']    = '{total} order(s): {pending} pending picking, {po} waiting for PO, {complete} complete.';
+$lang['ramos_facturacion_open_route_console']    = 'Open route board';
+$lang['ramos_facturacion_open_route_detail']    = 'Route detail';
 
 // Staff module usage report
 $lang['ramos_report_menu']                        = 'Module Usage Report';
@@ -669,3 +688,21 @@ $lang['ramos_report_duration_note']               = '* Active shifts show estima
 
 // Picking
 $lang['ramos_picking_route_stop_label']           = 'Route stop';
+
+// Equivalencias module
+$lang['ramos_equivalencias_menu_label']      = 'Equivalencias';
+$lang['ramos_equivalencias_title']           = 'Equivalencias Management';
+$lang['ramos_equivalencias_subtitle']        = 'Define alternate units (Kilo, Piece, Sack, Box…) for each catalog item.';
+$lang['ramos_equivalencias_no_items']        = 'No catalog items found.';
+$lang['ramos_equivalencias_col_item']        = 'Item';
+$lang['ramos_equivalencias_col_maduracion']  = 'Maturation';
+$lang['ramos_equivalencias_col_units']       = 'Equivalent Units';
+$lang['ramos_equivalencias_col_actions']     = 'Actions';
+$lang['ramos_equivalencias_base_unit']       = 'Base unit';
+$lang['ramos_equivalencias_has_maduracion']  = 'Yes';
+$lang['ramos_equivalencias_add_unit']        = 'Add Unit';
+$lang['ramos_equivalencias_unit_name']       = 'Unit Name';
+$lang['ramos_equivalencias_conversion_factor'] = 'Conversion Factor';
+$lang['ramos_equivalencias_conversion_help'] = 'How many base units equal 1 of this unit? e.g. 1 Sack = 30 Kg → factor 30';
+$lang['ramos_equivalencias_sort_order']      = 'Sort Order';
+$lang['ramos_equivalencias_unit_required']   = 'Unit name is required.';

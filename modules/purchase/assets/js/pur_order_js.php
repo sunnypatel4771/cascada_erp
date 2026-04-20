@@ -6,9 +6,24 @@ $(function(){
     init_ajax_search("customer", ".client-ajax-search");
     init_po_currency();
     // Maybe items ajax search
-    <?php /* item_by_vendor: item AJAX is bound only after a vendor is chosen (see estimate_by_vendor). */ ?>
     <?php if(get_purchase_option('item_by_vendor') != 1){ ?>
+      // Non-vendor-first mode: bind AJAX immediately.
       init_ajax_search('items','#item_select.ajax-search',undefined,admin_url+'purchase/pur_commodity_code_search');
+    <?php } else { ?>
+      // Vendor-first mode (item_by_vendor == 1).
+      // On NEW PO the picker starts disabled (see main_item_select.php).
+      // On EDIT PO the vendor is preselected — enable the picker and wire AJAX now.
+      <?php if(isset($pur_order)){ ?>
+        (function(){
+          var vendor = $('select[name="vendor"]').val();
+          if(vendor && vendor != '' && vendor != 0){
+            $('#item_select').prop('disabled', false).attr('data-none-selected-text', '<?php echo _l('select_item'); ?>').selectpicker('refresh');
+            if($('#item_select').hasClass('ajax-search')){
+              init_ajax_search('items','#item_select.ajax-search',undefined,admin_url+'purchase/pur_commodity_code_search/purchase_price/can_be_purchased/'+vendor);
+            }
+          }
+        })();
+      <?php } ?>
     <?php } ?>
 
     pur_calculate_total();
@@ -108,15 +123,29 @@ function estimate_by_vendor(invoker){
       $('input[name="pur_order_number"]').val(po_number+'-'+response.company);
       <?php } ?>
       <?php if(get_purchase_option('item_by_vendor') == 1){ ?>
+        // Re-enable the item picker once a vendor is chosen.
+        $('#item_select').prop('disabled', false)
+          .attr('data-none-selected-text', '<?php echo _l('select_item'); ?>');
+
         if(response.option_html != ''){
-         $('#item_select').html(response.option_html);
-         $('.selectpicker').selectpicker('refresh');
-        }else if(response.option_html == ''){
+          // Vendor has a fixed item list — populate directly.
+          $('#item_select').html(response.option_html);
+          $('.selectpicker').selectpicker('refresh');
+        }else{
+          // No static list — bind AJAX search for this vendor.
           init_ajax_search('items','#item_select.ajax-search',undefined,admin_url+'purchase/pur_commodity_code_search/purchase_price/can_be_purchased/'+invoker.value);
+          $('#item_select').selectpicker('refresh');
         }
-        
        <?php } ?>
     });
+  } else {
+    <?php if(get_purchase_option('item_by_vendor') == 1){ ?>
+    // Vendor cleared — disable the item picker again.
+    $('#item_select').prop('disabled', true)
+      .attr('data-none-selected-text', '<?php echo _l('select_vendor_first_item'); ?>')
+      .selectpicker('val', '')
+      .selectpicker('refresh');
+    <?php } ?>
   }
 }
 

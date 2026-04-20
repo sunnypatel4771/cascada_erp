@@ -910,3 +910,11 @@ if (!$CI->db->field_exists('woo_order_number' ,db_prefix() . 'invoices')) {
 add_option('omni_show_public_page', 1);
 add_option('omni_sale_hide_shipping_fee', 0, 1);
 add_option('omni_sell_the_warehouse_assigned', 0);
+
+if (!$CI->db->field_exists('maduracion', db_prefix() . 'cart_detailt')) {
+    $CI->db->query('ALTER TABLE `' . db_prefix() . 'cart_detailt`
+        ADD COLUMN `maduracion` VARCHAR(20) NULL COMMENT \'Ripeness selection: Maduro or Verde\',
+        ADD COLUMN `equivalencia_unit` VARCHAR(100) NULL COMMENT \'Selected equivalencia unit name\',
+        ADD COLUMN `equivalencia_factor` DECIMAL(15,4) NULL COMMENT \'Conversion factor for the selected unit\'
+    ');
+}

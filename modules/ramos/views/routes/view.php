@@ -35,6 +35,8 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
                         <?php if (staff_can('edit', RAMOS_MODULE_NAME)) : ?>
                             <?php echo form_open(admin_url('ramos/routes/update_status/' . $route['id']), ['id' => 'ramos-route-status-form', 'class' => 'tw-flex tw-gap-2 tw-items-center tw-mt-2']); ?>
                                 <input type="hidden" name="dispatch_confirmed" id="dispatch_confirmed" value="0">
+                                <input type="hidden" name="force_dispatch" id="force_dispatch" value="0">
+                                <input type="hidden" name="force_dispatch_reason" id="force_dispatch_reason" value="">
                                 <select name="status" id="ramos-route-status-select" class="form-control selectpicker">
                                     <?php foreach (ramos_route_statuses() as $key => $label) : ?>
                                         <option value="<?php echo html_escape($key); ?>" <?php echo $route['status'] === $key ? 'selected' : ''; ?>><?php echo html_escape($label); ?></option>
@@ -60,16 +62,20 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
                                         <tr>
                                             <th>#</th>
                                             <th><?php echo _l('ramos_routes_stop_order'); ?></th>
+                                            <th><?php echo _l('ramos_routes_stop_pick_status_column'); ?></th>
                                             <th><?php echo _l('ramos_routes_stop_address'); ?></th>
                                             <th><?php echo _l('ramos_routes_stop_eta'); ?></th>
                                             <th><?php echo _l('ramos_routes_stop_status'); ?></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($stops as $stop) : ?>
+                                        <?php foreach ($stops as $stop) :
+                                            $pickSummary = $stop['pick_summary'] ?? ['label_lang' => 'ramos_routes_stop_pick_status_no_picks'];
+                                            ?>
                                             <tr>
                                                 <td><?php echo (int) $stop['stop_number']; ?></td>
                                                 <td><?php echo html_escape($stop['order_number']); ?> &mdash; <?php echo html_escape($stop['customer_name']); ?></td>
+                                                <td><?php echo html_escape(_l($pickSummary['label_lang'])); ?></td>
                                                 <td><?php echo html_escape($stop['delivery_address']); ?></td>
                                                 <td><?php echo html_escape($stop['eta'] ? _dt($stop['eta']) : '--'); ?></td>
                                                 <td><?php echo html_escape(ucfirst(str_replace('_', ' ', $stop['status']))); ?></td>
@@ -175,10 +181,19 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
             <div class="modal-body">
                 <p class="tw-text-slate-600 tw-mb-3"><?php echo _l('ramos_routes_dispatch_warning_intro'); ?></p>
                 <ul id="ramos-dispatch-issues" class="tw-pl-4 tw-space-y-1 tw-text-sm"></ul>
+                <p id="ramos-dispatch-invoice-note" class="tw-text-xs tw-text-slate-500 tw-mt-3 tw-mb-0 tw-hidden"></p>
+                <?php if (!empty($is_admin)) : ?>
+                <div class="form-group tw-mt-3 tw-mb-0">
+                    <label for="ramos-dispatch-force-reason"><?php echo _l('ramos_routes_force_dispatch_reason_label'); ?></label>
+                    <textarea id="ramos-dispatch-force-reason" class="form-control" rows="2" placeholder="<?php echo _l('ramos_routes_force_dispatch_reason_placeholder'); ?>"></textarea>
+                </div>
+                <?php endif; ?>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal"><?php echo _l('cancel'); ?></button>
-                <button type="button" class="btn btn-warning" id="ramos-dispatch-proceed"><?php echo _l('ramos_routes_dispatch_proceed_button'); ?></button>
+                <button type="button" class="btn btn-default" data-dismiss="modal"><?php echo _l('close'); ?></button>
+                <?php if (!empty($is_admin)) : ?>
+                <button type="button" class="btn btn-warning" id="ramos-dispatch-proceed"><?php echo _l('ramos_routes_dispatch_force_button'); ?></button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -263,15 +278,29 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
         <?php if (staff_can('edit', RAMOS_MODULE_NAME)) : ?>
         (function() {
             var routeId        = <?php echo (int) $route['id']; ?>;
+            var isAdmin        = <?php echo json_encode((bool) !empty($is_admin)); ?>;
             var $form          = $('#ramos-route-status-form');
             var $statusSelect  = $('#ramos-route-status-select');
             var $confirmed     = $('#dispatch_confirmed');
+            var $forceFlag     = $('#force_dispatch');
+            var $forceReasonHidden = $('#force_dispatch_reason');
             var $modal         = $('#ramos-dispatch-warning-modal');
             var $issues        = $('#ramos-dispatch-issues');
+            var $invoiceNote   = $('#ramos-dispatch-invoice-note');
             var $proceedBtn    = $('#ramos-dispatch-proceed');
+            var $reasonTa      = $('#ramos-dispatch-force-reason');
 
-            var msgNotPicked   = <?php echo json_encode(_l('ramos_routes_dispatch_issue_not_picked')); ?>;
-            var msgNotInvoiced = <?php echo json_encode(_l('ramos_routes_dispatch_issue_not_invoiced')); ?>;
+            var msgPickPending = <?php echo json_encode(_l('ramos_routes_dispatch_issue_pick_pending_detail')); ?>;
+            var msgPackaging   = <?php echo json_encode(_l('ramos_routes_dispatch_issue_packaging')); ?>;
+            var msgInvoiceInfo = <?php echo json_encode(_l('ramos_routes_dispatch_invoice_informational')); ?>;
+
+            function resetForceFields() {
+                $forceFlag.val('0');
+                $forceReasonHidden.val('');
+                if ($reasonTa.length) {
+                    $reasonTa.val('');
+                }
+            }
 
             $form.on('submit', function(e) {
                 if ($statusSelect.val() !== 'dispatched' || $confirmed.val() === '1') {
@@ -279,35 +308,63 @@ $statusLabel = ramos_route_statuses()[$route['status']] ?? $route['status'];
                 }
 
                 e.preventDefault();
+                resetForceFields();
 
                 $.getJSON(admin_url + 'ramos/routes/dispatch_readiness/' + routeId, function(data) {
-                    if (data.all_picked && data.all_invoiced) {
+                    if (data.ready_for_dispatch) {
                         $confirmed.val('1');
                         $form.submit();
                         return;
                     }
 
                     $issues.empty();
-                    if (!data.all_picked) {
-                        $issues.append('<li><i class="fa-regular fa-circle-xmark tw-text-red-500 tw-mr-1"></i>' + msgNotPicked + '</li>');
+                    $invoiceNote.addClass('tw-hidden').text('');
+
+                    var stops = data.pending_picking_stops || [];
+                    if (stops.length) {
+                        stops.forEach(function(s) {
+                            var line = msgPickPending
+                                .replace(/\{order\}/g, s.order_number || '')
+                                .replace(/\{customer\}/g, s.customer_name || '')
+                                .replace(/\{incomplete\}/g, String(s.incomplete_count || 0))
+                                .replace(/\{total\}/g, String(s.total_lines || 0));
+                            $issues.append('<li><i class="fa-regular fa-circle-xmark tw-text-red-500 tw-mr-1"></i>' + line + '</li>');
+                        });
+                    } else if (!data.ready_for_packaging) {
+                        $issues.append('<li><i class="fa-regular fa-circle-xmark tw-text-red-500 tw-mr-1"></i>' + msgPackaging + '</li>');
                     }
-                    if (!data.all_invoiced) {
-                        $issues.append('<li><i class="fa-regular fa-circle-xmark tw-text-red-500 tw-mr-1"></i>' + msgNotInvoiced + '</li>');
+
+                    var inv = data.invoice_summary || {};
+                    if (inv.omni_stops_without_invoice > 0 && inv.omni_stops_total > 0) {
+                        var note = msgInvoiceInfo
+                            .replace(/\{missing\}/g, String(inv.omni_stops_without_invoice))
+                            .replace(/\{total\}/g, String(inv.omni_stops_total));
+                        $invoiceNote.removeClass('tw-hidden').text(note);
                     }
 
                     $modal.modal('show');
                 }).fail(function() {
-                    // If check fails, allow dispatch without warning
                     $confirmed.val('1');
                     $form.submit();
                 });
             });
 
-            $proceedBtn.on('click', function() {
-                $modal.modal('hide');
-                $confirmed.val('1');
-                $form.submit();
-            });
+            if ($proceedBtn.length) {
+                $proceedBtn.on('click', function() {
+                    if (!isAdmin) {
+                        return;
+                    }
+                    if (!confirm(<?php echo json_encode(_l('ramos_routes_dispatch_force_confirm')); ?>)) {
+                        return;
+                    }
+                    $modal.modal('hide');
+                    $confirmed.val('1');
+                    $forceFlag.val('1');
+                    var r = $reasonTa.length ? $reasonTa.val() : '';
+                    $forceReasonHidden.val(r);
+                    $form.submit();
+                });
+            }
         })();
         <?php endif; ?>
     })();

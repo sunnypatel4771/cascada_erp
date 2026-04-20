@@ -4,6 +4,9 @@ $routeName = html_escape($route['vehicle_label'] ?? 'Route');
 $routeStartTime = !empty($route['start_time']) ? substr($route['start_time'], 0, 5) : '';
 $routeStatus = $route['status'] ?? 'draft';
 $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
+$pickSummaryLine = $pick_summary_line ?? null;
+$routeBoardUrl = $route_board_url ?? '';
+$routeViewUrl = $route_view_url ?? '';
 ?>
 <div class="panel_s tw-mb-4">
     <div class="panel-heading tw-bg-slate-50">
@@ -18,6 +21,33 @@ $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
             </h5>
             <span class="label <?php echo $statusBadgeClass; ?>"><?php echo html_escape(ramos_route_statuses()[$routeStatus] ?? $routeStatus); ?></span>
         </div>
+        <?php if (is_array($pickSummaryLine)) : ?>
+            <p class="tw-text-xs tw-text-slate-600 tw-mb-2 tw-mt-2">
+                <?php
+                $summaryText = str_replace(
+                    ['{total}', '{pending}', '{po}', '{complete}'],
+                    [
+                        (string) ($pickSummaryLine['total'] ?? 0),
+                        (string) ($pickSummaryLine['pending'] ?? 0),
+                        (string) ($pickSummaryLine['po'] ?? 0),
+                        (string) ($pickSummaryLine['complete'] ?? 0),
+                    ],
+                    _l('ramos_facturacion_route_pick_summary')
+                );
+                echo html_escape($summaryText);
+                ?>
+            </p>
+        <?php endif; ?>
+        <?php if ($routeBoardUrl !== '' || $routeViewUrl !== '') : ?>
+            <div class="tw-flex tw-flex-wrap tw-gap-2 tw-text-xs">
+                <?php if ($routeBoardUrl !== '') : ?>
+                    <a href="<?php echo html_escape($routeBoardUrl); ?>" class="btn btn-default btn-xs"><?php echo _l('ramos_facturacion_open_route_console'); ?></a>
+                <?php endif; ?>
+                <?php if ($routeViewUrl !== '') : ?>
+                    <a href="<?php echo html_escape($routeViewUrl); ?>" class="btn btn-default btn-xs"><?php echo _l('ramos_facturacion_open_route_detail'); ?></a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     </div>
     <div class="panel-body tw-p-0">
         <?php if (empty($customers)) : ?>
@@ -64,7 +94,7 @@ $statusBadgeClass = ramos_route_status_badge_class($routeStatus);
                                 <div class="tw-text-center">
                                     <div class="tw-text-xs tw-text-slate-500 tw-mb-1"><?php echo _l('ramos_facturacion_generate_documents'); ?></div>
                                     <div class="btn-group">
-                                        <a href="<?php echo admin_url('ramos/facturacion/generate_invoice/' . $customer['order_id']); ?>"
+                                        <a href="<?php echo admin_url('ramos/facturacion/generate_invoice/' . $customer['order_id'] . '/' . urlencode($customer['order_source'] ?? 'omni_sales')); ?>"
                                            class="btn btn-primary btn-sm"
                                            onclick="return confirm('<?php echo _l('ramos_facturacion_confirm_invoice'); ?>');">
                                             <i class="fa-regular fa-file-invoice tw-mr-1"></i><?php echo _l('ramos_facturacion_btn_factura'); ?>

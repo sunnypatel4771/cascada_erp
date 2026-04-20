@@ -167,6 +167,21 @@ class Routes_model extends App_Model
         return $entry;
     }
 
+    /**
+     * Append a single audit line to route notes (e.g. forced dispatch).
+     */
+    public function append_route_note_line(int $routeId, string $line): bool
+    {
+        $routeId = (int) $routeId;
+        if ($routeId <= 0 || $line === '') {
+            return false;
+        }
+        $notes = $this->append_note($routeId, $line);
+        $this->db->where('id', $routeId);
+
+        return (bool) $this->db->update($this->routesTable, ['notes' => $notes]);
+    }
+
     public function generate_routes(string $date, string $startTime, int $maxStops, string $prefix = 'Route'): array
     {
         $date = $date ?: date('Y-m-d');
@@ -275,14 +290,28 @@ class Routes_model extends App_Model
             return [];
         }
 
-        // Group orders by zone first, then chunk each zone's orders
-        $ordersByZone = [];
+        // Group orders by zone + schedule hour (e.g. "Andares_9")
+        // Schedule hour is derived from delivery_datetime; orders with no delivery time
+        // are placed in a "fallback" bucket using the provided $startTime hour.
+        $defaultScheduleHour = (int) substr($startTime ?: '08:00:00', 0, 2);
+
+        $ordersByZoneSchedule = [];
         foreach ($orders as $order) {
             $zone = trim((string) ($order['zona'] ?? ''));
             if ($zone === '') {
                 $zone = _l('ramos_routes_no_zone');
             }
-            $ordersByZone[$zone][] = $order;
+
+            // Derive schedule hour from delivery_datetime
+            if (!empty($order['delivery_datetime'])) {
+                $deliveryTs   = strtotime($order['delivery_datetime']);
+                $scheduleHour = ($deliveryTs !== false) ? (int) date('G', $deliveryTs) : $defaultScheduleHour;
+            } else {
+                $scheduleHour = $defaultScheduleHour;
+            }
+
+            $groupKey = $zone . '||' . $scheduleHour;
+            $ordersByZoneSchedule[$groupKey][] = $order;
         }
 
         $routesCreated = [];
@@ -291,10 +320,21 @@ class Routes_model extends App_Model
 
         $this->db->trans_start();
 
-        // Process each zone separately
-        foreach ($ordersByZone as $zoneName => $zoneOrders) {
-            // Chunk orders within this zone
-            $chunks = array_chunk($zoneOrders, $maxStops);
+        // Process each zone+schedule group separately
+        foreach ($ordersByZoneSchedule as $groupKey => $groupOrders) {
+            [$zoneName, $scheduleHour] = explode('||', $groupKey, 2);
+            $scheduleHour = (int) $scheduleHour;
+
+            // Format hour as "9 am", "2 pm", etc.
+            $ampm = $scheduleHour < 12 ? 'am' : 'pm';
+            $displayHour = $scheduleHour % 12;
+            if ($displayHour === 0) {
+                $displayHour = 12;
+            }
+            $scheduleLabel = $displayHour . ' ' . $ampm;
+
+            // Chunk orders within this zone+schedule group (>maxStops = new route)
+            $chunks = array_chunk($groupOrders, $maxStops);
 
             foreach ($chunks as $chunkIndex => $chunk) {
                 $baseStartTimestamp = $startTimestamp ? strtotime('+' . $routeIndex . ' hour', $startTimestamp) : null;
@@ -319,15 +359,15 @@ class Routes_model extends App_Model
 
                 $routeStart = $routeStartTimestamp ? date('H:i:s', $routeStartTimestamp) : null;
 
-                // Include zone name in route label if more than one chunk for this zone
-                $zoneLabel = count($chunks) > 1
-                    ? $zoneName . ' ' . ($chunkIndex + 1)
-                    : $zoneName;
+                // Naming: "Ruta Andares 9 am" for first chunk,
+                //         "Ruta2 Andares 9 am" for second, "Ruta3 Andares 9 am" etc.
+                $chunkSuffix = $chunkIndex > 0 ? ((string)($chunkIndex + 1)) : '';
+                $vehicleLabel = trim($prefix . $chunkSuffix . ' ' . $zoneName . ' ' . $scheduleLabel);
 
                 $routeData = [
                     'route_date'    => $date,
                     'start_time'    => $routeStart,
-                    'vehicle_label' => trim($prefix . ' - ' . $zoneLabel),
+                    'vehicle_label' => $vehicleLabel,
                     'capacity'      => $maxStops,
                     'status'        => 'draft',
                     'created_by'    => get_staff_user_id(),
@@ -408,6 +448,8 @@ class Routes_model extends App_Model
                 !empty($route['start_time']) ? $route['start_time'] : '23:59:00'
             );
             $route['stops'] = $this->get_route_stops((int) $route['id']);
+            $readiness                           = $this->get_route_fulfillment_readiness((int) $route['id']);
+            $route['incomplete_pick_stop_count'] = count($readiness['pending_picking_stops'] ?? []);
         }
         unset($route);
 
@@ -436,6 +478,219 @@ class Routes_model extends App_Model
             ->result_array();
 
         return array_column($rows, 'status');
+    }
+
+    /**
+     * Fulfillment readiness for dispatch: picking (per stop, matched by order_source)
+     * plus packaging hook. Invoice linkage is not part of the dispatch gate.
+     *
+     * @return array{
+     *   ready_for_dispatch: bool,
+     *   all_picked: bool,
+     *   ready_for_packaging: bool,
+     *   pending_picking_stops: list<array>,
+     *   invoice_summary: array
+     * }
+     */
+    public function get_route_fulfillment_readiness(int $routeId): array
+    {
+        get_instance()->load->helper('ramos/ramos_fulfillment');
+
+        $routeId = (int) $routeId;
+        $pendingPickingStops = [];
+        $allPickingComplete    = true;
+
+        $stops = $this->db
+            ->from($this->stopsTable)
+            ->where('route_id', $routeId)
+            ->order_by('stop_number', 'ASC')
+            ->get()
+            ->result_array();
+
+        foreach ($stops as $stop) {
+            $orderId     = (int) $stop['order_id'];
+            $orderSource = (string) ($stop['order_source'] ?? 'omni_sales');
+
+            $picks = $this->db
+                ->select('status')
+                ->from(db_prefix() . 'ramos_pick_items')
+                ->where('order_id', $orderId)
+                ->where('source_type', $orderSource)
+                ->get()
+                ->result_array();
+
+            $headline = $this->get_stop_order_headline($orderId, $orderSource);
+
+            if (empty($picks)) {
+                $allPickingComplete    = false;
+                $pendingPickingStops[] = [
+                    'order_id'         => $orderId,
+                    'order_source'     => $orderSource,
+                    'order_number'     => $headline['order_number'],
+                    'customer_name'    => $headline['customer_name'],
+                    'incomplete_count' => 1,
+                    'total_lines'      => 0,
+                    'worst_status'     => 'no_picks',
+                ];
+                continue;
+            }
+
+            $incomplete = 0;
+            $worst      = 'completed';
+            $statusRank = [
+                'completed'       => 0,
+                'weight_missing'  => 1,
+                'in_progress'     => 2,
+                'pending'         => 3,
+                'waiting_for_po'  => 4,
+            ];
+            $rank = 0;
+
+            foreach ($picks as $p) {
+                $s = (string) $p['status'];
+                if ($s !== 'completed') {
+                    $incomplete++;
+                }
+                $r = $statusRank[$s] ?? 2;
+                if ($r > $rank) {
+                    $rank  = $r;
+                    $worst = $s;
+                }
+            }
+
+            if ($incomplete > 0) {
+                $allPickingComplete    = false;
+                $pendingPickingStops[] = [
+                    'order_id'         => $orderId,
+                    'order_source'     => $orderSource,
+                    'order_number'     => $headline['order_number'],
+                    'customer_name'    => $headline['customer_name'],
+                    'incomplete_count' => $incomplete,
+                    'total_lines'      => count($picks),
+                    'worst_status'     => $worst,
+                ];
+            }
+        }
+
+        $readyPackaging = ramos_route_packaging_complete($routeId);
+        $invoiceSummary = $this->get_route_invoice_summary_for_stops($stops);
+        $omniTotal        = (int) ($invoiceSummary['omni_stops_total'] ?? 0);
+        $omniWithout      = (int) ($invoiceSummary['omni_stops_without_invoice'] ?? 0);
+
+        $readyForDispatch = $allPickingComplete && $readyPackaging;
+
+        return [
+            'ready_for_dispatch'    => $readyForDispatch,
+            'all_picked'            => $allPickingComplete,
+            'ready_for_packaging'   => $readyPackaging,
+            'pending_picking_stops' => $pendingPickingStops,
+            'invoice_summary'       => $invoiceSummary,
+            'all_invoiced'          => $omniTotal === 0 || $omniWithout === 0,
+        ];
+    }
+
+    /**
+     * Per-stop pick aggregate for route detail table and tooling.
+     */
+    public function get_stop_pick_fulfillment_summary(int $orderId, string $orderSource): array
+    {
+        $orderId     = (int) $orderId;
+        $orderSource = (string) $orderSource;
+
+        $picks = $this->db
+            ->select('status')
+            ->from(db_prefix() . 'ramos_pick_items')
+            ->where('order_id', $orderId)
+            ->where('source_type', $orderSource)
+            ->get()
+            ->result_array();
+
+        if (empty($picks)) {
+            return [
+                'key'            => 'no_picks',
+                'label_lang'     => 'ramos_routes_stop_pick_status_no_picks',
+                'all_completed'  => false,
+            ];
+        }
+
+        $statuses = array_column($picks, 'status');
+        if (in_array('waiting_for_po', $statuses, true)) {
+            return [
+                'key'            => 'waiting_po',
+                'label_lang'     => 'ramos_routes_stop_pick_status_waiting_po',
+                'all_completed'  => false,
+            ];
+        }
+
+        $incomplete = array_filter($statuses, static fn ($s) => $s !== 'completed');
+        if (!empty($incomplete)) {
+            return [
+                'key'            => 'in_progress',
+                'label_lang'     => 'ramos_routes_stop_pick_status_in_progress',
+                'all_completed'  => false,
+            ];
+        }
+
+        return [
+            'key'            => 'complete',
+            'label_lang'     => 'ramos_routes_stop_pick_status_complete',
+            'all_completed'  => true,
+        ];
+    }
+
+    protected function get_stop_order_headline(int $orderId, string $orderSource): array
+    {
+        if ($orderSource === 'erp_invoice') {
+            $row = $this->db
+                ->select('i.number as order_number, cl.company as customer_name')
+                ->from(db_prefix() . 'invoices i')
+                ->join(db_prefix() . 'clients cl', 'cl.userid = i.clientid', 'left')
+                ->where('i.id', $orderId)
+                ->get()
+                ->row_array();
+
+            return [
+                'order_number'  => $row['order_number'] ?? '#' . $orderId,
+                'customer_name' => $row['customer_name'] ?? '',
+            ];
+        }
+
+        $row = $this->db
+            ->select('c.order_number, c.phonenumber as customer_name, cl.company as client_company')
+            ->from(db_prefix() . 'cart c')
+            ->join(db_prefix() . 'clients cl', 'cl.userid = c.userid', 'left')
+            ->where('c.id', $orderId)
+            ->get()
+            ->row_array();
+
+        return [
+            'order_number'  => $row['order_number'] ?? '#' . $orderId,
+            'customer_name' => $row ? ($row['customer_name'] ?: ($row['client_company'] ?? '')) : '',
+        ];
+    }
+
+    protected function get_route_invoice_summary_for_stops(array $stops): array
+    {
+        $omniWithout = 0;
+        $omniTotal   = 0;
+
+        foreach ($stops as $stop) {
+            $os = $stop['order_source'] ?? 'omni_sales';
+            if ($os === 'erp_invoice') {
+                continue;
+            }
+            $omniTotal++;
+            $orderId = (int) $stop['order_id'];
+            $row     = $this->db->select('invoice_id')->from(db_prefix() . 'ramos_orders')->where('id', $orderId)->get()->row_array();
+            if (!$row || empty($row['invoice_id'])) {
+                $omniWithout++;
+            }
+        }
+
+        return [
+            'omni_stops_total'           => $omniTotal,
+            'omni_stops_without_invoice' => $omniWithout,
+        ];
     }
 
     /**

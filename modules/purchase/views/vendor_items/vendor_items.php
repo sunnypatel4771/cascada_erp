@@ -38,6 +38,11 @@
                     </select>
                     <br> 
               </div>
+              <div class="col-md-12 form-group">
+                <label for="priority"><?php echo _l('vendor_item_priority'); ?></label>
+                <input type="number" name="priority" id="priority" class="form-control" value="0" min="0" step="1">
+                <p class="text-muted mtop5"><?php echo _l('vendor_item_priority_hint'); ?></p>
+              </div>
             </div>
             
             

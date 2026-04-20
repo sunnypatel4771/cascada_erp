@@ -465,6 +465,27 @@ if (!$CI->db->table_exists(db_prefix() . 'ramos_notifications')) {
     }
 }
 
+if (!$CI->db->table_exists(db_prefix() . 'ramos_item_equivalences')) {
+    [$charset, $collation] = ramos_install_charset_collation();
+
+    $CI->db->query(
+        'CREATE TABLE `' . db_prefix() . "ramos_item_equivalences` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `item_id` INT UNSIGNED NOT NULL COMMENT 'References tblitems.id (Perfex catalog item)',
+            `unit_name` VARCHAR(100) NOT NULL COMMENT 'Display name, e.g. Kilo, Pieza, Arpilla, Caja',
+            `conversion_factor` DECIMAL(15,4) NOT NULL DEFAULT 1.0000 COMMENT 'How many base units equal 1 of this unit',
+            `sort_order` INT UNSIGNED NOT NULL DEFAULT 0,
+            `active` TINYINT(1) NOT NULL DEFAULT 1,
+            `created_by` INT UNSIGNED NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `idx_ramos_equiv_item_unit` (`item_id`,`unit_name`),
+            KEY `idx_ramos_equiv_item` (`item_id`),
+            KEY `idx_ramos_equiv_active` (`active`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation};"
+    );
+}
+
 if (!$CI->db->table_exists(db_prefix() . 'ramos_price_rules')) {
     [$charset, $collation] = ramos_install_charset_collation();
 

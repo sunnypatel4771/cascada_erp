@@ -8,7 +8,8 @@ class Facturacion extends AdminController
     {
         parent::__construct();
 
-        if (!staff_can('view', RAMOS_MODULE_NAME)) {
+        // Requirement 7: Facturación is an operational screen — require Edit (admins exempt).
+        if (!staff_can('edit', RAMOS_MODULE_NAME) && !is_admin()) {
             access_denied();
         }
 
@@ -145,29 +146,212 @@ class Facturacion extends AdminController
     /**
      * Generate invoice for an order
      */
-    public function generate_invoice($orderId): void
+    public function generate_invoice($orderId, $orderSource = 'omni_sales'): void
     {
         if (!staff_can('edit', RAMOS_MODULE_NAME)) {
             access_denied();
         }
 
-        $this->load->library('ramos/ramos_invoice_generator', null, 'ramos_invoice_generator');
+        $orderId     = (int) $orderId;
+        $orderSource = urldecode((string) $orderSource);
 
-        $result = $this->ramos_invoice_generator->generate_for_order((int) $orderId);
-
-        if ($result['success']) {
-            set_alert('success', $result['message'] ?? _l('ramos_facturacion_invoice_created'));
+        if ($orderSource === 'omni_sales') {
+            $this->generate_omni_invoice($orderId);
         } else {
-            set_alert('warning', $result['message'] ?? _l('ramos_facturacion_invoice_failed'));
-        }
+            // ERP invoice path: the orderId IS the Perfex invoice — pricing was set at portal submission.
+            $this->load->library('ramos/ramos_invoice_generator', null, 'ramos_invoice_generator');
+            $result = $this->ramos_invoice_generator->generate_for_order($orderId);
 
-        if (!empty($result['warnings'])) {
-            foreach ($result['warnings'] as $warning) {
-                set_alert('warning', $warning);
+            if ($result['success']) {
+                set_alert('success', $result['message'] ?? _l('ramos_facturacion_invoice_created'));
+            } else {
+                set_alert('warning', $result['message'] ?? _l('ramos_facturacion_invoice_failed'));
+            }
+
+            if (!empty($result['warnings'])) {
+                foreach ($result['warnings'] as $warning) {
+                    set_alert('warning', $warning);
+                }
             }
         }
 
         redirect(admin_url('ramos/facturacion'));
+    }
+
+    /**
+     * Generate a Perfex invoice directly from an Omni Sales (tblcart) order.
+     * Applies:
+     *  - Equivalencia unit conversion (ordered unit → base unit via conversion_factor)
+     *  - Semana (weekly price list) pricing when client.week = 1
+     *  - Customer markup % (customers_descuento custom field)
+     */
+    protected function generate_omni_invoice(int $orderId): void
+    {
+        $order = $this->db
+            ->select('c.id, c.order_number, c.userid, c.total')
+            ->select('cl.company as client_company')
+            ->from(db_prefix() . 'cart c')
+            ->join(db_prefix() . 'clients cl', 'cl.userid = c.userid', 'left')
+            ->where('c.id', $orderId)
+            ->get()
+            ->row_array();
+
+        if (empty($order)) {
+            set_alert('warning', _l('ramos_facturacion_invoice_failed'));
+            return;
+        }
+
+        $clientId = (int) $order['userid'];
+        $client   = $this->clients_model->get($clientId);
+
+        if (!$client) {
+            set_alert('warning', _l('ramos_invoicing_missing_customer'));
+            return;
+        }
+
+        // Check for existing invoice
+        $existingInv = $this->db
+            ->select('invoice_id')
+            ->from(db_prefix() . 'ramos_orders')
+            ->where('id', $orderId)
+            ->get()
+            ->row();
+
+        if ($existingInv && !empty($existingInv->invoice_id)) {
+            set_alert('warning', _l('ramos_facturacion_invoice_failed'));
+            return;
+        }
+
+        // Fetch cart items with equivalencia data
+        $cartItems = $this->db
+            ->select('cd.product_id, cd.quantity, cd.maduracion, cd.equivalencia_unit, cd.equivalencia_factor')
+            ->select('i.description as item_name, i.unit as base_unit')
+            ->from(db_prefix() . 'cart_detailt cd')
+            ->join(db_prefix() . 'items i', 'i.id = cd.product_id', 'left')
+            ->where('cd.cart_id', $orderId)
+            ->order_by('cd.id', 'ASC')
+            ->get()
+            ->result_array();
+
+        if (empty($cartItems)) {
+            set_alert('warning', _l('ramos_facturacion_invoice_failed'));
+            return;
+        }
+
+        $this->load->model('ramos/inventory_model', 'inv_model_fac');
+        $this->load->model('ramos/pricing_model', 'pricing_model_fac');
+        $this->load->model('currencies_model');
+
+        $markupRaw      = get_custom_field_value($clientId, 'customers_descuento', 'customers', false);
+        $markupPercent  = is_numeric($markupRaw) ? (float) $markupRaw : 0.0;
+        $useWeekPricing = isset($client->week) && (int) $client->week === 1;
+
+        $newitems = [];
+        $itemOrder = 1;
+
+        foreach ($cartItems as $cartItem) {
+            // Resolve inventory item for purchase_price + has_maduracion
+            $inventoryRows = $this->db
+                ->where('item_name', $cartItem['item_name'])
+                ->limit(1)
+                ->get(db_prefix() . 'ramos_inventory_items')
+                ->result_array();
+            $inventory = !empty($inventoryRows) ? $inventoryRows[0] : null;
+            $inventoryId = $inventory ? (int) $inventory['id'] : null;
+
+            // Quantity: apply equivalencia conversion factor
+            $factor   = (float) ($cartItem['equivalencia_factor'] ?? 1.0);
+            if ($factor <= 0) {
+                $factor = 1.0;
+            }
+            $baseQty  = (float) $cartItem['quantity'] * $factor;
+            $unit     = !empty($cartItem['equivalencia_unit']) ? $cartItem['equivalencia_unit'] : ($cartItem['base_unit'] ?? 'unit');
+
+            // Price calculation
+            $priceRule = ($useWeekPricing && $inventoryId)
+                ? $this->pricing_model_fac->get_price_for_customer($inventoryId, $clientId)
+                : null;
+
+            if ($priceRule) {
+                $basePrice = (float) $priceRule['price'];
+                if (!empty($priceRule['discount_percent'])) {
+                    $basePrice = $basePrice * (1 - ((float) $priceRule['discount_percent'] / 100));
+                }
+                $unitPrice = $basePrice * (1 + $markupPercent / 100);
+            } elseif ($inventory && isset($inventory['purchase_price']) && (float) $inventory['purchase_price'] > 0) {
+                $unitPrice = (float) $inventory['purchase_price'] * (1 + $markupPercent / 100);
+            } else {
+                $unitPrice = 0.00;
+            }
+
+            // Build long_description with maduracion note if applicable
+            $longDesc = '';
+            if (!empty($cartItem['maduracion'])) {
+                $longDesc = 'Maduración: ' . $cartItem['maduracion'];
+            }
+            if (!empty($cartItem['equivalencia_unit'])) {
+                $longDesc .= ($longDesc ? ' | ' : '') . 'Unidad: ' . $cartItem['equivalencia_unit'];
+            }
+
+            $newitems[] = [
+                'description'      => $cartItem['item_name'],
+                'long_description' => $longDesc,
+                'qty'              => round($baseQty, 4),
+                'rate'             => round($unitPrice, 2),
+                'unit'             => $unit,
+                'order'            => $itemOrder++,
+                'taxname'          => [],
+            ];
+        }
+
+        $currencyId = $this->clients_model->get_customer_default_currency($clientId);
+        if (!$currencyId) {
+            $currencyId = $this->currencies_model->get_base_currency()->id;
+        }
+
+        $invoiceData = [
+            'clientid'              => $clientId,
+            'date'                  => date('Y-m-d'),
+            'duedate'               => date('Y-m-d', strtotime('+1 day')),
+            'currency'              => $currencyId,
+            'allowed_payment_modes' => [],
+            'newitems'              => $newitems,
+            'billing_street'        => clear_textarea_breaks($client->billing_street ?? ''),
+            'billing_city'          => $client->billing_city ?? '',
+            'billing_state'         => $client->billing_state ?? '',
+            'billing_zip'           => $client->billing_zip ?? '',
+            'billing_country'       => $client->billing_country ?? '',
+            'shipping_street'       => clear_textarea_breaks($client->shipping_street ?? ''),
+            'shipping_city'         => $client->shipping_city ?? '',
+            'shipping_state'        => $client->shipping_state ?? '',
+            'shipping_zip'          => $client->shipping_zip ?? '',
+            'shipping_country'      => $client->shipping_country ?? '',
+            'show_quantity_as'      => 1,
+            'clientnote'            => 'omni_sales:' . $orderId,
+        ];
+
+        $invoiceId = $this->invoices_model->add($invoiceData);
+
+        if (!$invoiceId) {
+            set_alert('warning', _l('ramos_facturacion_invoice_failed'));
+            return;
+        }
+
+        // Check and merge same-customer invoices
+        $mergeCandidates = $this->invoices_model->check_for_merge_invoice($clientId, $invoiceId);
+        if (!empty($mergeCandidates)) {
+            $mergeIds = array_column($mergeCandidates, 'id');
+            $this->invoices_model->merge_invoices($mergeIds, $invoiceId);
+        }
+
+        // Store invoice link in ramos_orders if row exists
+        $this->db->where('id', $orderId);
+        $existing = $this->db->get(db_prefix() . 'ramos_orders')->row();
+        if ($existing) {
+            $this->db->where('id', $orderId)->update(db_prefix() . 'ramos_orders', ['invoice_id' => $invoiceId]);
+        }
+
+        set_alert('success', _l('ramos_facturacion_invoice_created'));
     }
 
     /**
@@ -407,9 +591,29 @@ class Facturacion extends AdminController
             }
 
             if (!empty($customers)) {
+                $pickSummary = [
+                    'total'     => count($customers),
+                    'pending'   => 0,
+                    'po'        => 0,
+                    'complete'  => 0,
+                ];
+                foreach ($customers as $cust) {
+                    $st = $cust['status'] ?? 'yellow';
+                    if ($st === 'red') {
+                        $pickSummary['po']++;
+                    } elseif ($st === 'yellow') {
+                        $pickSummary['pending']++;
+                    } else {
+                        $pickSummary['complete']++;
+                    }
+                }
+
                 $result[] = [
-                    'route'     => $route,
-                    'customers' => $customers,
+                    'route'             => $route,
+                    'customers'         => $customers,
+                    'pick_summary_line' => $pickSummary,
+                    'route_board_url'   => admin_url('ramos/routes/board?date=' . ($route['route_date'] ?? $date)),
+                    'route_view_url'    => admin_url('ramos/routes/view/' . $routeId),
                 ];
             }
         }
@@ -689,10 +893,13 @@ class Facturacion extends AdminController
         $buffer = '';
         foreach ($routesData as $entry) {
             $buffer .= $this->load->view('ramos/facturacion/partials/route_card', [
-                'route'        => $entry['route'],
-                'customers'    => $entry['customers'],
-                'statusLabels' => $statusLabels,
-                'can_edit'     => $canEdit,
+                'route'             => $entry['route'],
+                'customers'         => $entry['customers'],
+                'pick_summary_line' => $entry['pick_summary_line'] ?? null,
+                'route_board_url'   => $entry['route_board_url'] ?? '',
+                'route_view_url'    => $entry['route_view_url'] ?? '',
+                'statusLabels'      => $statusLabels,
+                'can_edit'          => $canEdit,
             ], true);
         }
 

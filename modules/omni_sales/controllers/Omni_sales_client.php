@@ -35,58 +35,70 @@ class Omni_sales_client extends ClientsController
 		 * @param  string $key  
 		 * @return view       
 		 */
-		public function index($page='',$id = '', $warehouse = '',$key = ''){  
-			if($page == ''  || $id == ''){
-				access_denied('Projects');
-			}
-			if($warehouse == ''|| !is_numeric($warehouse)){
-				$warehouse = 0;
-			}
-			if($page == '' || !is_numeric($page)){
-				$page = 1;
-			}
-			if($id == ''|| !is_numeric($id)){
-				$id = 0;
-			}
-			if($key != ''){
-				$key = trim(urldecode($key));
-				$data['keyword'] = $key;
-			}
-			
-			$data['ofset'] = 24;
-			$data['title'] = _l('sales');
-			// Hide for guests unless admin explicitly allows catalog (option value '0').
-			$guest_catalog_opt = get_option('omni_hide_guest_product_catalog');
-			$data['hide_guest_product_catalog'] = !is_client_logged_in() && $guest_catalog_opt !== '0';
+	public function index($page='',$id = '', $warehouse = '',$key = ''){  
+		if($page == ''  || $id == ''){
+			access_denied('Projects');
+		}
+		if($warehouse == ''|| !is_numeric($warehouse)){
+			$warehouse = 0;
+		}
+		if($page == '' || !is_numeric($page)){
+			$page = 1;
+		}
+		if($id == ''|| !is_numeric($id)){
+			$id = 0;
+		}
+		if($key != ''){
+			$key = trim(urldecode($key));
+			$data['keyword'] = $key;
+		}
+		
+		$data['ofset'] = 24;
+		$data['title'] = _l('sales');
+		// Hide for guests unless admin explicitly allows catalog (option value '0').
+		$guest_catalog_opt = get_option('omni_hide_guest_product_catalog');
+		$data['hide_guest_product_catalog'] = !is_client_logged_in() && $guest_catalog_opt !== '0';
 
-			if (!$data['hide_guest_product_catalog']) {
-				$data['group_product'] = $this->omni_sales_model->get_group_product();
-				$data['group_id'] = $id;
-				$data_product = $this->omni_sales_model->get_list_product_by_group(2, $id, $warehouse, $key,($page-1)*$data['ofset'], $data['ofset']);
-				$data['product'] = [];
-				$date = date('Y-m-d');
-				foreach ($data_product['list_product'] as $item) {
-					$discount_percent = 0;
-					$data_discount = $this->omni_sales_model->check_discount($item['id'], $date, 2);
-					if($data_discount){
-						$discount_percent = $data_discount->discount;
-					}
-					$price = 0;
-					$data_prices = $this->omni_sales_model->get_price_channel($item['id'],2);
-					if($data_prices){
-						$price = $data_prices->prices;
-					}
-					array_push($data['product'], array(
-						'id' => $item['id'],
-						'name' => $item['description'],
-						'without_checking_warehouse' => $item['without_checking_warehouse'],
-						'price' => $price,
-						'w_quantity' => ($item['without_checking_warehouse'] == 1 ? 1000 : $this->get_stock($item['id'])),
-						'discount_percent' => $discount_percent,
-						'has_variation' => $this->omni_sales_model->has_variation($item['parent_attributes']),
-						'price_discount' => $this->get_price_discount($price, $discount_percent)
-					));
+		if (!$data['hide_guest_product_catalog']) {
+			$data['group_product'] = $this->omni_sales_model->get_group_product();
+			$data['group_id'] = $id;
+			$data_product = $this->omni_sales_model->get_list_product_by_group(2, $id, $warehouse, $key,($page-1)*$data['ofset'], $data['ofset']);
+			$data['product'] = [];
+			$date = date('Y-m-d');
+
+			// Bulk-fetch maduracion and equivalences for the product set
+			$this->load->model('ramos/inventory_model', 'ramos_inventory_model');
+			$descriptions = array_column($data_product['list_product'], 'description');
+			$maduracionMap  = $this->ramos_inventory_model->get_maduracion_map($descriptions);
+			$productIds     = array_column($data_product['list_product'], 'id');
+			$equivalencesMap = $this->ramos_inventory_model->get_equivalences_bulk($productIds);
+
+			foreach ($data_product['list_product'] as $item) {
+				$discount_percent = 0;
+				$data_discount = $this->omni_sales_model->check_discount($item['id'], $date, 2);
+				if($data_discount){
+					$discount_percent = $data_discount->discount;
 				}
+				$price = 0;
+				$data_prices = $this->omni_sales_model->get_price_channel($item['id'],2);
+				if($data_prices){
+					$price = $data_prices->prices;
+				}
+				$has_maduracion = isset($maduracionMap[$item['description']]) ? (int)$maduracionMap[$item['description']] : 0;
+				$equivalences   = $equivalencesMap[(int)$item['id']] ?? [];
+				array_push($data['product'], array(
+					'id' => $item['id'],
+					'name' => $item['description'],
+					'without_checking_warehouse' => $item['without_checking_warehouse'],
+					'price' => $price,
+					'w_quantity' => ($item['without_checking_warehouse'] == 1 ? 1000 : $this->get_stock($item['id'])),
+					'discount_percent' => $discount_percent,
+					'has_variation' => $this->omni_sales_model->has_variation($item['parent_attributes']),
+					'price_discount' => $this->get_price_discount($price, $discount_percent),
+					'has_maduracion' => $has_maduracion,
+					'equivalences'   => $equivalences,
+				));
+			}
 				$data['title_group'] = _l('all_products');
 				$data['page'] = $page;
 				$data['ofset_count'] = $data_product['count'];

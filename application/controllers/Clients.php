@@ -100,14 +100,31 @@ class Clients extends ClientsController
         $this->load->model('invoice_items_model');
         $grouped_products = $this->invoice_items_model->get_grouped();
 
+        // Load equivalences + maduracion from ramos inventory
+        $this->load->model('ramos/inventory_model', 'ramos_inv_model_clients');
+        $allItemIds      = [];
+        $allDescriptions = [];
+        foreach ($grouped_products as $group => $products) {
+            foreach ($products as $product) {
+                if (!empty($product['itemid'])) {
+                    $allItemIds[] = (int) $product['itemid'];
+                }
+                if (!empty($product['description'])) {
+                    $allDescriptions[] = $product['description'];
+                }
+            }
+        }
+        $equivalencesMap = $this->ramos_inv_model_clients->get_equivalences_bulk($allItemIds);
+        $maduracionMap   = $this->ramos_inv_model_clients->get_maduracion_map($allDescriptions);
+
         // Flatten the grouped products into a single array with all details
         $all_products = [];
         foreach ($grouped_products as $group => $products) {
             foreach ($products as $product) {
-                // Alternate sale units for the client portal (empty until wired to inventory/CF).
-                if (!isset($product['equivalences']) || !is_array($product['equivalences'])) {
-                    $product['equivalences'] = [];
-                }
+                $itemId = isset($product['itemid']) ? (int) $product['itemid'] : 0;
+                $desc   = $product['description'] ?? '';
+                $product['equivalences']   = $equivalencesMap[$itemId] ?? [];
+                $product['has_maduracion'] = $maduracionMap[$desc] ?? 0;
                 $all_products[] = $product;
             }
         }

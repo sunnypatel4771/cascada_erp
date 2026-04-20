@@ -51,11 +51,12 @@
               </div>
             </div>
 
-              <a href="#"  onclick="staff_bulk_actions(); return false;" data-toggle="modal" data-table=".table-vendor-items" data-target="#leads_bulk_actions" class=" hide bulk-actions-btn table-btn"><?php echo _l('bulk_actions'); ?></a>
+              <a href="#"  onclick="staff_bulk_actions(); return false;" data-toggle="modal" data-table=".table-vendor-items" data-target="#table_vendors_items_list_bulk_actions" class=" hide bulk-actions-btn table-btn"><?php echo _l('bulk_actions'); ?></a>
               <?php render_datatable(array(
                 '<span class="hide"> - </span><div class="checkbox mass_select_all_wrap"><input type="checkbox" id="mass_select_all" data-to-table="vendor-items"><label></label></div>',
                 _l('vendors'),
                 _l('items'),
+                _l('vendor_item_priority'),
                 _l('date_create'),
                 ),'vendor-items',[],
                   array(

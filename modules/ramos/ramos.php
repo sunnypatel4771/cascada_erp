@@ -184,32 +184,42 @@ function ramos_init_admin_menu(): void
         'position' => 6,
     ]);
 
-    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
-        'slug'     => 'ramos-facturacion',
-        'name'     => _l('ramos_facturacion_menu_label'),
-        'href'     => admin_url('ramos/facturacion'),
-        'position' => 7,
-    ]);
+    // Facturación + Routes: only staff with Ramos Edit (or admins) — matches controller access (Requirement 7).
+    if (staff_can('edit', RAMOS_MODULE_NAME) || is_admin()) {
+        $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+            'slug'     => 'ramos-facturacion',
+            'name'     => _l('ramos_facturacion_menu_label'),
+            'href'     => admin_url('ramos/facturacion'),
+            'position' => 7,
+        ]);
 
-    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
-        'slug'     => 'ramos-routes',
-        'name'     => _l('ramos_routes_menu_label'),
-        'href'     => admin_url('ramos/routes'),
-        'position' => 8,
-    ]);
+        $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+            'slug'     => 'ramos-routes',
+            'name'     => _l('ramos_routes_menu_label'),
+            'href'     => admin_url('ramos/routes'),
+            'position' => 8,
+        ]);
 
-    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
-        'slug'     => 'ramos-routes-board',
-        'name'     => _l('ramos_routes_board_menu_label'),
-        'href'     => admin_url('ramos/routes/board'),
-        'position' => 9,
-    ]);
+        $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+            'slug'     => 'ramos-routes-board',
+            'name'     => _l('ramos_routes_board_menu_label'),
+            'href'     => admin_url('ramos/routes/board'),
+            'position' => 9,
+        ]);
+    }
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
         'slug'     => 'ramos-pricing',
         'name'     => _l('ramos_pricing_menu_label'),
         'href'     => admin_url('ramos/pricing'),
         'position' => 10,
+    ]);
+
+    $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [
+        'slug'     => 'ramos-equivalencias',
+        'name'     => _l('ramos_equivalencias_menu_label'),
+        'href'     => admin_url('ramos/equivalencias'),
+        'position' => 10.5,
     ]);
 
     $CI->app_menu->add_sidebar_children_item('ramos-dashboard', [

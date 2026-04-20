@@ -850,7 +850,14 @@ class Purchase_model extends App_Model
      * @return     <array>  The items.
      */
     public function get_items_by_vendor($vendor){
-       return $this->db->query('select id as id, CONCAT(commodity_code," - " ,description) as label from '.db_prefix().'items where id IN ( select items from '.db_prefix().'pur_vendor_items where vendor = '.$vendor.' )')->result_array();
+       $vendor = (int) $vendor;
+       return $this->db->query(
+           'SELECT it.id AS id, CONCAT(it.commodity_code," - " ,it.description) AS label
+            FROM ' . db_prefix() . 'pur_vendor_items pit
+            INNER JOIN ' . db_prefix() . 'items it ON it.id = pit.items
+            WHERE pit.vendor = ' . $vendor . '
+            ORDER BY pit.priority DESC, it.description ASC'
+       )->result_array();
     }
 
     /**
@@ -859,7 +866,13 @@ class Purchase_model extends App_Model
      * @return       The items.
      */
     public function get_items_by_vendor_variation($vendor){
-       $arr_value = $this->db->query('select * from ' . db_prefix() . 'items where active = 1 AND id IN ( select items from '.db_prefix().'pur_vendor_items where vendor = '.$vendor.' ) order by id desc')->result_array();
+       $vendor = (int) $vendor;
+       $arr_value = $this->db->query(
+           'SELECT it.* FROM ' . db_prefix() . 'items it
+            INNER JOIN ' . db_prefix() . 'pur_vendor_items pit ON pit.items = it.id
+            WHERE it.active = 1 AND pit.vendor = ' . $vendor . '
+            ORDER BY pit.priority DESC, it.id DESC'
+       )->result_array();
         return $this->item_to_variation($arr_value);
     }
 
@@ -5378,11 +5391,18 @@ class Purchase_model extends App_Model
         $rs = 0;
         $data['add_from'] = get_staff_user_id();
         $data['datecreate'] = date('Y-m-d');
+        $priority = isset($data['priority']) ? (int) $data['priority'] : 0;
         foreach($data['items'] as $val){
+            $this->db->where('vendor', $data['vendor']);
+            $this->db->where('items', $val);
+            if ($this->db->count_all_results(db_prefix() . 'pur_vendor_items') > 0) {
+                continue;
+            }
             $this->db->insert(db_prefix().'pur_vendor_items',[
                 'vendor' => $data['vendor'],
                 'group_items' => $data['group_item'],
                 'items' => $val,
+                'priority' => $priority,
                 'add_from' => $data['add_from'],
                 'datecreate' => $data['datecreate'],
             ]);
@@ -5424,6 +5444,8 @@ class Purchase_model extends App_Model
     public function get_item_by_vendor($vendor){
         
         $this->db->where('vendor',$vendor);
+        $this->db->order_by('priority', 'desc');
+        $this->db->order_by('items', 'asc');
         return $this->db->get(db_prefix().'pur_vendor_items')->result_array();  
     }
 
@@ -5433,7 +5455,14 @@ class Purchase_model extends App_Model
      * @return     <array>  The items.
      */
     public function get_items_hs_vendor($vendor){
-       return $this->db->query('select items as id, CONCAT(it.commodity_code," - " ,it.description) as label from '.db_prefix().'pur_vendor_items pit LEFT JOIN '.db_prefix().'items it ON it.id = pit.items where pit.vendor = '.$vendor)->result_array();
+       $vendor = (int) $vendor;
+       return $this->db->query(
+           'SELECT pit.items AS id, CONCAT(it.commodity_code," - " ,it.description) AS label
+            FROM ' . db_prefix() . 'pur_vendor_items pit
+            LEFT JOIN ' . db_prefix() . 'items it ON it.id = pit.items
+            WHERE pit.vendor = ' . $vendor . '
+            ORDER BY pit.priority DESC, it.description ASC'
+       )->result_array();
     }
 
     /**
@@ -10062,13 +10091,18 @@ class Purchase_model extends App_Model
             $this->apply_items_can_be_purchased_for_po($can_be);
          
             if($vendor != ''){
-                $this->db->where(db_prefix().'items.id in (SELECT items from '.db_prefix().'pur_vendor_items WHERE vendor = '.$vendor.')');
+                $this->db->join(
+                    db_prefix() . 'pur_vendor_items pit',
+                    'pit.items = ' . db_prefix() . 'items.id AND pit.vendor = ' . (int) $vendor,
+                    'inner'
+                );
+                $this->db->order_by('pit.priority', 'desc');
             }
 
             $this->db->where('group_id', $group['id']);
             $this->db->where(db_prefix().'items.active', 1);
             $this->db->join(db_prefix() . 'items_groups', '' . db_prefix() . 'items_groups.id = ' . db_prefix() . 'items.group_id', 'left');
-            $this->db->order_by('description', 'asc');
+            $this->db->order_by(db_prefix() . 'items.description', 'asc');
 
             $_items = $this->db->get(db_prefix() . 'items')->result_array();
 
@@ -10426,14 +10460,22 @@ class Purchase_model extends App_Model
         $this->db->where(db_prefix() . 'items.active', 1);
 
         if($vendor != ''){
-            $this->db->where('id in (SELECT items from '.db_prefix().'pur_vendor_items WHERE vendor = '.$vendor.')');
+            $this->db->join(
+                db_prefix() . 'pur_vendor_items pit',
+                'pit.items = ' . db_prefix() . 'items.id AND pit.vendor = ' . (int) $vendor,
+                'inner'
+            );
+            $this->db->order_by('pit.priority', 'desc');
+            $this->db->order_by(db_prefix() . 'items.description', 'asc');
         }
 
         if($group != ''){
             $this->db->where('group_id', $group);
         }
 
-        $this->db->order_by('id', 'desc');
+        if ($vendor == '') {
+            $this->db->order_by('id', 'desc');
+        }
         $this->db->limit(500);
 
         $items = $this->db->get(db_prefix() . 'items')->result_array();
@@ -11220,6 +11262,7 @@ class Purchase_model extends App_Model
             $this->db->insert(db_prefix().'pur_vendor_items', [
                 'vendor' => $item->vendor_id,
                 'items' => $item_id_rs,
+                'priority' => 0,
                 'datecreate' => date('Y-m-d'),
                 'add_from' => 0
             ]);

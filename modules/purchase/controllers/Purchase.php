@@ -3398,6 +3398,7 @@ class purchase extends AdminController
             $select = [
                 db_prefix() . 'pur_vendor_items.id as vendor_items_id',
                 db_prefix() . 'pur_vendor_items.items as items',
+                db_prefix() . 'pur_vendor_items.priority as pur_vendor_item_priority',
                 db_prefix() . 'pur_vendor.company as company', 
                 db_prefix() . 'pur_vendor_items.add_from as pur_vendor_items_addedfrom', 
                
@@ -3449,6 +3450,8 @@ class purchase extends AdminController
 
                 $row[] = '<a href="'.admin_url('purchase/items/'.$aRow['items']).'" >'.$aRow['commodity_code'].' - '.$aRow['description'].'</a>';
 
+                $row[] = (int) ($aRow['pur_vendor_item_priority'] ?? 0);
+
                 $row[] = _d($aRow['datecreate']);
 
                 $options = icon_btn('purchase/delete_vendor_items/' . $aRow['vendor_items_id'], 'remove', 'btn-danger', ['title' => _l('delete')]);
@@ -3480,6 +3483,8 @@ class purchase extends AdminController
             $success = $this->purchase_model->add_vendor_items($data);
             if ($success) {
                 set_alert('success', _l('added_successfully', _l('vendor_items')));
+            } else {
+                set_alert('warning', _l('vendor_items_none_added'));
             }
             redirect(admin_url('purchase/vendor_items'));
         }

@@ -41,7 +41,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="route_prefix" class="control-label"><?php echo _l('ramos_routes_prefix_label'); ?></label>
-                                    <input type="text" name="route_prefix" id="route_prefix" class="form-control" value="<?php echo html_escape($form_defaults['route_prefix'] ?? 'Route'); ?>">
+                                    <input type="text" name="route_prefix" id="route_prefix" class="form-control" value="<?php echo html_escape($form_defaults['route_prefix'] ?? 'Ruta'); ?>">
+                                    <span class="help-block" style="font-size:11px;"><?php echo _l('ramos_routes_prefix_help'); ?></span>
                                 </div>
                                 <div class="form-group tw-flex tw-items-end">
                                     <button type="submit" class="btn btn-primary">

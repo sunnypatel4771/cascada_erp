@@ -90,13 +90,14 @@ function add_default_theme_menu_items()
                     'position' => 40,
                 ]);
         }
-        if (has_contact_permission('support')) {
-            add_theme_menu_item('support', [
-                    'name'     => _l('clients_nav_support'),
-                    'href'     => site_url('clients/tickets'),
-                    'position' => 45,
-                ]);
-        }
+        // HIDDEN: "Soporte Técnico" support nav item removed per client requirement
+        // if (has_contact_permission('support')) {
+        //     add_theme_menu_item('support', [
+        //             'name'     => _l('clients_nav_support'),
+        //             'href'     => site_url('clients/tickets'),
+        //             'position' => 45,
+        //         ]);
+        // }
     }
 }
 

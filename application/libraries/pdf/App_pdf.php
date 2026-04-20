@@ -267,7 +267,7 @@ abstract class App_pdf extends TCPDF
             include $path;
         }
 
-        if (ob_get_length() > 0 && ENVIRONMENT == 'production') {
+        while (ob_get_level() > 0) {
             ob_end_clean();
         }
 

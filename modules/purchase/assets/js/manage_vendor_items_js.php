@@ -44,7 +44,7 @@ function init_vendor_items_table() {
    $('.table-vendor-items').DataTable().destroy();
  }
 
- initDataTable('.table-vendor-items', admin_url + 'purchase/vendor_items_table', [0], [0], fnServerParams, [1, 'desc']);
+ initDataTable('.table-vendor-items', admin_url + 'purchase/vendor_items_table', [0], [0], fnServerParams, [3, 'desc']);
 
 }
 

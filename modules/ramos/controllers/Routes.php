@@ -8,7 +8,8 @@ class Routes extends AdminController
     {
         parent::__construct();
 
-        if (!staff_can('view', RAMOS_MODULE_NAME)) {
+        // Requirement 7: Routes management/board require Edit (admins exempt); View alone is not enough.
+        if (!staff_can('edit', RAMOS_MODULE_NAME) && !is_admin()) {
             access_denied();
         }
 
@@ -34,7 +35,7 @@ class Routes extends AdminController
             }
 
             if ($prefix === '') {
-                $prefix = 'Route';
+                $prefix = 'Ruta';
             }
 
             $created = $this->routes_model->generate_routes($generateDate, $startTime, $maxStops, $prefix);
@@ -58,7 +59,7 @@ class Routes extends AdminController
             'route_date'    => $date,
             'start_time'    => '08:00',
             'max_stops'     => 10,
-            'route_prefix'  => 'Route',
+            'route_prefix'  => 'Ruta',
         ];
         $data['can_generate'] = staff_can('create', RAMOS_MODULE_NAME);
 
@@ -114,12 +115,22 @@ class Routes extends AdminController
         }
 
         $stops = $this->routes_model->get_route_stops($routeId);
+        foreach ($stops as &$stopRow) {
+            $src = (string) ($stopRow['order_source'] ?? 'omni_sales');
+            $stopRow['pick_summary'] = $this->routes_model->get_stop_pick_fulfillment_summary(
+                (int) $stopRow['order_id'],
+                $src
+            );
+        }
+        unset($stopRow);
+
         $deliverySheet = $this->routes_model->get_route_delivery_sheet($routeId);
 
         $data['title'] = sprintf(_l('ramos_routes_view_title'), html_escape($route['vehicle_label'] ?? $route['id']));
         $data['route'] = $route;
         $data['stops'] = $stops;
         $data['delivery_sheet'] = $deliverySheet;
+        $data['is_admin'] = is_admin();
 
         $this->load->view('routes/view', $data);
     }
@@ -135,7 +146,29 @@ class Routes extends AdminController
             show_404();
         }
 
-        $status = $this->input->post('status');
+        $routeId = (int) $routeId;
+        $status  = (string) $this->input->post('status');
+
+        if ($status === 'dispatched') {
+            $readiness      = $this->routes_model->get_route_fulfillment_readiness($routeId);
+            $forceDispatch  = (int) $this->input->post('force_dispatch') === 1;
+            $forceReason    = trim((string) $this->input->post('force_dispatch_reason'));
+
+            if (empty($readiness['ready_for_dispatch'])) {
+                if (!is_admin() || !$forceDispatch) {
+                    set_alert('warning', _l('ramos_routes_dispatch_blocked_fulfillment'));
+                    redirect(admin_url('ramos/routes/view/' . $routeId));
+                }
+
+                $staffName = function_exists('get_staff_full_name')
+                    ? get_staff_full_name(get_staff_user_id())
+                    : (string) get_staff_user_id();
+                $auditLine = '[FORCED DISPATCH] ' . ($forceReason !== '' ? $forceReason : _l('ramos_routes_force_dispatch_no_reason'))
+                    . ' — ' . $staffName;
+                $this->routes_model->append_route_note_line($routeId, $auditLine);
+            }
+        }
+
         $success = $this->routes_model->update_route_status($routeId, $status);
 
         if ($success) {
@@ -149,10 +182,8 @@ class Routes extends AdminController
 
     /**
      * AJAX endpoint: check whether a route is ready to dispatch.
-     * Returns JSON with:
-     *   all_picked   – true if all pick items for the route are 'completed'
-     *   all_invoiced – true if every omni_sales stop has a generated invoice
-     *                  (erp_invoice stops are treated as already invoiced)
+     * Dispatch is gated on picking (+ packaging hook), not on invoices.
+     * invoice_summary / all_invoiced are informational only for the UI.
      */
     public function dispatch_readiness($routeId): void
     {
@@ -172,56 +203,18 @@ class Routes extends AdminController
             return;
         }
 
-        $stops = $this->db
-            ->select('order_id, order_source')
-            ->from(db_prefix() . 'ramos_route_stops')
-            ->where('route_id', $routeId)
-            ->get()
-            ->result_array();
-
-        $allPicked   = true;
-        $allInvoiced = true;
-
-        foreach ($stops as $stop) {
-            $orderId = (int) $stop['order_id'];
-
-            $pickStatuses = $this->db
-                ->select('status')
-                ->from(db_prefix() . 'ramos_pick_items')
-                ->where('order_id', $orderId)
-                ->get()
-                ->result_array();
-
-            if (empty($pickStatuses)) {
-                $allPicked = false;
-            } else {
-                foreach ($pickStatuses as $pi) {
-                    if ($pi['status'] !== 'completed') {
-                        $allPicked = false;
-                        break;
-                    }
-                }
-            }
-
-            $orderSource = $stop['order_source'] ?? '';
-            if ($orderSource !== 'erp_invoice') {
-                $orderRow = $this->db
-                    ->select('invoice_id')
-                    ->where('id', $orderId)
-                    ->get(db_prefix() . 'ramos_orders')
-                    ->row_array();
-
-                if (!$orderRow || empty($orderRow['invoice_id'])) {
-                    $allInvoiced = false;
-                }
-            }
-        }
+        $readiness = $this->routes_model->get_route_fulfillment_readiness($routeId);
 
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode([
-                'all_picked'   => $allPicked,
-                'all_invoiced' => $allInvoiced,
+                'ready_for_dispatch'    => !empty($readiness['ready_for_dispatch']),
+                'all_picked'            => !empty($readiness['all_picked']),
+                'ready_for_packaging'   => !empty($readiness['ready_for_packaging']),
+                'pending_picking_stops' => $readiness['pending_picking_stops'] ?? [],
+                'invoice_summary'       => $readiness['invoice_summary'] ?? [],
+                'all_invoiced'          => !empty($readiness['all_invoiced']),
+                'is_admin'              => is_admin(),
             ]));
     }
 

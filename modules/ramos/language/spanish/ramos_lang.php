@@ -396,6 +396,7 @@ $lang['ramos_routes_date_label']             = 'Fecha de ruta';
 $lang['ramos_routes_start_time_label']       = 'Primera hora de inicio';
 $lang['ramos_routes_max_stops_label']        = 'Máximo de clientes por ruta';
 $lang['ramos_routes_prefix_label']           = 'Prefijo del nombre de ruta';
+$lang['ramos_routes_prefix_help']            = 'Prefijo para los nombres generados. Resultado: "{prefijo} {zona} {hora} am/pm" ej. "Ruta Andares 9 am". Si hay más clientes que el máximo, la segunda ruta usa "{prefijo}2 …"';
 $lang['ramos_routes_generate_button']        = 'Generar rutas';
 $lang['ramos_routes_list_heading']           = 'Rutas para %s';
 $lang['ramos_routes_none_created']           = 'No se generaron rutas para esta fecha.';
@@ -460,6 +461,24 @@ $lang['ramos_routes_dispatch_warning_intro']      = 'Se encontraron los siguient
 $lang['ramos_routes_dispatch_issue_not_picked']   = 'No todos los pedidos han sido surtidos completamente.';
 $lang['ramos_routes_dispatch_issue_not_invoiced'] = 'No todos los pedidos tienen factura generada.';
 $lang['ramos_routes_dispatch_proceed_button']     = 'Continuar de todas formas';
+$lang['ramos_routes_dispatch_issue_pick_pending_detail'] = '{order} — {customer}: {incomplete} línea(s) sin completar (de {total}).';
+$lang['ramos_routes_dispatch_issue_packaging']   = 'Los requisitos de empaque no están completos para esta ruta.';
+$lang['ramos_routes_dispatch_invoice_informational'] = 'Nota facturación: {missing} de {total} parada(s) de ruta (omni) aún sin factura vinculada. Se permite imprimir; esto no bloquea el despacho cuando el surtido esté completo.';
+$lang['ramos_routes_dispatch_force_button']      = 'Forzar despacho (admin)';
+$lang['ramos_routes_dispatch_force_confirm']     = '¿Forzar despacho con surtido o empaque incompleto? Quedará registrado en la ruta.';
+$lang['ramos_routes_force_dispatch_reason_label'] = 'Motivo (se guarda en notas de la ruta)';
+$lang['ramos_routes_force_dispatch_reason_placeholder'] = 'Nota opcional para auditoría';
+$lang['ramos_routes_force_dispatch_no_reason']   = 'sin motivo indicado';
+$lang['ramos_routes_dispatch_blocked_fulfillment'] = 'No se puede despachar esta ruta hasta que todas las paradas estén surtidas (y se cumplan reglas de empaque). Consulte a un administrador si requiere forzar el despacho.';
+$lang['ramos_routes_stop_pick_status_column']    = 'Estado surtido';
+$lang['ramos_routes_stop_pick_status_no_picks']  = 'Sin líneas de surtido';
+$lang['ramos_routes_stop_pick_status_waiting_po'] = 'En espera de OC';
+$lang['ramos_routes_stop_pick_status_in_progress'] = 'Surtido en progreso';
+$lang['ramos_routes_stop_pick_status_complete']  = 'Surtido completo';
+$lang['ramos_routes_board_incomplete_picks_line'] = '{count} parada(s) con surtido incompleto';
+$lang['ramos_facturacion_route_pick_summary']    = '{total} pedido(s): {pending} surtido pendiente, {po} en espera de OC, {complete} completo(s).';
+$lang['ramos_facturacion_open_route_console']    = 'Abrir tablero de rutas';
+$lang['ramos_facturacion_open_route_detail']    = 'Detalle de ruta';
 
 // Staff module usage report
 $lang['ramos_report_menu']                        = 'Reporte de Uso de Módulos';
@@ -677,3 +696,21 @@ $lang['ramos_settings_summary_every']               = 'Cada';
 $lang['ramos_settings_summary_select_hours']        = 'Selecciona al menos una hora';
 $lang['ramos_settings_route_generation_help']       = 'Crear automáticamente rutas de entrega optimizadas después de procesar pedidos.';
 $lang['ramos_settings_saved_successfully']          = 'Ajustes guardados exitosamente.';
+
+// Equivalencias module
+$lang['ramos_equivalencias_menu_label']      = 'Equivalencias';
+$lang['ramos_equivalencias_title']           = 'Gestión de Equivalencias';
+$lang['ramos_equivalencias_subtitle']        = 'Define unidades alternas (Kilo, Pieza, Arpilla, Caja…) para cada artículo del catálogo.';
+$lang['ramos_equivalencias_no_items']        = 'No hay artículos en el catálogo.';
+$lang['ramos_equivalencias_col_item']        = 'Artículo';
+$lang['ramos_equivalencias_col_maduracion']  = 'Maduración';
+$lang['ramos_equivalencias_col_units']       = 'Unidades Equivalentes';
+$lang['ramos_equivalencias_col_actions']     = 'Acciones';
+$lang['ramos_equivalencias_base_unit']       = 'Unidad base';
+$lang['ramos_equivalencias_has_maduracion']  = 'Sí';
+$lang['ramos_equivalencias_add_unit']        = 'Agregar Unidad';
+$lang['ramos_equivalencias_unit_name']       = 'Nombre de Unidad';
+$lang['ramos_equivalencias_conversion_factor'] = 'Factor de Conversión';
+$lang['ramos_equivalencias_conversion_help'] = '¿Cuántas unidades base equivalen a 1 de esta unidad? Ej: 1 Arpilla = 30 Kilos → factor 30';
+$lang['ramos_equivalencias_sort_order']      = 'Orden';
+$lang['ramos_equivalencias_unit_required']   = 'El nombre de la unidad es requerido.';

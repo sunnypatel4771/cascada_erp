@@ -10,8 +10,8 @@
         </div>
 
         <div class="row">
-            <!-- Previous Order (Left Side) -->
-            <div class="col-md-6">
+            <!-- Previous Order (Left Side) — full width until lg so tables are not squeezed -->
+            <div class="col-md-12 col-lg-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
                         <h4 class="panel-title"><?php echo _l('previous_order'); ?></h4>
@@ -71,25 +71,35 @@
             </div>
 
             <!-- New Order (Right Side) -->
-            <div class="col-md-6">
+            <div class="col-md-12 col-lg-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
                         <h4 class="panel-title"><?php echo _l('new_order'); ?></h4>
                     </div>
                     <div class="panel-body">
                         <form id="new-order-form">
-                            <div class="table-responsive">
+                            <div class="new-order-table-wrapper">
                                 <table class="table table-bordered" id="new-order-table">
+                                    <colgroup>
+                                        <col class="new-order-col-image">
+                                        <col class="new-order-col-product">
+                                        <col class="new-order-col-unit">
+                                        <col class="new-order-col-equivalencias">
+                                        <col class="new-order-col-maduracion">
+                                        <col class="new-order-col-qty">
+                                        <col class="new-order-col-rate">
+                                        <col class="new-order-col-action">
+                                    </colgroup>
                                     <thead>
                                         <tr>
-                                            <th width="50"><?php echo _l('image'); ?></th>
-                                            <th width="170"><?php echo _l('product'); ?></th>
-                                            <th width="68"><?php echo _l('unit'); ?></th>
-                                            <th width="88" class="new-order-col-equivalencias"><?php echo _l('equivalencias'); ?></th>
-                                            <th width="88" class="new-order-col-maduracion"><?php echo _l('maduracion'); ?></th>
-                                            <th width="58"><?php echo _l('quantity'); ?></th>
-                                            <th width="86" class="text-right"><?php echo _l('rate'); ?></th>
-                                            <th width="40"><?php echo _l('action'); ?></th>
+                                            <th class="new-order-col-image"><?php echo _l('image'); ?></th>
+                                            <th class="new-order-col-product"><?php echo _l('product'); ?></th>
+                                            <th class="new-order-col-unit"><?php echo _l('unit'); ?></th>
+                                            <th class="new-order-col-equivalencias"><?php echo _l('equivalencias'); ?></th>
+                                            <th class="new-order-col-maduracion"><?php echo _l('maduracion'); ?></th>
+                                            <th class="new-order-col-qty"><?php echo _l('quantity'); ?></th>
+                                            <th class="new-order-col-rate text-right"><?php echo _l('rate'); ?></th>
+                                            <th class="new-order-col-action"><?php echo _l('action'); ?></th>
                                         </tr>
                                     </thead>
                                     <tbody id="order-items-body">
@@ -225,6 +235,29 @@
             return set.size >= 2;
         }
 
+        /** Bootstrap-select for #order-items-body — menu must attach to body or it is clipped in narrow table cells */
+        function initOrderTableSelects() {
+            if (typeof $ === 'undefined' || !$.fn.selectpicker) {
+                return;
+            }
+            const pickerOpts = { showSubtext: true, container: 'body' };
+            $('#order-items-body select').each(function () {
+                const $s = $(this);
+                if ($s.parent().hasClass('bootstrap-select')) {
+                    const api = $s.data('selectpicker');
+                    const cont = api && api.options && api.options.container;
+                    if (cont !== 'body') {
+                        $s.selectpicker('destroy');
+                        $s.selectpicker(pickerOpts);
+                    } else {
+                        $s.selectpicker('refresh');
+                    }
+                } else {
+                    $s.selectpicker(pickerOpts);
+                }
+            });
+        }
+
         function recomputeColumnVisibility() {
             const table = document.getElementById('new-order-table');
             if (!table) {
@@ -241,6 +274,10 @@
             });
 
             const madDisplay = anyMad ? '' : 'none';
+            const madCol = table.querySelector('col.new-order-col-maduracion');
+            if (madCol) {
+                madCol.style.display = anyMad ? '' : 'none';
+            }
             const madTh = table.querySelector('th.new-order-col-maduracion');
             if (madTh) {
                 madTh.style.display = madDisplay;
@@ -263,6 +300,10 @@
             });
 
             const eqDisplay = anyEq ? '' : 'none';
+            const eqCol = table.querySelector('col.new-order-col-equivalencias');
+            if (eqCol) {
+                eqCol.style.display = anyEq ? '' : 'none';
+            }
             const eqTh = table.querySelector('th.new-order-col-equivalencias');
             if (eqTh) {
                 eqTh.style.display = eqDisplay;
@@ -270,6 +311,8 @@
             table.querySelectorAll('td.new-order-col-equivalencias').forEach((td) => {
                 td.style.display = eqDisplay;
             });
+
+            initOrderTableSelects();
         }
 
         function syncRowAuxiliaryControls(counter) {
@@ -441,23 +484,27 @@
             const maduracionRequired = productHasMaduracion ? 'required' : '';
 
             row.innerHTML = `
-                <td class="text-center">
-                    <img src="${productImage}"
-                         alt="${description}"
-                         class="table-product-image"
-                         id="img-${orderItemsCounter}">
+                <td class="text-center new-order-col-image">
+                    <div class="new-order-img-wrap">
+                        <img src="${productImage}"
+                             alt="${description}"
+                             class="table-product-image"
+                             id="img-${orderItemsCounter}">
+                    </div>
                 </td>
-                <td>
+                <td class="new-order-col-product">
                     <select class="form-control input-sm product-select"
                             name="items[${orderItemsCounter}][description]"
                             required
+                            data-container="body"
+                            data-dropup-auto="false"
                             onchange="updateProductDetails(${orderItemsCounter})"
                             data-counter="${orderItemsCounter}">
                         ${getProductOptionsHTML(description)}
                     </select>
                     <input type="hidden" name="items[${orderItemsCounter}][long_description]" value="${longDescription}">
                 </td>
-                <td>
+                <td class="new-order-col-unit">
                     <input type="text" class="form-control input-sm"
                         id="unit-${orderItemsCounter}"
                         name="items[${orderItemsCounter}][unit]"
@@ -470,6 +517,8 @@
                         <select class="form-control input-sm equivalencias-select"
                                 name="items[${orderItemsCounter}][equivalencia]"
                                 id="equivalencias-select-${orderItemsCounter}"
+                                data-container="body"
+                                data-dropup-auto="false"
                                 onchange="onEquivalenciaChange(${orderItemsCounter})">
                         </select>
                     </div>
@@ -480,6 +529,8 @@
                     <select class="form-control input-sm maduracion-select"
                             name="items[${orderItemsCounter}][maduracion]"
                             id="maduracion-select-${orderItemsCounter}"
+                            data-container="body"
+                            data-dropup-auto="false"
                             ${maduracionRequired}>
                         <option value="">-- <?php echo _l('select'); ?> --</option>
                         <option value="Maduro" ${selectedMaduracion === 'Maduro' ? 'selected' : ''}><?php echo _l('maduracion_maduro'); ?></option>
@@ -488,7 +539,7 @@
                     </div>
                     <span class="maduracion-placeholder text-muted" style="${maduracionPlaceholderStyle}">&mdash;</span>
                 </td>
-                <td>
+                <td class="new-order-col-qty">
                     <input type="number" class="form-control input-sm"
                         name="items[${orderItemsCounter}][qty]"
                         value="${qty}"
@@ -497,7 +548,7 @@
                         required
                         onchange="calculateTotal()">
                 </td>
-                <td class="text-right">
+                <td class="text-right new-order-col-rate">
                     <input type="number" class="form-control input-sm"
                         id="rate-${orderItemsCounter}"
                         name="items[${orderItemsCounter}][rate]"
@@ -509,7 +560,7 @@
                         style="background-color: #f5f5f5;"
                         onchange="calculateTotal()">
                 </td>
-                <td class="text-center">
+                <td class="text-center new-order-col-action">
                     <button type="button" class="btn btn-danger btn-xs" onclick="removeRow(${orderItemsCounter})">
                         <i class="fa fa-trash"></i>
                     </button>
@@ -898,6 +949,16 @@
 
             // Initialize products catalog with pagination
             initProductsCatalog();
+
+            // Let bootstrap-select menus escape the scroll wrapper (same idea as global.js + .table-responsive)
+            if (typeof $ !== 'undefined') {
+                $('body').on('shown.bs.dropdown', '.new-order-table-wrapper .btn-group', function () {
+                    $(this).closest('.new-order-table-wrapper').css('overflow', 'visible');
+                });
+                $('body').on('hidden.bs.dropdown', '.new-order-table-wrapper .btn-group', function () {
+                    $(this).closest('.new-order-table-wrapper').css('overflow', 'auto');
+                });
+            }
         });
 
         // =============================================
@@ -1130,17 +1191,88 @@
             border-radius: 4px;
         }
 
+        /* Wrapper: reserve space so horizontal scrollbar does not overlap row content */
+        .new-order-table-wrapper {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            padding-bottom: 22px;
+            margin-bottom: 4px;
+        }
+
         #new-order-table {
             table-layout: fixed;
             width: 100%;
             margin-bottom: 0;
+            min-width: 640px;
         }
+
+        #new-order-table col.new-order-col-image { width: 76px; }
+        #new-order-table col.new-order-col-product { width: 26%; }
+        #new-order-table col.new-order-col-unit { width: 9%; }
+        #new-order-table col.new-order-col-equivalencias { width: 11%; }
+        #new-order-table col.new-order-col-maduracion { width: 168px; }
+        #new-order-table col.new-order-col-qty { width: 72px; }
+        #new-order-table col.new-order-col-rate { width: 88px; }
+        #new-order-table col.new-order-col-action { width: 44px; }
 
         #new-order-table th,
         #new-order-table td {
-            overflow: hidden;
-            text-overflow: ellipsis;
             vertical-align: middle;
+        }
+
+        #new-order-table th {
+            font-size: 12px;
+            line-height: 1.25;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        #new-order-table td:not(.new-order-col-image):not(.new-order-col-maduracion):not(.new-order-col-equivalencias) {
+            overflow: hidden;
+        }
+
+        #new-order-table td.new-order-col-maduracion,
+        #new-order-table td.new-order-col-equivalencias {
+            overflow: visible;
+        }
+
+        #new-order-table td.new-order-col-product {
+            min-width: 0;
+        }
+
+        #new-order-table td.new-order-col-maduracion .maduracion-select-wrap {
+            min-width: 152px;
+        }
+
+        #new-order-table td.new-order-col-maduracion .bootstrap-select > .dropdown-toggle {
+            min-width: 152px;
+        }
+
+        #new-order-table td.new-order-col-maduracion .bootstrap-select .filter-option-inner-inner {
+            white-space: nowrap;
+            overflow: visible;
+            text-overflow: clip;
+            max-width: none;
+        }
+
+        /* Dropdown list when appended to body (narrow table cells) */
+        body > .bootstrap-select.open > .dropdown-menu {
+            min-width: 12rem;
+        }
+
+        body > .bootstrap-select.open > .dropdown-menu li a span.text {
+            white-space: normal;
+        }
+
+        #new-order-table .new-order-img-wrap {
+            width: 100%;
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 2px;
         }
 
         #new-order-table .bootstrap-select,
@@ -1150,10 +1282,17 @@
             max-width: 100%;
         }
 
+        #new-order-table .bootstrap-select .filter-option-inner-inner {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+
         #new-order-table input.form-control,
         #new-order-table select.form-control {
-            padding: 5px 8px;
-            font-size: 13px;
+            padding: 5px 6px;
+            font-size: 12px;
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
@@ -1182,12 +1321,19 @@
         }
 
         .table-product-image {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
+            max-width: 100%;
             object-fit: contain;
             border-radius: 4px;
             border: 1px solid #ddd;
             background-color: #fff;
+            display: block;
+        }
+
+        #new-order-table .table-product-image {
+            width: 52px;
+            height: 52px;
         }
 
         /* Search box styles */
