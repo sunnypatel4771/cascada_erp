@@ -13,7 +13,6 @@ class Picking extends AdminController
         }
 
         $this->load->model('ramos/modules_model', 'modules_model');
-        $this->load->model('ramos/inventory_model', 'inventory_model');
         $this->load->model('ramos/picking_model', 'picking_model');
         $this->load->model('staff_model');
     }
@@ -42,29 +41,79 @@ class Picking extends AdminController
             $staff   = $this->staff_model->get('', ['active' => 1]);
         }
 
-        // COMMENTED: Ramos inventory - replaced with warehouse commodity list
-        // $inventory = $this->inventory_model->get(null, ['active' => 1]);
-
-        // NEW: Get warehouse commodity list items (tblitems)
-        $inventory = $this->get_warehouse_commodities();
-
-        $inventoryOptions = [];
-        foreach ($inventory as $item) {
-            // NEW: Using warehouse commodity fields (description, unit_name)
-            $inventoryOptions[] = [
-                'id'   => $item['id'],
-                'name' => trim($item['description'] . ' (' . $item['unit_name'] . ')'),
-            ];
-        }
-
         $data['title']                      = _l('ramos_picking_title');
         $data['subtitle']                   = _l('ramos_picking_subtitle');
         $data['modules']                    = $modules;
-        $data['inventory_options']          = $inventoryOptions;
         $data['staff_members']              = $staff;
         $data['picking_manage_shifts_scoped'] = $isManageShiftsOnly;
 
         $this->load->view('picking/manage', $data);
+    }
+
+    /**
+     * AJAX endpoint for bootstrap-select ajaxSelectPicker.
+     * Provides warehouse commodity items (tblitems) for module product assignment without
+     * rendering the full item list on initial page load.
+     */
+    public function ajax_search_items(): void
+    {
+        if (!staff_can('view', RAMOS_MODULE_NAME)) {
+            ajax_access_denied();
+        }
+
+        $q = $this->input->get('q');
+        if ($q === null) {
+            $q = $this->input->post('q');
+        }
+        $q = trim((string) $q);
+
+        $limit = 30;
+
+        $this->db->select('i.id');
+        $this->db->select('i.description');
+        $this->db->select('i.commodity_code');
+        $this->db->select('u.unit_name');
+        $this->db->from(db_prefix() . 'items i');
+        $this->db->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left');
+        $this->db->where('i.id IS NOT NULL', null, false);
+        $this->db->where('i.id > 0', null, false);
+
+        if ($q !== '') {
+            $this->db->group_start()
+                ->like('i.description', $q)
+                ->or_like('i.commodity_code', $q)
+                ->group_end();
+        }
+
+        $this->db->order_by('i.description', 'ASC');
+        $this->db->limit($limit);
+
+        $rows = $this->db->get()->result_array();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $name = trim((string) ($row['description'] ?? ''));
+            $unit = trim((string) ($row['unit_name'] ?? ''));
+            $code = trim((string) ($row['commodity_code'] ?? ''));
+
+            $sub = [];
+            if ($unit !== '') {
+                $sub[] = $unit;
+            }
+            if ($code !== '') {
+                $sub[] = $code;
+            }
+
+            $out[] = [
+                'id'      => (int) $row['id'],
+                'name'    => $name !== '' ? $name : ('Item #' . (int) $row['id']),
+                'subtext' => !empty($sub) ? implode(' • ', $sub) : null,
+            ];
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($out));
     }
 
     public function update_module($moduleId): void
@@ -409,27 +458,4 @@ class Picking extends AdminController
         return $buffer;
     }
 
-    /**
-     * Get warehouse commodity list items
-     *
-     * Fetches items from tblitems (warehouse commodity list)
-     * with unit names from tblware_unit_type
-     *
-     * @return array
-     */
-    protected function get_warehouse_commodities(): array
-    {
-        $this->db->select('i.id');
-        $this->db->select('i.description');
-        $this->db->select('i.commodity_code');
-        $this->db->select('i.unit_id');
-        $this->db->select('u.unit_name');
-        $this->db->from(db_prefix() . 'items i');
-        $this->db->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left');
-        $this->db->where('i.id IS NOT NULL', null, false);
-        $this->db->where('i.id > 0', null, false);
-        $this->db->order_by('i.description', 'ASC');
-
-        return $this->db->get()->result_array();
-    }
 }

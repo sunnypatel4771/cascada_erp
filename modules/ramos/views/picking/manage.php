@@ -43,7 +43,6 @@ hooks()->add_action('app_admin_head', function () { ?>
 $canEdit              = staff_can('edit', RAMOS_MODULE_NAME) || is_admin();
 $canManageShifts      = $canEdit || staff_can('manage_shifts', RAMOS_MODULE_NAME);
 $isShiftsScoped       = !empty($picking_manage_shifts_scoped);
-$inventoryOptions     = isset($inventory_options) ? $inventory_options : [];
 $staffMembers         = isset($staff_members) ? $staff_members : [];
 ?>
 <div id="wrapper">
@@ -110,9 +109,22 @@ $staffMembers         = isset($staff_members) ? $staff_members : [];
                                                 $selectedProducts = array_map(function ($product) {
                                                     return (int) $product['inventory_item_id'];
                                                 }, $module['products']);
+
+                                                // Render only selected options initially (fast). Full catalog is loaded via ajaxSelectPicker search.
+                                                $selectedOptions = [];
+                                                foreach ($module['products'] as $p) {
+                                                    $label = trim((string) ($p['item_name'] ?? ''));
+                                                    if (!empty($p['unit'])) {
+                                                        $label = trim($label . ' (' . $p['unit'] . ')');
+                                                    }
+                                                    $selectedOptions[] = [
+                                                        'id'   => (int) $p['inventory_item_id'],
+                                                        'name' => $label !== '' ? $label : ('Item #' . (int) $p['inventory_item_id']),
+                                                    ];
+                                                }
                                                 echo render_select(
                                                     'product_ids[]',
-                                                    $inventoryOptions,
+                                                    $selectedOptions,
                                                     ['id', 'name'],
                                                     _l('ramos_picking_products_label'),
                                                     $selectedProducts,
@@ -121,6 +133,8 @@ $staffMembers         = isset($staff_members) ? $staff_members : [];
                                                         'data-width'       => '100%',
                                                         'data-live-search' => 'true',
                                                         'data-size'        => '8',
+                                                        'class'            => 'ajax-search ramos-ajax-items',
+                                                        'data-empty-title' => _l('search'),
                                                     ],
                                                     [],
                                                     'tw-mt-2',
@@ -237,3 +251,20 @@ $staffMembers         = isset($staff_members) ? $staff_members : [];
     </div>
 </div>
 <?php init_tail(); ?>
+<script>
+  (function() {
+    "use strict";
+    if (typeof init_ajax_search !== "function") {
+      return;
+    }
+
+    // Lazy-load warehouse items for module product assignment.
+    // This avoids rendering the full commodity list on initial page load.
+    init_ajax_search(
+      "ramos_warehouse_item",
+      "select.ramos-ajax-items",
+      {},
+      admin_url + "ramos/picking/ajax_search_items"
+    );
+  })();
+</script>
