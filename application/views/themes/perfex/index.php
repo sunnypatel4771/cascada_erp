@@ -1,7 +1,18 @@
 <?php defined('BASEPATH') or exit('No direct script access allowed'); ?>
 <?= theme_head_view(); ?>
 <?php get_template_part($navigationEnabled ? 'navigation' : ''); ?>
+<?php
+$CI = &get_instance();
+$uri_string  = method_exists($CI, 'uri') && $CI->uri ? (string) $CI->uri->uri_string() : '';
+$request_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+$is_omni_sales_client =
+    (strpos($uri_string, 'omni_sales/omni_sales_client') === 0) ||
+    (strpos($uri_string, 'index.php/omni_sales/omni_sales_client') === 0) ||
+    (strpos($request_uri, '/omni_sales/omni_sales_client') !== false) ||
+    (strpos($request_uri, '/index.php/omni_sales/omni_sales_client') !== false);
+?>
 <div id="wrapper">
+<?php if (! $is_omni_sales_client): ?>
     <div id="content">
         <div class="container">
             <div class="row">
@@ -15,10 +26,10 @@
             <?php hooks()->do_action('customers_content_container_start'); ?>
             <div class="row">
                 <?php
-            /**
-             * Don't show calendar for invoices, estimates, proposals etc.. views where no navigation is included or in kb area
-             */
-            if (is_client_logged_in() && $subMenuEnabled && ! isset($knowledge_base_search)) { ?>
+                /**
+                 * Don't show calendar for invoices, estimates, proposals etc.. views where no navigation is included or in kb area
+                 */
+                if (is_client_logged_in() && $subMenuEnabled && ! isset($knowledge_base_search)) { ?>
                 <ul class="submenu customer-top-submenu">
                     <?php hooks()->do_action('before_customers_area_sub_menu_start'); ?>
                     <li class="customers-top-submenu-files">
@@ -55,7 +66,7 @@
             </div>
         </div>
     </div>
-</div>
+<?php endif; ?>
 </div>
 <?= theme_footer_view();
 
