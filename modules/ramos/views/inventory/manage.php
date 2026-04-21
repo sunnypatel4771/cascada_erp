@@ -67,6 +67,7 @@ foreach ($suppliers as $supplier) {
                                         <th><?php echo _l('ramos_inventory_table_supplier'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_quantity'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_safety'); ?></th>
+                                        <th><?php echo _l('ramos_inventory_table_maduracion'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_status'); ?></th>
                                         <th><?php echo _l('ramos_inventory_table_notes'); ?></th>
                                         <th class="tw-text-right"><?php echo _l('ramos_inventory_table_actions'); ?></th>
@@ -75,7 +76,7 @@ foreach ($suppliers as $supplier) {
                                 <tbody>
                                     <?php if (empty($items)) : ?>
                                         <tr>
-                                            <td colspan="9" class="text-center tw-text-slate-500">
+                                            <td colspan="10" class="text-center tw-text-slate-500">
                                                 <?php echo _l('ramos_inventory_empty_state'); ?>
                                             </td>
                                         </tr>
@@ -120,6 +121,13 @@ foreach ($suppliers as $supplier) {
                                                     <div class="tw-text-2xs tw-text-slate-400"><?php echo _l('ramos_inventory_unit_label', html_escape($item['unit'])); ?></div>
                                                 </td>
                                                 <td><?php echo app_format_number($item['safety_stock']); ?></td>
+                                                <td>
+                                                    <?php if (!empty($item['has_maduracion'])) : ?>
+                                                        <span class="label label-success"><?php echo _l('ramos_inventory_maduracion_on'); ?></span>
+                                                    <?php else : ?>
+                                                        <span class="label label-default"><?php echo _l('ramos_inventory_maduracion_off'); ?></span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td>
                                                     <span class="label <?php echo $statusClass; ?>">
                                                         <?php echo html_escape($statusText); ?>
@@ -209,6 +217,7 @@ foreach ($suppliers as $supplier) {
                             <input type="checkbox" name="has_maduracion" id="ramos_inventory_has_maduracion_add" value="1">
                             <label for="ramos_inventory_has_maduracion_add"><?php echo _l('ramos_inventory_form_has_maduracion'); ?></label>
                         </div>
+                        <p class="tw-text-xs tw-text-slate-500 tw-mb-0"><?php echo _l('ramos_inventory_form_has_maduracion_hint'); ?></p>
                     </div>
                     <?php echo render_textarea('notes', _l('ramos_inventory_form_notes'), '', ['rows' => 3]); ?>
                 </div>
@@ -278,6 +287,7 @@ foreach ($suppliers as $supplier) {
                             <input type="checkbox" name="has_maduracion" id="ramos_inventory_has_maduracion_edit" value="1">
                             <label for="ramos_inventory_has_maduracion_edit"><?php echo _l('ramos_inventory_form_has_maduracion'); ?></label>
                         </div>
+                        <p class="tw-text-xs tw-text-slate-500 tw-mb-0"><?php echo _l('ramos_inventory_form_has_maduracion_hint'); ?></p>
                     </div>
                     <?php echo render_textarea('notes', _l('ramos_inventory_form_notes'), '', ['rows' => 3]); ?>
                 </div>

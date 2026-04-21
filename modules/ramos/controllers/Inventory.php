@@ -287,6 +287,16 @@ class Inventory extends AdminController
             $payload['supplier_id'] = (int) $supplierId > 0 ? (int) $supplierId : null;
         }
 
+        $purchasePrice = $this->input->post('purchase_price');
+        if ($purchasePrice !== null && $purchasePrice !== '') {
+            $payload['purchase_price'] = max(0, (float) $purchasePrice);
+        } else {
+            $payload['purchase_price'] = null;
+        }
+
+        // Checkbox omitted from POST when unchecked — always persist explicit 0/1 for portal Maduración.
+        $payload['has_maduracion'] = !empty($this->input->post('has_maduracion')) ? 1 : 0;
+
         return $payload;
     }
 }
