@@ -3,7 +3,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /*
 Module Name: Entrada Inventario
 Description: Entrada a inventario desde Orden de Compra (RAMOS01 warehouse_id=1). UI alineada a Perfex + Proveedor en encabezado + movimientos tblentrada_inventory_moves (source='oc').
-Version: 1.0.0
+Version: 1.1.6
 Requires at least: 3.3.0
 Author: EREISE
 */

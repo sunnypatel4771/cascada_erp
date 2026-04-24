@@ -11,10 +11,17 @@ class Entrada_inventario extends AdminController
 
     public function index()
     {
+        $filters = [
+            'date_from' => $this->input->get('date_from'),
+            'date_to'   => $this->input->get('date_to'),
+        ];
+
         $data['title'] = 'Entrada Inventario';
         $data['warehouse_id'] = 1;
         $data['pos']  = $this->entrada_inventario_model->list_pos();
-        $data['recs'] = $this->entrada_inventario_model->list_receptions();
+        $data['recs'] = $this->entrada_inventario_model->list_receptions($filters);
+        $data['totals'] = $this->entrada_inventario_model->reception_totals();
+        $data['filters'] = $filters;
         $this->load->view('entrada_inventario/admin/index', $data);
     }
 
@@ -58,4 +65,18 @@ class Entrada_inventario extends AdminController
         if ($err) { show_error('No se pudo aplicar todo: '.$err); }
         redirect(admin_url('entrada_inventario/view/'.$rid));
     }
+
+
+    public function report()
+    {
+        $filters = [
+            'date_from' => $this->input->get('date_from'),
+            'date_to'   => $this->input->get('date_to'),
+        ];
+        $data['title'] = 'Reporte de Entradas';
+        $data['recs'] = $this->entrada_inventario_model->list_receptions($filters);
+        $data['filters'] = $filters;
+        $this->load->view('entrada_inventario/admin/report', $data);
+    }
+
 }

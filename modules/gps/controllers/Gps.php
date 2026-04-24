@@ -6,47 +6,82 @@ class Gps extends AdminController
     public function __construct()
     {
         parent::__construct();
-
-        if (!is_staff_logged_in()) {
-            redirect(admin_url('authentication'));
-        }
+        $this->load->model('gps/gps_model');
     }
 
     public function index()
     {
-        $targetUrl = function_exists('get_option') ? get_option('gps_target_url') : (defined('GPS_DEFAULT_URL') ? GPS_DEFAULT_URL : 'http://176.57.189.120');
-        if (empty($targetUrl)) {
-            $targetUrl = defined('GPS_DEFAULT_URL') ? GPS_DEFAULT_URL : 'http://176.57.189.120';
+        if (!(has_permission('settings', '', 'view') || is_admin())) {
+            access_denied('GPS');
         }
 
-        // Log access (best-effort)
-        $this->log_access();
+        $targetUrl = get_option('gps_target_url');
+        if (!$targetUrl) {
+            $targetUrl = 'http://176.57.189.120';
+        }
 
-        $data = [];
-        $data['title'] = _l('gps_menu_name');
+        $data['title'] = _l('gps_dashboard_title');
         $data['target_url'] = $targetUrl;
+        $data['recent_logs'] = $this->gps_model->get_recent_logs(20);
 
-        $this->load->view('gps', $data);
+        $this->load->view('dashboard', $data);
     }
 
-    private function log_access()
+    public function log_open()
     {
-        try {
-            $table = db_prefix() . 'gps_access_log';
-            if (!$this->db->table_exists($table)) {
-                return;
-            }
-
-            $payload = [
-                'staff_id'    => (int) get_staff_user_id(),
-                'accessed_at' => date('Y-m-d H:i:s'),
-                'ip_address'  => $this->input->ip_address(),
-                'user_agent'  => substr((string) $this->input->user_agent(), 0, 191),
-            ];
-
-            $this->db->insert($table, $payload);
-        } catch (Exception $e) {
-            // Silent fail; logging should not break the page
+        if (!(has_permission('settings', '', 'view') || is_admin())) {
+            ajax_access_denied();
         }
+
+        $targetUrl = $this->input->post('target_url', true);
+        if (!$targetUrl) {
+            $targetUrl = get_option('gps_target_url');
+        }
+
+        $this->gps_model->log_access($targetUrl, 'opened');
+        echo json_encode(['success' => true]);
+    }
+
+    public function ping()
+    {
+        if (!(has_permission('settings', '', 'view') || is_admin())) {
+            ajax_access_denied();
+        }
+
+        $targetUrl = get_option('gps_target_url');
+        if (!$targetUrl) {
+            $targetUrl = 'http://176.57.189.120';
+        }
+
+        $status = 'offline';
+        $httpCode = 0;
+        $error = '';
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $targetUrl);
+            curl_setopt($ch, CURLOPT_NOBODY, true);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if (curl_errno($ch)) {
+                $error = curl_error($ch);
+            }
+            curl_close($ch);
+        }
+
+        if ($httpCode >= 200 && $httpCode < 500) {
+            $status = 'online';
+        }
+
+        echo json_encode([
+            'success' => true,
+            'status' => $status,
+            'http_code' => $httpCode,
+            'error' => $error,
+        ]);
     }
 }

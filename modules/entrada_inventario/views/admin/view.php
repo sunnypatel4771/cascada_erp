@@ -15,18 +15,21 @@
             <hr class="hr-panel-heading" />
 
             <div class="row">
-              <div class="col-md-4">
-                <p><strong>Orden de Compra:</strong> #<?php echo (int)$rec['pur_order_id']; ?></p>
+              <div class="col-md-3">
+                <p><strong>Orden de Compra:</strong> #<?php echo (int)$rec['pur_order_id']; ?> - <?php echo html_escape($rec['vendor_name']); ?></p>
               </div>
-              <div class="col-md-4">
-                <p><strong>Proveedor:</strong> <?php echo html_escape($rec['vendor_name'] ? $rec['vendor_name'] : 'N/D'); ?></p>
+              <div class="col-md-3">
+                <p><strong>Fecha OC:</strong> <?php echo !empty($rec['po_date']) ? html_escape($rec['po_date']) : 'N/D'; ?></p>
               </div>
-              <div class="col-md-4">
-                <p><strong>Status:</strong> <?php echo html_escape($rec['status']); ?></p>
+              <div class="col-md-3">
+                <p><strong>No. OC:</strong> <?php echo !empty($rec['pur_order_number']) ? html_escape($rec['pur_order_number']) : 'N/D'; ?></p>
+              </div>
+              <div class="col-md-3">
+                <p><strong>Proveedor:</strong> <?php echo html_escape($rec['vendor_name']); ?></p>
               </div>
             </div>
 
-            <p class="text-muted">Movimientos: <code>tblentrada_inventory_moves</code> con <code>source=oc</code> y <code>source_id</code>=ID de OC. Inventario: <strong>tblinventory_manage.inventory_number</strong> (warehouse_id=1).</p>
+            <p class="text-muted">Movimientos: <code>tblentrada_inventory_moves</code> con <code>source=oc</code> y <code>source_id</code>=ID de OC. Inventario: <strong>tblinventory_manage.inventory_number</strong> (warehouse_id=1). Además se registra una entrada real al almacén 1 con concepto <strong>orden de compra</strong>.</p>
 
             <div class="table-responsive">
               <table class="table table-bordered table-striped">
@@ -38,13 +41,14 @@
                     <th class="text-right">Pedido</th>
                     <th class="text-right">Entregado</th>
                     <th class="text-right">Aceptado</th>
+                    <th class="text-right">Pendiente</th>
                     <th class="text-right">Inv actual</th>
                     <th class="text-right">Inv después</th>
                     <th>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <?php $i=1; foreach($rec['items'] as $it){ ?>
+                  <?php $i=1; foreach($rec['items'] as $it){ $pending = (float)$it['qty_ordered'] - (float)$it['qty_accepted']; ?>
                     <tr>
                       <td><?php echo $i++; ?></td>
                       <td><?php echo html_escape($it['item_code']); ?></td>
@@ -67,6 +71,7 @@
                         <?php echo form_close(); ?>
                       </td>
 
+                      <td class="text-right"><?php echo html_escape($pending); ?></td>
                       <td class="text-right"><?php echo html_escape($it['inv_before']); ?></td>
                       <td class="text-right"><?php echo html_escape($it['inv_after']); ?></td>
 
