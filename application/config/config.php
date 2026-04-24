@@ -352,7 +352,7 @@ $config['cache_query_string'] = false;
 | http://codeigniter.com/user_guide/libraries/encryption.html
 |
 */
-$config['encryption_key'] = APP_ENC_KEY;
+$config['encryption_key'] = defined('APP_ENC_KEY') ? APP_ENC_KEY : '';
 
 /*
 |--------------------------------------------------------------------------
