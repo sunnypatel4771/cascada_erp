@@ -1,7 +1,9 @@
 <?php
 
 defined('BASEPATH') or exit('No direct script access allowed');
-define('APP_MINIMUM_REQUIRED_PHP_VERSION', '8.1');
+if (!defined('APP_MINIMUM_REQUIRED_PHP_VERSION')) {
+    define('APP_MINIMUM_REQUIRED_PHP_VERSION', '8.1');
+}
 
 if (file_exists(APPPATH . 'config/app-config.php')) {
     if (version_compare(PHP_VERSION, APP_MINIMUM_REQUIRED_PHP_VERSION) === -1) {
@@ -51,7 +53,11 @@ if (!function_exists('db_prefix')) {
 |
 */
 
-$config['base_url'] = APP_BASE_URL;
+$config['base_url'] = defined('APP_BASE_URL')
+    ? APP_BASE_URL
+    : (
+        (isset($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) === 'on') ? 'https' : 'http'
+    ) . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace(basename($_SERVER['SCRIPT_NAME'] ?? ''), '', (string) ($_SERVER['SCRIPT_NAME'] ?? '')), '/') . '/';
 
 /*
 |--------------------------------------------------------------------------
