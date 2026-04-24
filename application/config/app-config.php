@@ -19,7 +19,6 @@ defined('BASEPATH') or exit('No direct script access allowed');
 *
 */
 define('APP_BASE_URL', 'http://127.0.0.1:8080/');
-
 /*
 * --------------------------------------------------------------------------
 * Encryption Key
@@ -35,7 +34,7 @@ define('APP_BASE_URL', 'http://127.0.0.1:8080/');
 */
 define('APP_ENC_KEY', '88cab9569aafa6e1a5e0dba6863bcedc');
 
-/**
+/*
  * Database Credentials
  * The hostname of your database server
  */
@@ -88,3 +87,4 @@ define('APP_SESSION_COOKIE_SAME_SITE', 'Lax');
  * Enables CSRF Protection
  */
 define('APP_CSRF_PROTECTION', true);
+

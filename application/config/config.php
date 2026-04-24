@@ -1,7 +1,9 @@
 <?php
 
 defined('BASEPATH') or exit('No direct script access allowed');
-define('APP_MINIMUM_REQUIRED_PHP_VERSION', '8.1');
+if (!defined('APP_MINIMUM_REQUIRED_PHP_VERSION')) {
+    define('APP_MINIMUM_REQUIRED_PHP_VERSION', '8.1');
+}
 
 if (file_exists(APPPATH . 'config/app-config.php')) {
     if (version_compare(PHP_VERSION, APP_MINIMUM_REQUIRED_PHP_VERSION) === -1) {
@@ -28,9 +30,11 @@ if (file_exists(APPPATH . 'config/app-config.php')) {
  *
  * @return string
  */
-function db_prefix()
-{
-    return defined('APP_DB_PREFIX') ? APP_DB_PREFIX : 'tbl';
+if (!function_exists('db_prefix')) {
+    function db_prefix()
+    {
+        return defined('APP_DB_PREFIX') ? APP_DB_PREFIX : 'tbl';
+    }
 }
 /*
 |--------------------------------------------------------------------------
@@ -49,7 +53,11 @@ function db_prefix()
 |
 */
 
-$config['base_url'] = APP_BASE_URL;
+$config['base_url'] = defined('APP_BASE_URL')
+    ? APP_BASE_URL
+    : (
+        (isset($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) === 'on') ? 'https' : 'http'
+    ) . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace(basename($_SERVER['SCRIPT_NAME'] ?? ''), '', (string) ($_SERVER['SCRIPT_NAME'] ?? '')), '/') . '/';
 
 /*
 |--------------------------------------------------------------------------
@@ -344,7 +352,7 @@ $config['cache_query_string'] = false;
 | http://codeigniter.com/user_guide/libraries/encryption.html
 |
 */
-$config['encryption_key'] = APP_ENC_KEY;
+$config['encryption_key'] = defined('APP_ENC_KEY') ? APP_ENC_KEY : '';
 
 /*
 |--------------------------------------------------------------------------
@@ -409,10 +417,10 @@ $config['encryption_key'] = APP_ENC_KEY;
 |           -   Clearly communicate you intentionally want the cookie sent in a third-party context.
 |
 */
-$config['sess_driver']             = SESS_DRIVER;
+$config['sess_driver']             = defined('SESS_DRIVER') ? SESS_DRIVER : 'database';
 $config['sess_cookie_name']        = (defined('APP_SESSION_COOKIE_NAME') ? APP_SESSION_COOKIE_NAME : 'sp_session');
 $config['sess_expiration']         = (defined('APP_SESSION_EXPIRATION') ? APP_SESSION_EXPIRATION : 28800);
-$config['sess_save_path']          = SESS_SAVE_PATH;
+$config['sess_save_path']          = defined('SESS_SAVE_PATH') ? SESS_SAVE_PATH : (defined('APP_DB_PREFIX') ? APP_DB_PREFIX : 'tbl') . 'sessions';
 $config['sess_match_ip']           = (defined('APP_SESSION_MATCH_IP') ? APP_SESSION_MATCH_IP : false);
 $config['sess_time_to_update']     = (defined('APP_SESSION_TIME_TO_UPDATE') ? APP_SESSION_TIME_TO_UPDATE : 300);
 $config['sess_regenerate_destroy'] = (defined('APP_SESSION_REGENERATE_DESTROY') ? APP_SESSION_REGENERATE_DESTROY : false);
