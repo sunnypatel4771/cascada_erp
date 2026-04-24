@@ -39,7 +39,7 @@ class Importar_productos extends AdminController
         if (is_array($sess)) {
             foreach ([
                 'file_path', 'file_ext', 'headers', 'header_count', 'preview_rows',
-                'column_map', 'errors', 'last_result', 'duplicate_check', 'duplicate_by',
+                'column_map', 'errors', 'last_result', 'duplicate_check', 'duplicate_check_db', 'duplicate_by',
             ] as $k) {
                 if (array_key_exists($k, $sess)) {
                     $data[$k] = $sess[$k];
@@ -89,6 +89,7 @@ class Importar_productos extends AdminController
         }
 
         $duplicate_check = $this->input->post('duplicate_check') === '1' ? '1' : '0';
+        $duplicate_check_db = $this->input->post('duplicate_check_db') === '1' ? '1' : '0';
         $duplicate_by    = $this->input->post('duplicate_by') === 'sku_code' ? 'sku_code' : 'description';
 
         $this->session->set_userdata('importar_productos', [
@@ -101,6 +102,7 @@ class Importar_productos extends AdminController
             'errors'           => [],
             'last_result'      => null,
             'duplicate_check'  => $duplicate_check,
+            'duplicate_check_db' => $duplicate_check_db,
             'duplicate_by'     => $duplicate_by,
         ]);
 
@@ -127,6 +129,7 @@ class Importar_productos extends AdminController
 
         $sess['column_map'] = $clean;
         $sess['duplicate_check'] = $this->input->post('duplicate_check') === '1' ? '1' : '0';
+        $sess['duplicate_check_db'] = $this->input->post('duplicate_check_db') === '1' ? '1' : '0';
         $sess['duplicate_by']     = $this->input->post('duplicate_by') === 'sku_code' ? 'sku_code' : 'description';
 
         $mapErrors = $this->validateMapping($clean, (int) $sess['header_count']);
@@ -182,6 +185,7 @@ class Importar_productos extends AdminController
         $skipped     = 0;
 
         $dupCheck = ($sess['duplicate_check'] ?? '0') === '1';
+        $dupCheckDb = ($sess['duplicate_check_db'] ?? '0') === '1';
         $dupBy    = ($sess['duplicate_by'] ?? 'description') === 'sku_code' ? 'sku_code' : 'description';
         $seenDup  = [];
 
@@ -232,10 +236,21 @@ class Importar_productos extends AdminController
                         'row'     => $sheetRow,
                         'insert'  => $insert,
                         'customs' => $cfVals,
+                        'ramos'   => $build['ramos_sync'] ?? ['has_maduracion' => null],
                     ];
                 }
                 $imported++;
                 continue;
+            }
+
+            if ($dupCheckDb) {
+                $keyField = $dupBy;
+                $keyVal = isset($insert[$keyField]) ? trim((string) $insert[$keyField]) : '';
+                if ($keyVal !== '' && $this->dbItemExists($keyField, $keyVal)) {
+                    $rowErrors[] = "Fila {$sheetRow}: ya existe en la base de datos ({$keyField}='{$keyVal}').";
+                    $skipped++;
+                    continue;
+                }
             }
 
             $insert = $this->filterItemInsert($insert);
@@ -247,6 +262,8 @@ class Importar_productos extends AdminController
                 $skipped++;
                 continue;
             }
+
+            $this->syncRamosMaduracionFromImport($insert, $build['ramos_sync']['has_maduracion'] ?? null);
 
             foreach ($cfVals as $fid => $val) {
                 $fid = (int) $fid;
@@ -505,9 +522,21 @@ class Importar_productos extends AdminController
         $h = strtolower(trim($header));
         $h = str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $h);
 
+        // Exact headers first so we do not mis-map (e.g. "commodity_name" contains "nombre").
+        $exact = [
+            'commodity_name' => 'db:commodity_name',
+            'commodity_code' => 'db:commodity_code',
+            'commodity_barcode' => 'db:commodity_barcode',
+            'maduracion' => 'ramos_sync:has_maduracion',
+        ];
+        if (isset($exact[$h])) {
+            return $exact[$h];
+        }
+
         $aliases = [
             'db:description' => ['description', 'descripcion', 'descripción', 'producto', 'nombre', 'articulo', 'artículo', 'item'],
             'db:rate'        => ['rate', 'precio', 'precio venta', 'p. venta', 'pvp', 'price'],
+            'db:purchase_price' => ['purchase_price', 'purchase price', 'precio compra', 'precio de compra', 'costo', 'cost'],
             'db:unit'        => ['unit', 'unidad', 'u.m.', 'um'],
             'db:group_id'    => ['group', 'group_id', 'grupo', 'categoria', 'categoría', 'familia'],
             'db:tax'         => ['tax', 'impuesto', 'iva', 'tax1'],
@@ -559,13 +588,14 @@ class Importar_productos extends AdminController
      * @param array<int,string> $row
      * @param array<int,string> $column_map
      * @param array<int,array<string,mixed>> $cfById
-     * @return array{insert: array<string,mixed>, custom_field_values: array<int,string>, errors: string[]}
+     * @return array{insert: array<string,mixed>, custom_field_values: array<int,string>, errors: string[], ramos_sync: array{has_maduracion: int|null}}
      */
     private function buildItemPayload(array $row, array $column_map, array $cfById): array
     {
         $errors = [];
         $insert = [];
         $cfVals = [];
+        $ramosSync = ['has_maduracion' => null];
 
         foreach ($column_map as $idx => $target) {
             $target = trim((string) $target);
@@ -588,6 +618,14 @@ class Importar_productos extends AdminController
                 $fid = (int) substr($target, 3);
                 if ($fid > 0) {
                     $cfVals[$fid] = $val;
+                }
+            } elseif (strpos($target, 'ramos_sync:') === 0) {
+                $ramosKey = substr($target, strlen('ramos_sync:'));
+                if ($ramosKey === 'has_maduracion') {
+                    $parsed = $this->parseMaduracionFlag($val);
+                    if ($parsed !== null) {
+                        $ramosSync['has_maduracion'] = $parsed;
+                    }
                 }
             }
         }
@@ -649,6 +687,7 @@ class Importar_productos extends AdminController
             'insert'               => $insert,
             'custom_field_values'  => $cfVals,
             'errors'               => [],
+            'ramos_sync'           => $ramosSync,
         ];
     }
 
@@ -747,5 +786,114 @@ class Importar_productos extends AdminController
         }
 
         return true;
+    }
+
+    private function dbItemExists(string $field, string $value): bool
+    {
+        $field = $field === 'sku_code' ? 'sku_code' : 'description';
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        $this->db->where($field, $value);
+        $this->db->limit(1);
+        $row = $this->db->get(db_prefix() . 'items')->row();
+
+        return (bool) $row;
+    }
+
+    /**
+     * Parse Sí/No style spreadsheet values into 0|1; unknown/blank returns null (skip Ramos sync).
+     */
+    private function parseMaduracionFlag(string $raw): ?int
+    {
+        $t = function_exists('mb_strtolower') ? mb_strtolower(trim($raw), 'UTF-8') : strtolower(trim($raw));
+        $t = str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $t);
+        if ($t === '' || $t === '-' || $t === 'n/a') {
+            return null;
+        }
+        if (in_array($t, ['si', 'yes', 'y', '1', 'true', 'verdadero', 'x'], true)) {
+            return 1;
+        }
+        if (in_array($t, ['no', '0', 'false', 'falso'], true)) {
+            return 0;
+        }
+
+        return null;
+    }
+
+    /**
+     * Align tblitems.description with ramos_inventory_items (item_name) and set has_maduracion.
+     * Runs only when the import column is mapped to ramos_sync:has_maduracion and the cell parses to 0|1.
+     *
+     * @param array<string,mixed> $insert  Payload inserted into tblitems
+     * @param int|null            $hasMaduracion  null = do nothing
+     */
+    private function syncRamosMaduracionFromImport(array $insert, ?int $hasMaduracion): void
+    {
+        if ($hasMaduracion === null) {
+            return;
+        }
+        $table = db_prefix() . 'ramos_inventory_items';
+        if (!$this->db->table_exists($table)) {
+            return;
+        }
+
+        $desc = isset($insert['description']) ? trim((string) $insert['description']) : '';
+        if ($desc === '' || $desc === '/') {
+            return;
+        }
+
+        $unit = isset($insert['unit']) ? trim((string) $insert['unit']) : '';
+        if ($unit === '') {
+            $unit = 'unit';
+        }
+        $skuRaw = isset($insert['sku_code']) ? trim((string) $insert['sku_code']) : '';
+        $sku = $skuRaw === '' ? null : $skuRaw;
+
+        $now = date('Y-m-d H:i:s');
+        $staffId = get_staff_user_id();
+        $flag = $hasMaduracion ? 1 : 0;
+
+        $existing = $this->db->where('item_name', $desc)->get($table)->row_array();
+        if (!empty($existing)) {
+            $this->db->where('id', (int) $existing['id']);
+            $this->db->update($table, [
+                'has_maduracion' => $flag,
+                'updated_at'     => $now,
+                'updated_by'     => $staffId ?: null,
+            ]);
+
+            return;
+        }
+
+        if ($sku !== null) {
+            $bySku = $this->db->where('sku', $sku)->get($table)->row_array();
+            if (!empty($bySku)) {
+                $this->db->where('id', (int) $bySku['id']);
+                $this->db->update($table, [
+                    'item_name'      => $desc,
+                    'has_maduracion' => $flag,
+                    'updated_at'     => $now,
+                    'updated_by'     => $staffId ?: null,
+                ]);
+
+                return;
+            }
+        }
+
+        $this->db->insert($table, [
+            'item_name'      => $desc,
+            'sku'            => $sku,
+            'unit'           => $unit,
+            'quantity'       => 0,
+            'safety_stock'   => 0,
+            'buffer_percent' => 25.00,
+            'has_maduracion' => $flag,
+            'active'         => 1,
+            'created_at'     => $now,
+            'created_by'     => $staffId ?: null,
+        ]);
     }
 }

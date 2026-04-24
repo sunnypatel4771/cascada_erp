@@ -34,6 +34,7 @@
                     <div class="form-group">
                       <label><?php echo _l('importar_productos_duplicate_check'); ?></label>
                       <div class="checkbox"><label><input type="checkbox" name="duplicate_check" value="1" checked> <?php echo _l('importar_productos_duplicate_check'); ?></label></div>
+                      <div class="checkbox"><label><input type="checkbox" name="duplicate_check_db" value="1" checked> <?php echo _l('importar_productos_duplicate_check_db'); ?></label></div>
                       <label><?php echo _l('importar_productos_duplicate_by'); ?></label>
                       <select name="duplicate_by" class="form-control">
                         <option value="description"><?php echo _l('importar_productos_dup_description'); ?></option>
@@ -91,7 +92,8 @@
                   <div class="col-md-4">
                     <div class="form-group">
                       <label><?php echo _l('importar_productos_duplicate_check'); ?></label>
-                      <div class="checkbox"><label><input type="checkbox" name="duplicate_check" value="1" <?php echo (($duplicate_check ?? '0') === '1') ? 'checked' : ''; ?>> Activar</label></div>
+                      <div class="checkbox"><label><input type="checkbox" name="duplicate_check" value="1" <?php echo (($duplicate_check ?? '0') === '1') ? 'checked' : ''; ?>> <?php echo _l('importar_productos_duplicate_check'); ?></label></div>
+                      <div class="checkbox"><label><input type="checkbox" name="duplicate_check_db" value="1" <?php echo (($duplicate_check_db ?? '0') === '1') ? 'checked' : ''; ?>> <?php echo _l('importar_productos_duplicate_check_db'); ?></label></div>
                     </div>
                   </div>
                   <div class="col-md-4">
@@ -139,6 +141,11 @@
                                   <?php endforeach; ?>
                                 </optgroup>
                               <?php endif; ?>
+                              <optgroup label="<?php echo _l('importar_productos_ramos_sync_group'); ?>">
+                                <option value="ramos_sync:has_maduracion" <?php echo (($map[$i] ?? '') === 'ramos_sync:has_maduracion') ? 'selected' : ''; ?>>
+                                  <?php echo _l('importar_productos_ramos_has_maduracion'); ?>
+                                </option>
+                              </optgroup>
                             </select>
                           </td>
                         </tr>
@@ -196,6 +203,7 @@
                           <th>Fila</th>
                           <th>Insert (tblitems)</th>
                           <th>Campos personalizados</th>
+                          <th>Ramos sync</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -204,6 +212,7 @@
                             <td><?php echo (int) $sr['row']; ?></td>
                             <td><pre class="mbot0" style="white-space:pre-wrap;font-size:11px;"><?php echo html_escape(json_encode($sr['insert'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)); ?></pre></td>
                             <td><pre class="mbot0" style="white-space:pre-wrap;font-size:11px;"><?php echo html_escape(json_encode($sr['customs'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)); ?></pre></td>
+                            <td><pre class="mbot0" style="white-space:pre-wrap;font-size:11px;"><?php echo html_escape(json_encode($sr['ramos'] ?? [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)); ?></pre></td>
                           </tr>
                         <?php endforeach; ?>
                       </tbody>

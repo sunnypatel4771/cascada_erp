@@ -28,7 +28,7 @@ test.describe('19. Week field + weekly pricing (full headed flow)', () => {
     const dbHost = process.env.PW_DB_HOST || '127.0.0.1';
     const dbUser = process.env.PW_DB_USER || 'root';
     const dbPass = process.env.PW_DB_PASSWORD || '123456';
-    const dbName = process.env.PW_DB_NAME || 'ranos-php';
+    const dbName = process.env.PW_DB_NAME || 'ranos-php01';
 
     const expectedWeeklyLine = /55[.,]00|55\.0\b|55,00/;
     const expectedCostLine = /16[.,]50|16\.5\b|16,50/;

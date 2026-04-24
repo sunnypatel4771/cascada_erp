@@ -54,7 +54,7 @@ define('APP_DB_PASSWORD', '123456');
 /**
  * The name of the database you want to connect to
  */
-define('APP_DB_NAME', 'ranos-php');
+define('APP_DB_NAME', 'ranos-php01');
 
 /**
  * @since  2.3.0
