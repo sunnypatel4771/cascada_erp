@@ -18,7 +18,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
 * environments.
 *
 */
-define('APP_BASE_URL', 'https://3ware.com.mx/ramos/erp');
+define('APP_BASE_URL', 'http://127.0.0.1:8080/');
 /*
 * --------------------------------------------------------------------------
 * Encryption Key
@@ -38,22 +38,22 @@ define('APP_ENC_KEY', '88cab9569aafa6e1a5e0dba6863bcedc');
  * Database Credentials
  * The hostname of your database server
  */
-define('APP_DB_HOSTNAME',  'localhost');
+define('APP_DB_HOSTNAME', '127.0.0.1');
 
 /**
  * The username used to connect to the database
  */
-define('APP_DB_USERNAME',  'u447461315_ramos');
+define('APP_DB_USERNAME', 'root');
 
 /**
  * The password used to connect to the database
  */
-define('APP_DB_PASSWORD',  'Ramoserp*246');
+define('APP_DB_PASSWORD', '123456');
 
 /**
  * The name of the database you want to connect to
  */
-define('APP_DB_NAME', 'u447461315_ramos');
+define('APP_DB_NAME', 'ranos-php01');
 
 /**
  * @since  2.3.0
