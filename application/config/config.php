@@ -417,10 +417,10 @@ $config['encryption_key'] = defined('APP_ENC_KEY') ? APP_ENC_KEY : '';
 |           -   Clearly communicate you intentionally want the cookie sent in a third-party context.
 |
 */
-$config['sess_driver']             = SESS_DRIVER;
+$config['sess_driver']             = defined('SESS_DRIVER') ? SESS_DRIVER : 'database';
 $config['sess_cookie_name']        = (defined('APP_SESSION_COOKIE_NAME') ? APP_SESSION_COOKIE_NAME : 'sp_session');
 $config['sess_expiration']         = (defined('APP_SESSION_EXPIRATION') ? APP_SESSION_EXPIRATION : 28800);
-$config['sess_save_path']          = SESS_SAVE_PATH;
+$config['sess_save_path']          = defined('SESS_SAVE_PATH') ? SESS_SAVE_PATH : (defined('APP_DB_PREFIX') ? APP_DB_PREFIX : 'tbl') . 'sessions';
 $config['sess_match_ip']           = (defined('APP_SESSION_MATCH_IP') ? APP_SESSION_MATCH_IP : false);
 $config['sess_time_to_update']     = (defined('APP_SESSION_TIME_TO_UPDATE') ? APP_SESSION_TIME_TO_UPDATE : 300);
 $config['sess_regenerate_destroy'] = (defined('APP_SESSION_REGENERATE_DESTROY') ? APP_SESSION_REGENERATE_DESTROY : false);
