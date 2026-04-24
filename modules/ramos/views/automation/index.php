@@ -16,10 +16,10 @@
                     <div class="tw-flex tw-gap-2">
                         <?php if (staff_can('create', RAMOS_MODULE_NAME)) : ?>
                             <button class="btn btn-info" id="ramos-analyze-button">
-                                <i class="fa-regular fa-magnifying-glass-chart tw-mr-1"></i><?php echo _l('ramos_automation_analyze_button'); ?>
+                                <i class="fa fa-search tw-mr-1" aria-hidden="true"></i><?php echo _l('ramos_automation_analyze_button'); ?>
                             </button>
                             <button class="btn btn-primary" id="ramos-automation-trigger">
-                                <i class="fa-regular fa-play tw-mr-1"></i><?php echo _l('ramos_automation_trigger_button'); ?>
+                                <i class="fa fa-play tw-mr-1" aria-hidden="true"></i><?php echo _l('ramos_automation_trigger_button'); ?>
                             </button>
                         <?php endif; ?>
                     </div>
@@ -38,7 +38,7 @@
                                 </p>
                             </div>
                             <div class="tw-text-5xl tw-text-primary">
-                                <i class="fa-regular fa-box-open"></i>
+                                <i class="fa fa-cube" aria-hidden="true"></i>
                             </div>
                         </div>
                     </div>
@@ -52,7 +52,7 @@
                                 <?php echo _l('ramos_automation_analysis_heading'); ?>
                             </h5>
                             <button class="btn btn-default btn-sm" id="copy-analysis-button">
-                                <i class="fa-regular fa-copy tw-mr-1"></i><?php echo _l('ramos_automation_copy_button'); ?>
+                                <i class="fa fa-copy tw-mr-1" aria-hidden="true"></i><?php echo _l('ramos_automation_copy_button'); ?>
                             </button>
                         </div>
                         <div id="analysis-content" class="table-responsive"></div>
