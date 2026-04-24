@@ -76,6 +76,9 @@ playwright-report/
 test-results/
 blob-report/
 
+# Local/production config (do not commit)
+application/config/app-config.php
+
 # Misc
 *.bak
 *.old
