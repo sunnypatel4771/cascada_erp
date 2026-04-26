@@ -5316,12 +5316,37 @@ class purchase extends AdminController
                         //Reader file
                         $xlsx = new XLSXReader_fin($newFilePath);
                         $sheetNames = $xlsx->getSheetNames();
-                        $data = $xlsx->getSheetData($sheetNames[1]);
+                        // Prefer sheet index 1 (existing behavior), else fallback to the first sheet.
+                        $sheetName = isset($sheetNames[1]) ? $sheetNames[1] : (isset($sheetNames[0]) ? $sheetNames[0] : null);
+                        $data = $sheetName ? $xlsx->getSheetData($sheetName) : [];
+
+                        // Build a header map if the first row contains headings.
+                        $headerMap = [];
+                        if (is_array($data) && count($data) > 0 && is_array($data[0])) {
+                            foreach ($data[0] as $idx => $heading) {
+                                $key = is_string($heading) ? trim(mb_strtolower($heading)) : '';
+                                if ($key !== '') {
+                                    $headerMap[$key] = $idx;
+                                }
+                            }
+                        }
+
+                        $getCell = function($rowIdx, $key, $fallbackIdx = null) use ($data, $headerMap) {
+                            if (isset($headerMap[$key])) {
+                                return isset($data[$rowIdx][$headerMap[$key]]) ? $data[$rowIdx][$headerMap[$key]] : '';
+                            }
+                            if ($fallbackIdx !== null) {
+                                return isset($data[$rowIdx][$fallbackIdx]) ? $data[$rowIdx][$fallbackIdx] : '';
+                            }
+                            return '';
+                        };
 
                         $total_rows = 0;
                         $total_row_false    = 0;
                         
-                        for ($row = 1; $row < count($data); $row++) {
+                        // Start at 1 when there is a header row; otherwise start at 0.
+                        $startRow = (count($headerMap) > 0) ? 1 : 0;
+                        for ($row = $startRow; $row < count($data); $row++) {
 
                             $total_rows++;
 
@@ -5337,30 +5362,48 @@ class purchase extends AdminController
                             $flag_id_tax;
                             $flag_id_tax2;
 
-                            $value_commodity_code    = isset($data[$row][0]) ? $data[$row][0] : '' ;
-                            $value_commodity_name    = isset($data[$row][1]) ? $data[$row][1] : '' ;
-                            $value_commodity_barcode    = isset($data[$row][2]) ? $data[$row][2] : '';
-                            $value_sku_code   = isset($data[$row][3]) ? $data[$row][3] : '' ;
-                            $value_sku_name      = isset($data[$row][4]) ? $data[$row][4] : '';
-                            $value_description       = isset($data[$row][5]) ? $data[$row][5] : '';
-                            $value_unit_id            = isset($data[$row][6]) ? $data[$row][6] : '';
-                            $value_commodity_group            = isset($data[$row][7]) ? $data[$row][7] : '';
-                            $value_sub_group            = isset($data[$row][8]) ? $data[$row][8] : '';
-                            $value_purchase_price            = isset($data[$row][9]) ? $data[$row][9] : '';
-                            $value_rate            = isset($data[$row][10]) ? $data[$row][10] : '';
-                            $value_tax            = isset($data[$row][11]) ? $data[$row][11] : '';
-                            $value_tax2            = isset($data[$row][12]) ? $data[$row][12] : '';
+                            // Support both legacy column order import and header-based imports.
+                            $value_commodity_code    = $getCell($row, 'commodity_code', 0);
+                            $value_commodity_name    = $getCell($row, 'commodity_name', 1);
+                            $value_commodity_barcode = $getCell($row, 'commodity_barcode', 2);
+                            $value_sku_code          = $getCell($row, 'sku_code', 3);
+                            $value_sku_name          = $getCell($row, 'sku_name', 4);
+                            $value_description       = $getCell($row, 'description', 5);
+                            // Prefer explicit unit_id, else accept `unit` (unit code/name).
+                            $value_unit_id           = $getCell($row, 'unit_id', 6);
+                            if ($value_unit_id === '' || $value_unit_id === null) {
+                                $value_unit_id = $getCell($row, 'unit', null);
+                            }
+                            $value_commodity_group   = $getCell($row, 'commodity_group', 7);
+                            if ($value_commodity_group === '' || $value_commodity_group === null) {
+                                // Accept group_id from custom sheets where group id is provided directly.
+                                $value_commodity_group = $getCell($row, 'group_id', null);
+                            }
+                            $value_sub_group         = $getCell($row, 'sub_group', 8);
+                            // Supports both `purchase_price` and `Purchase_price` (header normalized to lowercase).
+                            $value_purchase_price    = $getCell($row, 'purchase_price', 9);
+                            $value_rate             = $getCell($row, 'rate', 10);
+                            $value_tax              = $getCell($row, 'tax_1', 11);
+                            $value_tax2             = $getCell($row, 'tax_2', 12);
+
+                            // Extra fields from custom sheets
+                            $value_clave_sat        = $getCell($row, 'clave_sat', null);
+                            $value_warehouse_id     = $getCell($row, 'warehouse_id', null);
+                            $value_active           = $getCell($row, 'active', null);
+                            $value_can_be_sold      = $getCell($row, 'can_be_sold', null);
+                            $value_can_be_inventory = $getCell($row, 'can_be_inventory', null);
+                            $value_without_checking_warehouse = $getCell($row, 'without_checking_warehouse', null);
+                            $value_can_be_purchased = $getCell($row, 'can_be_purchased', null);
+                            $value_proveedor        = $getCell($row, 'proveedor', null);
+                            $value_modulo           = $getCell($row, 'modulo', null);
+                            $value_maduracion       = $getCell($row, 'maduracion', null);
+                            $value_stock_seguridad  = $getCell($row, 'stock_seguridad', null);
 
                             if(is_null($value_commodity_code) == true || $value_commodity_code ==''){
                                 $string_error .=_l('commodity_code'). _l('not_yet_entered');
                                 $flag = 1;
                             }else{
-                                $this->db->where('commodity_code', $value_commodity_code);
-                                $total_rows_check = $this->db->count_all_results(db_prefix().'items');
-                                if ($total_rows_check > 0) {
-                                    $string_error .=_l('commodity_code'). _l('already_exist');
-                                    $flag = 1;
-                                }
+                                // Allow updates (idempotent re-imports). No longer reject existing commodity_code.
                             }
                             
                             if(is_null($value_commodity_name) == true || $value_commodity_name ==''){
@@ -5555,9 +5598,74 @@ class purchase extends AdminController
                                 $rd['tax2']                         = isset($flag_id_tax2) ? $flag_id_tax2 : '';
                                 $rd['rate']                         = reformat_currency_pur($value_rate);
                                 $rd['purchase_price']                         = reformat_currency_pur($value_purchase_price);
+                                if ($value_commodity_name !== '' && $value_commodity_name !== null) {
+                                    $rd['commodity_name'] = $value_commodity_name;
+                                }
+                                if ($value_clave_sat !== '' && $value_clave_sat !== null) {
+                                    $rd['clave_sat'] = $value_clave_sat;
+                                }
+                                if ($value_warehouse_id !== '' && $value_warehouse_id !== null) {
+                                    $rd['warehouse_id'] = (int) $value_warehouse_id;
+                                }
+                                if ($value_without_checking_warehouse !== '' && $value_without_checking_warehouse !== null) {
+                                    $rd['without_checking_warehouse'] = (int) $value_without_checking_warehouse;
+                                }
+                                if ($value_active !== '' && $value_active !== null) {
+                                    $rd['active'] = (int) $value_active;
+                                }
+                                if ($value_can_be_sold !== '' && $value_can_be_sold !== null) {
+                                    $rd['can_be_sold'] = $value_can_be_sold;
+                                }
+                                if ($value_can_be_inventory !== '' && $value_can_be_inventory !== null) {
+                                    $rd['can_be_inventory'] = $value_can_be_inventory;
+                                }
+                                if ($value_can_be_purchased !== '' && $value_can_be_purchased !== null) {
+                                    $rd['can_be_purchased'] = $value_can_be_purchased;
+                                }
                                
                                 $rows[] = $rd;
-                                $response = $this->purchase_model->import_xlsx_commodity($rd);
+                                $item_id = $this->purchase_model->import_xlsx_commodity($rd);
+
+                                // Upsert custom fields (items_pr) for extra columns if available.
+                                if (is_numeric($item_id) && $item_id > 0) {
+                                    $cf_map = [
+                                        'proveedor' => $value_proveedor,
+                                        'modulo' => $value_modulo,
+                                        'maduracion' => $value_maduracion,
+                                        'stock_seguridad' => $value_stock_seguridad,
+                                    ];
+                                    foreach ($cf_map as $cf_name => $cf_value) {
+                                        if ($cf_value === '' || $cf_value === null) {
+                                            continue;
+                                        }
+
+                                        $this->db->where('name', $cf_name);
+                                        $this->db->where('fieldto', 'items');
+                                        $cf = $this->db->get(db_prefix() . 'customfields')->row_array();
+                                        if (!$cf) {
+                                            continue;
+                                        }
+
+                                        $this->db->where('relid', $item_id);
+                                        $this->db->where('fieldid', $cf['id']);
+                                        $this->db->where('fieldto', 'items_pr');
+                                        $existing = $this->db->get(db_prefix() . 'customfieldsvalues')->row_array();
+
+                                        $payload = [
+                                            'relid' => $item_id,
+                                            'fieldid' => (int) $cf['id'],
+                                            'fieldto' => 'items_pr',
+                                            'value' => (string) $cf_value,
+                                        ];
+
+                                        if ($existing) {
+                                            $this->db->where('id', $existing['id']);
+                                            $this->db->update(db_prefix() . 'customfieldsvalues', ['value' => $payload['value']]);
+                                        } else {
+                                            $this->db->insert(db_prefix() . 'customfieldsvalues', $payload);
+                                        }
+                                    }
+                                }
                             }
                         }
 

@@ -7151,9 +7151,8 @@ class Purchase_model extends App_Model
             $this->db->where('commodity_code', $data['commodity_code']);
             $this->db->update(db_prefix() . 'items', $data);
 
-            if ($this->db->affected_rows() > 0) {
-                return true;
-            }
+            // Return the existing id even if nothing changed (idempotent imports).
+            return (int) $item->id;
         }else{
             //check sku code dulicate
             if($this->check_sku_duplicate(['sku_code' => $data['sku_code'], 'item_id' => '']) == false){
