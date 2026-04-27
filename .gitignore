@@ -77,7 +77,8 @@ test-results/
 blob-report/
 
 # Local/production config (do not commit)
-# (intentionally committed for this project)
+application/config/app-config.php
+application/config/app-config.local.php
 
 # Misc
 *.bak

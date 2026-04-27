@@ -1,7 +1,16 @@
 <?php
 
 defined('BASEPATH') or exit('No direct script access allowed');
-include_once(APPPATH . 'config/app-config.php');
+
+// Prefer developer-local config if present, otherwise use server config.
+$__app_config_local = APPPATH . 'config/app-config.local.php';
+$__app_config_main  = APPPATH . 'config/app-config.php';
+
+if (file_exists($__app_config_local)) {
+    include_once $__app_config_local;
+} else {
+    include_once $__app_config_main;
+}
 
 /*
 | -------------------------------------------------------------------
