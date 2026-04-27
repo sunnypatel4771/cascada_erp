@@ -77,8 +77,9 @@ test-results/
 blob-report/
 
 # Local/production config (do not commit)
-application/config/app-config.php
+# Keep the loader file tracked, ignore per-environment secrets:
 application/config/app-config.local.php
+application/config/app-config.server.php
 
 # Misc
 *.bak

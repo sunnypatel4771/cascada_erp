@@ -3,22 +3,14 @@
 defined('BASEPATH') or exit('No direct script access allowed');
 define('APP_MINIMUM_REQUIRED_PHP_VERSION', '8.1');
 
-// Prefer developer-local config if present, otherwise use server config.
-$__app_config_local = APPPATH . 'config/app-config.local.php';
-$__app_config_main  = APPPATH . 'config/app-config.php';
-
-if (file_exists($__app_config_local) || file_exists($__app_config_main)) {
+if (file_exists(APPPATH . 'config/app-config.php')) {
     if (version_compare(PHP_VERSION, APP_MINIMUM_REQUIRED_PHP_VERSION) === -1) {
         echo '<h1>Minimum required PHP version is <b>' . APP_MINIMUM_REQUIRED_PHP_VERSION . '</b>. Consider upgrading to a newer PHP version.</h4>';
         echo '<h3>You are using ' . PHP_VERSION . ', you should consult with your hosting provider to help you to change your PHP version to ' . APP_MINIMUM_REQUIRED_PHP_VERSION . ' or higher, after you upgrade the PHP version this message will disappear.</h3>';
 
         exit;
     }
-    if (file_exists($__app_config_local)) {
-        include_once $__app_config_local;
-    } else {
-        include_once $__app_config_main;
-    }
+    include_once APPPATH . 'config/app-config.php';
 } else {
     $install_url = isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) == 'on' ? 'https' : 'http';
     $install_url .= '://' . $_SERVER['HTTP_HOST'];
