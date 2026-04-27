@@ -3,40 +3,52 @@
 defined('BASEPATH') or exit('No direct script access allowed');
 
 /**
- * Environment config loader.
+ * Single-file environment config.
  *
- * - Local dev: create `application/config/app-config.local.php` (ignored by git)
- * - Production: create `application/config/app-config.server.php` (ignored by git)
- *
- * This file stays tracked so `git pull` never removes the config entrypoint.
+ * Goal: a plain `git pull` deploy works on production without manually recreating config files.
+ * Local can still override via `app-config.local.php` when needed.
  */
-$__local  = __DIR__ . '/app-config.local.php';
-$__server = __DIR__ . '/app-config.server.php';
-
+$__local = __DIR__ . '/app-config.local.php';
 if (is_file($__local)) {
     require $__local;
     return;
 }
 
-if (is_file($__server)) {
-    require $__server;
+$__host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+$__is_prod = $__host === '3ware.com.mx' || str_ends_with($__host, '.3ware.com.mx');
+
+if ($__is_prod) {
+    define('APP_BASE_URL', 'https://3ware.com.mx/ramos/erp/');
+
+    define('APP_ENC_KEY', '88cab9569aafa6e1a5e0dba6863bcedc');
+
+    define('APP_DB_HOSTNAME', 'localhost');
+    define('APP_DB_USERNAME', 'u447461315_ramos');
+    define('APP_DB_PASSWORD', 'Ramoserp*246');
+    define('APP_DB_NAME', 'u447461315_ramos');
+
+    define('APP_DB_CHARSET', 'utf8mb4');
+    define('APP_DB_COLLATION', 'utf8mb4_unicode_ci');
+
+    define('SESS_DRIVER', 'database');
+    define('SESS_SAVE_PATH', (defined('APP_DB_PREFIX') ? APP_DB_PREFIX : 'tbl') . 'sessions');
+    define('APP_SESSION_COOKIE_SAME_SITE', 'Lax');
+
+    define('APP_CSRF_PROTECTION', true);
     return;
 }
 
-// Backward compatibility: if someone copied the sample to local/server, allow it.
-$__sample = __DIR__ . '/app-config-sample.php';
-if (is_file($__sample)) {
-    require $__sample;
-    return;
-}
-
-// Nothing found; show the standard "not installed" message.
-$install_url = (isset($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) === 'on') ? 'https' : 'http';
-$install_url .= '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-$install_url .= rtrim(str_replace(basename((string) ($_SERVER['SCRIPT_NAME'] ?? '')), '', (string) ($_SERVER['SCRIPT_NAME'] ?? '')), '/') . '/';
-$install_url .= 'install';
-
-echo '<h1>Perfex CRM not installed</h1>';
-echo '<p>1. To you use the automatic Perfex CRM installation tool click <a href="' . $install_url . '">here (' . $install_url . ')</a></p>';
-echo '<p>2. Create application/config/app-config.server.php (production) or app-config.local.php (local) based on application/config/app-config-sample.php</p>';
-exit();
+// Local default (safe fallback).
+define('APP_BASE_URL', 'http://127.0.0.1:8080/');
+define('APP_ENC_KEY', '88cab9569aafa6e1a5e0dba6863bcedc');
+define('APP_DB_HOSTNAME', '127.0.0.1');
+define('APP_DB_USERNAME', 'root');
+define('APP_DB_PASSWORD', '123456');
+define('APP_DB_NAME', 'ranos-php01');
+define('APP_DB_CHARSET', 'utf8mb4');
+define('APP_DB_COLLATION', 'utf8mb4_unicode_ci');
+define('SESS_DRIVER', 'database');
+define('SESS_SAVE_PATH', (defined('APP_DB_PREFIX') ? APP_DB_PREFIX : 'tbl') . 'sessions');
+define('APP_SESSION_COOKIE_SAME_SITE', 'Lax');
+define('APP_CSRF_PROTECTION', true);
+return;
