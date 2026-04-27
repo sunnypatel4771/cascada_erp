@@ -222,14 +222,16 @@
             if (!product || !Array.isArray(product.equivalences) || product.equivalences.length === 0) {
                 return false;
             }
+            // equivalences entries are objects {unit_name, conversion_factor, ...}
             const base = (product.unit || '').trim();
             const set = new Set();
             if (base) {
-                set.add(base);
+                set.add(base.toLowerCase());
             }
             product.equivalences.forEach((e) => {
-                if (e) {
-                    set.add(String(e).trim());
+                const name = e && typeof e === 'object' ? String(e.unit_name || '').trim() : String(e || '').trim();
+                if (name) {
+                    set.add(name.toLowerCase());
                 }
             });
             return set.size >= 2;
@@ -338,6 +340,7 @@
             const cell = document.getElementById(`equivalencias-cell-${counter}`);
             const select = document.getElementById(`equivalencias-select-${counter}`);
             const unitInput = document.getElementById(`unit-${counter}`);
+            const factorInput = document.getElementById(`equivalencia-factor-${counter}`);
             if (!cell || !select) {
                 return;
             }
@@ -352,54 +355,80 @@
                 placeholder.style.display = '';
                 select.innerHTML = '';
                 select.removeAttribute('required');
+                if (factorInput) { factorInput.value = '1'; }
                 return;
             }
 
             const baseUnit = (product.unit || '').trim();
-            const unitSet = new Set();
+
+            // Build ordered options: base unit first (factor=1), then each equivalencia.
+            const options = [];
+            const seenLower = new Set();
             if (baseUnit) {
-                unitSet.add(baseUnit);
+                options.push({ unit_name: baseUnit, conversion_factor: 1 });
+                seenLower.add(baseUnit.toLowerCase());
             }
             product.equivalences.forEach((e) => {
-                if (e) {
-                    unitSet.add(String(e).trim());
+                if (!e) { return; }
+                const name = typeof e === 'object' ? String(e.unit_name || '').trim() : String(e).trim();
+                const factor = typeof e === 'object' ? (parseFloat(e.conversion_factor) || 1) : 1;
+                if (name && !seenLower.has(name.toLowerCase())) {
+                    options.push({ unit_name: name, conversion_factor: factor });
+                    seenLower.add(name.toLowerCase());
                 }
             });
-            const units = Array.from(unitSet);
-            if (units.length < 2) {
+
+            if (options.length < 2) {
                 wrap.style.display = 'none';
                 placeholder.style.display = '';
                 select.innerHTML = '';
                 select.removeAttribute('required');
+                if (factorInput) { factorInput.value = '1'; }
                 return;
             }
 
             wrap.style.display = '';
             placeholder.style.display = 'none';
 
-            let current = unitInput && unitInput.value ? unitInput.value.trim() : '';
-            if (!current || units.indexOf(current) === -1) {
-                current = baseUnit && units.indexOf(baseUnit) !== -1 ? baseUnit : units[0];
+            let currentUnit = unitInput && unitInput.value ? unitInput.value.trim() : '';
+            const currentLower = currentUnit.toLowerCase();
+            const matchedOption = options.find((o) => o.unit_name.toLowerCase() === currentLower);
+            if (!matchedOption) {
+                currentUnit = options[0].unit_name;
             }
 
-            select.innerHTML = units.map((u) => {
-                const esc = escapeHtmlAttr(u);
-                const label = escapeHtml(u);
-                const sel = u === current ? ' selected' : '';
-                return `<option value="${esc}"${sel}>${label}</option>`;
+            select.innerHTML = options.map((o) => {
+                const esc = escapeHtmlAttr(o.unit_name);
+                const label = escapeHtml(o.unit_name);
+                const factorEsc = escapeHtmlAttr(String(o.conversion_factor));
+                const sel = o.unit_name.toLowerCase() === currentUnit.toLowerCase() ? ' selected' : '';
+                return `<option value="${esc}" data-factor="${factorEsc}"${sel}>${label}</option>`;
             }).join('');
 
             select.setAttribute('required', 'required');
             if (unitInput) {
-                unitInput.value = current;
+                unitInput.value = currentUnit;
+            }
+
+            // Sync factor hidden input with the now-selected option.
+            const selOpt = select.options[select.selectedIndex];
+            if (factorInput && selOpt) {
+                factorInput.value = selOpt.getAttribute('data-factor') || '1';
             }
         }
 
         function onEquivalenciaChange(counter) {
             const select = document.getElementById(`equivalencias-select-${counter}`);
             const unitInput = document.getElementById(`unit-${counter}`);
-            if (select && unitInput) {
-                unitInput.value = select.value || '';
+            const factorInput = document.getElementById(`equivalencia-factor-${counter}`);
+            if (select) {
+                const selOpt = select.options[select.selectedIndex];
+                if (unitInput) {
+                    unitInput.value = select.value || '';
+                }
+                if (factorInput && selOpt) {
+                    factorInput.value = selOpt.getAttribute('data-factor') || '1';
+                }
             }
             calculateTotal();
         }
@@ -513,9 +542,13 @@
                         style="background-color: #f5f5f5;">
                 </td>
                 <td class="equivalencias-cell new-order-col-equivalencias" id="equivalencias-cell-${orderItemsCounter}">
+                    <input type="hidden"
+                           id="equivalencia-factor-${orderItemsCounter}"
+                           name="items[${orderItemsCounter}][equivalencia_factor]"
+                           value="1">
                     <div class="equivalencias-select-wrap" style="display: none;">
                         <select class="form-control input-sm equivalencias-select"
-                                name="items[${orderItemsCounter}][equivalencia]"
+                                name="items[${orderItemsCounter}][equivalencia_unit]"
                                 id="equivalencias-select-${orderItemsCounter}"
                                 data-container="body"
                                 data-dropup-auto="false"
@@ -546,6 +579,7 @@
                         min="1"
                         step="1"
                         required
+                        oninput="calculateTotal()"
                         onchange="calculateTotal()">
                 </td>
                 <td class="text-right new-order-col-rate">
@@ -750,19 +784,23 @@
             calculateTotal();
         }
 
-        // Calculate order total (prices already include markup)
+        // Calculate order total (prices already include markup).
+        // When an equivalencia is selected, qty is in the chosen unit;
+        // total = qty * conversion_factor * base_unit_rate.
         function calculateTotal() {
             let total = 0;
             const rows = document.querySelectorAll('#order-items-body tr');
 
             rows.forEach(row => {
-                const qtyInput = row.querySelector('input[name*="[qty]"]');
-                const rateInput = row.querySelector('input[name*="[rate]"]');
+                const qtyInput   = row.querySelector('input[name*="[qty]"]');
+                const rateInput  = row.querySelector('input[name*="[rate]"]');
+                const factorInput = row.querySelector('input[name*="[equivalencia_factor]"]');
 
                 if (qtyInput && rateInput) {
-                    const qty = parseFloat(qtyInput.value) || 0;
-                    const rate = parseFloat(rateInput.value) || 0;
-                    total += qty * rate;
+                    const qty    = parseFloat(qtyInput.value) || 0;
+                    const rate   = parseFloat(rateInput.value) || 0;
+                    const factor = factorInput ? (parseFloat(factorInput.value) || 1) : 1;
+                    total += qty * factor * rate;
                 }
             });
 
@@ -822,10 +860,13 @@
                     hasMissingMaduracion = true;
                 }
 
+                const factorInputEl = row.querySelector('input[name*="[equivalencia_factor]"]');
+                const equivUnit = equivalenciasSelect ? (equivalenciasSelect.value || '').trim() : '';
+                const equivFactor = factorInputEl ? (parseFloat(factorInputEl.value) || 1) : 1;
+
                 const portalProduct = allProducts.find((p) => p.description === selectedValue);
                 if (portalProduct && productNeedsEquivalenciasSlot(portalProduct)) {
-                    const eqVal = equivalenciasSelect ? equivalenciasSelect.value : '';
-                    if (!eqVal || eqVal.trim() === '') {
+                    if (!equivUnit) {
                         hasMissingEquivalencia = true;
                     }
                 }
@@ -846,7 +887,9 @@
                             rate: rate,
                             unit: unit,
                             long_description: longDesc,
-                            maduracion: maduracion
+                            maduracion: maduracion,
+                            equivalencia_unit: equivUnit,
+                            equivalencia_factor: equivFactor
                         };
                     }
                 }
@@ -881,6 +924,8 @@
                     unit: item.unit,
                     long_description: item.long_description,
                     maduracion: item.maduracion,
+                    equivalencia_unit: item.equivalencia_unit || '',
+                    equivalencia_factor: item.equivalencia_factor || 1,
                     order: index + 1  // Add order field for sorting
                 }))
             };

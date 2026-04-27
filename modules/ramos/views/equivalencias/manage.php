@@ -110,6 +110,27 @@
 <?php init_tail(); ?>
 <script>
 $(function () {
+    // Client-side DataTables (search + pagination) for server-rendered rows.
+    // Mirrors pattern used in modules/ramos/views/report/index.php
+    if ($.fn.DataTable && $('#equivalencias-table tbody tr').length > 0) {
+        $('#equivalencias-table').DataTable({
+            serverSide: false,
+            processing: false,
+            order: [[0, 'asc']],
+            pageLength: 25,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, '<?php echo _l('all'); ?>']],
+            autoWidth: false,
+            initComplete: function() {
+                $(this.api().table().container())
+                    .closest('.table-loading')
+                    .removeClass('table-loading');
+                $(this.api().table().node())
+                    .removeClass('dt-table-loading');
+                mainWrapperHeightFix();
+            },
+        });
+    }
+
     // Open add modal
     $(document).on('click', '.btn-add-equiv', function () {
         var itemId   = $(this).data('item-id');

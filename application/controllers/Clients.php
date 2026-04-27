@@ -106,8 +106,10 @@ class Clients extends ClientsController
         $allDescriptions = [];
         foreach ($grouped_products as $group => $products) {
             foreach ($products as $product) {
-                if (!empty($product['itemid'])) {
-                    $allItemIds[] = (int) $product['itemid'];
+                // get_grouped() selects `items.id as id` (not itemid)
+                $pid = !empty($product['id']) ? (int) $product['id'] : (!empty($product['itemid']) ? (int) $product['itemid'] : 0);
+                if ($pid) {
+                    $allItemIds[] = $pid;
                 }
                 if (!empty($product['description'])) {
                     $allDescriptions[] = $product['description'];
@@ -121,7 +123,7 @@ class Clients extends ClientsController
         $all_products = [];
         foreach ($grouped_products as $group => $products) {
             foreach ($products as $product) {
-                $itemId = isset($product['itemid']) ? (int) $product['itemid'] : 0;
+                $itemId = !empty($product['id']) ? (int) $product['id'] : (!empty($product['itemid']) ? (int) $product['itemid'] : 0);
                 $desc   = $product['description'] ?? '';
                 $product['equivalences']   = $equivalencesMap[$itemId] ?? [];
                 $product['has_maduracion'] = $maduracionMap[$desc] ?? 0;
@@ -309,15 +311,36 @@ class Clients extends ClientsController
                 $rate = round($expected_rate, 4);
             }
 
-            $item_total = $item['qty'] * $rate;
+            // Apply equivalencia conversion: user entered qty in selected unit,
+            // invoice must store qty in base unit (base_qty = qty * factor).
+            $equiv_factor = isset($item['equivalencia_factor']) ? (float) $item['equivalencia_factor'] : 1.0;
+            if ($equiv_factor <= 0) {
+                $equiv_factor = 1.0;
+            }
+            $base_qty = (float) $item['qty'] * $equiv_factor;
+
+            // Use the selected equivalencia unit name for the invoice line unit,
+            // falling back to the item's own unit field.
+            $line_unit = (!empty($item['equivalencia_unit']) && $equiv_factor != 1.0)
+                ? trim($item['equivalencia_unit'])
+                : (isset($item['unit']) ? $item['unit'] : '');
+
+            $item_total = $base_qty * $rate;
             $subtotal += $item_total;
+
+            // Build long description: append equivalencia info when a non-base unit was selected.
+            $long_desc = isset($item['long_description']) ? $item['long_description'] : '';
+            if (!empty($item['equivalencia_unit']) && $equiv_factor != 1.0) {
+                $equiv_note = 'Equivalencia: ' . trim($item['equivalencia_unit']) . ' (x' . $equiv_factor . ')';
+                $long_desc = $long_desc ? $long_desc . ' | ' . $equiv_note : $equiv_note;
+            }
 
             $newitems[] = [
                 'description' => $item['description'],
-                'long_description' => isset($item['long_description']) ? $item['long_description'] : '',
-                'qty' => $item['qty'],
+                'long_description' => $long_desc,
+                'qty' => $base_qty,
                 'rate' => $rate,
-                'unit' => isset($item['unit']) ? $item['unit'] : '',
+                'unit' => $line_unit,
                 'order' => isset($item['order']) ? $item['order'] : ($index + 1),
                 'ripeness' => isset($item['maduracion']) ? trim($item['maduracion']) : '',
             ];
