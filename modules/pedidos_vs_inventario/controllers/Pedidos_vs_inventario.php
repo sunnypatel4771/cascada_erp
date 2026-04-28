@@ -33,9 +33,10 @@ class Pedidos_vs_inventario extends AdminController
     public function vendor_priority_save()
     {
         $posted = $this->input->post('priority');
-        $res = $this->Pedidos_vs_inventario_model->save_vendor_item_priorities_deduped($posted);
+        $prices = $this->input->post('purchase_price') ?: array();
+        $res = $this->Pedidos_vs_inventario_model->save_vendor_item_priorities_deduped($posted, is_array($prices) ? $prices : array());
         if (($res['ok'] ?? false)) {
-            set_alert('success', 'Prioridades guardadas.');
+            set_alert('success', 'Prioridades y precios guardados.');
         } else {
             set_alert('danger', 'Error: '.($res['error'] ?? ''));
         }

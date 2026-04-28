@@ -1921,7 +1921,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output(slug_it($contract->contract_number) . '.pdf', $type);
+        exit;
     }
 
     /**
@@ -2220,7 +2225,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output('purchase_request.pdf', $type);
+        exit;
     }
 
     /**
@@ -2254,7 +2264,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output('request_quotation.pdf', $type);
+        exit;
     }
 
     /**
@@ -2648,12 +2663,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
-        // Discard buffered output so TCPDF can emit PDF headers (core App_pdf::build only clears buffers when ENVIRONMENT is production).
         while (ob_get_level() > 0) {
             ob_end_clean();
         }
 
         $pdf->Output('purchase_order.pdf', $type);
+        exit;
     }
 
     /**
@@ -5163,7 +5178,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output(format_pur_estimate_number($id).'.pdf', $type);
+        exit;
     }
 
     /**
@@ -7037,7 +7057,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output(mb_strtoupper(slug_it($debit_note_number)) . '.pdf', $type);
+        exit;
     }
 
     /**
@@ -7175,7 +7200,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output(slug_it(_l('vendor_statement') . '-' . $data['statement']['client']->company) . '.pdf', $type);
+        exit;
     }
 
     /**
@@ -8189,7 +8219,6 @@ class purchase extends AdminController
         }
 
         $type = 'D';
-        ob_end_clean();
 
         if ($this->input->get('output_type')) {
             $type = $this->input->get('output_type');
@@ -8199,7 +8228,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output(mb_strtoupper(slug_it($order_return_number)).'.pdf', $type);
+        exit;
     }
 
     /**
@@ -8772,7 +8806,12 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output('compare_quotation.pdf', $type);
+        exit;
     }
 
     /**
@@ -8802,7 +8841,110 @@ class purchase extends AdminController
             $type = 'I';
         }
 
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         $pdf->Output('purchase_invoice.pdf', $type);
+        exit;
+    }
+
+    /**
+     * Local-only seed: insert a sample Purchase Order for testing.
+     * Only works when the PO list is empty AND the app is running locally.
+     */
+    public function seed_sample_pur_order()
+    {
+        if (!is_admin()) {
+            access_denied('purchase');
+        }
+
+        $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+        $is_local = (strpos($host, 'localhost') !== false
+            || strpos($host, '127.0.0.1') !== false
+            || strpos($host, '::1') !== false);
+
+        if (!$is_local) {
+            set_alert('danger', 'Seed is only available on local/dev environments.');
+            redirect(admin_url('purchase/purchase_order'));
+        }
+
+        // Note: we intentionally do NOT block seeding when pur_orders already has rows.
+        // The purchase order list screen defaults its date filters to "today", which can show
+        // an empty table even when older POs exist. This local-only seed is meant to quickly
+        // create a fresh PO for PDF testing.
+
+        $vendor_row = $this->db->select('userid')->limit(1)->get(db_prefix() . 'pur_vendor')->row();
+        if (!$vendor_row) {
+            // Fresh local DBs may not have vendors yet; create a minimal one so we can seed a PO.
+            $this->load->model('purchase/purchase_model');
+            $new_vendor_id = $this->purchase_model->add_vendor([
+                'company' => 'Sample Vendor (Seeded)',
+            ]);
+
+            if (!$new_vendor_id) {
+                set_alert('danger', 'No vendors found and failed to create a sample vendor.');
+                redirect(admin_url('purchase/purchase_order'));
+            }
+
+            $vendor_row = (object) ['userid' => $new_vendor_id];
+        }
+
+        $this->load->model('currencies_model');
+        $base_currency = $this->currencies_model->get_base_currency();
+        $currency_id   = $base_currency ? $base_currency->id : 1;
+
+        $prefix      = get_purchase_option('pur_order_prefix') ?: 'PO';
+        $next_number = (int) get_purchase_option('next_po_number');
+        if ($next_number < 1) {
+            $next_number = 1;
+        }
+
+        $po_number = $prefix . '-' . str_pad($next_number, 5, '0', STR_PAD_LEFT) . '-' . date('M-Y');
+
+        $po_data = [
+            'vendor'           => $vendor_row->userid,
+            'pur_order_name'   => 'Sample Purchase Order',
+            'pur_order_number' => $po_number,
+            'number'           => $next_number,
+            'order_date'       => date('Y-m-d'),
+            'delivery_date'    => date('Y-m-d', strtotime('+7 days')),
+            'currency'         => $currency_id,
+            'type'             => 'opex',
+            'subtotal'         => 0,
+            'total'            => 0,
+            'discount_total'   => 0,
+            'newitems'         => [
+                1 => [
+                    'item_select'     => '',
+                    'item_name'       => 'Sample Item',
+                    'item_description'=> 'Seeded for local testing',
+                    'quantity'        => 1,
+                    'unit_price'      => 0,
+                    'unit_name'       => '',
+                    'item_code'       => '',
+                    'unit_id'         => '',
+                    'discount'        => 0,
+                    'into_money'      => 0,
+                    'tax_rate'        => 0,
+                    'tax_name'        => '',
+                    'tax_value'       => 0,
+                    'total'           => 0,
+                    'discount_money'  => 0,
+                    'total_money'     => 0,
+                ],
+            ],
+        ];
+
+        $id = $this->purchase_model->add_pur_order($po_data);
+
+        if ($id) {
+            set_alert('success', 'Sample purchase order created (ID #' . $id . ').');
+        } else {
+            set_alert('danger', 'Failed to create sample purchase order.');
+        }
+
+        redirect(admin_url('purchase/purchase_order'));
     }
 
 }

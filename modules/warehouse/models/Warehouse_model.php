@@ -1516,19 +1516,28 @@ class Warehouse_model extends App_Model {
 	 * @param string $status
 	 */
 	public function add_goods_transaction_detail($data, $status) {
+		// Some installs don't have newer optional columns (e.g. serial_number).
+		// Only set fields that exist to avoid hard SQL failures.
+		$tbl = db_prefix() . 'goods_transaction_detail';
+		$hasSerial = $this->db->field_exists('serial_number', $tbl);
+
 		if ($status == '1') {
 			$data_insert['goods_receipt_id'] = $data['goods_receipt_id'];
 			$data_insert['purchase_price'] = $data['unit_price'];
 			$data_insert['expiry_date'] = $data['expiry_date'];
 			$data_insert['lot_number'] = $data['lot_number'];
-			$data_insert['serial_number'] = $data['serial_number'];
+			if ($hasSerial) {
+				$data_insert['serial_number'] = $data['serial_number'];
+			}
 			
 		} elseif ($status == '2') {
 			$data_insert['goods_receipt_id'] = $data['goods_delivery_id'];
 			$data_insert['price'] = $data['unit_price'];
 			$data_insert['expiry_date'] = $data['expiry_date'];
 			$data_insert['lot_number'] = $data['lot_number'];
-			$data_insert['serial_number'] = $data['serial_number'];
+			if ($hasSerial) {
+				$data_insert['serial_number'] = $data['serial_number'];
+			}
 			$data_insert['purchase_price'] = $data['purchase_price'];
 
 		}

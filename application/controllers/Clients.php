@@ -359,6 +359,9 @@ class Clients extends ClientsController
             // Update ripeness for each item after invoice is created
             $this->_update_items_ripeness($invoice_id, $newitems);
 
+            // Deduct inventory and record transaction history for warehouse visibility.
+            $this->_deduct_inventory_for_order($invoice_id, $newitems);
+
             echo json_encode([
                 'success' => true,
                 'message' => _l('order_saved_successfully'),
@@ -379,6 +382,134 @@ class Clients extends ClientsController
     {
         if (!$this->db->field_exists('ripeness', db_prefix() . 'itemable')) {
             $this->db->query('ALTER TABLE `' . db_prefix() . 'itemable` ADD `ripeness` VARCHAR(20) NULL AFTER `unit`');
+        }
+    }
+
+    /**
+     * After a portal invoice is created, deduct sold quantities from warehouse inventory
+     * and record a transaction history row so the commodity detail "Historial de
+     * transacciones" tab reflects the sale.
+     *
+     * This mirrors the logic in Warehouse_model::add_inventory_from_invoices() +
+     * add_goods_transaction_detail() that the Omni Sales and direct goods-delivery
+     * flows call when an invoice-linked delivery is approved.
+     *
+     * @param int   $invoice_id  Newly created invoice ID (used as reference).
+     * @param array $newitems    Items array as built in save_new_order() — each entry
+     *                           has at minimum: description, qty (base unit), rate.
+     */
+    private function _deduct_inventory_for_order(int $invoice_id, array $newitems): void
+    {
+        if (empty($newitems)) {
+            return;
+        }
+
+        // Load the warehouse model only once; swallow any load failure gracefully.
+        try {
+            $this->load->model('warehouse/warehouse_model');
+        } catch (Throwable $e) {
+            log_message('error', '[portal] Could not load warehouse_model: ' . $e->getMessage());
+            return;
+        }
+
+        foreach ($newitems as $item) {
+            $description = isset($item['description']) ? trim((string) $item['description']) : '';
+            $qty         = (float) ($item['qty'] ?? 0);
+            if ($description === '' || $qty <= 0) {
+                continue;
+            }
+
+            // Resolve the tblitems row — we need id (= commodity_id for warehouse),
+            // warehouse_id and purchase_price.
+            $itemRow = $this->db
+                ->select('id, warehouse_id, purchase_price')
+                ->where('description', $description)
+                ->limit(1)
+                ->get(db_prefix() . 'items')
+                ->row();
+
+            if (!$itemRow) {
+                continue;
+            }
+
+            $commodityId = (int) $itemRow->id;
+            $warehouseId = is_numeric($itemRow->warehouse_id) ? (int) $itemRow->warehouse_id : '';
+            $purchasePrice = (float) ($itemRow->purchase_price ?? 0);
+            $sellingPrice  = (float) ($item['rate'] ?? 0);
+
+            // Respect the "without_checking_warehouse" flag: when set, warehouse module
+            // intentionally skips this item from inventory tracking.
+            if (!$this->warehouse_model->check_item_without_checking_warehouse($commodityId)) {
+                continue;
+            }
+
+            // Build the data array that both warehouse methods expect.
+            $stockData = [
+                'commodity_code'     => $commodityId,
+                'warehouse_id'       => $warehouseId,
+                'quantities'         => $qty,
+                'unit_price'         => $sellingPrice,
+                'purchase_price'     => $purchasePrice,
+                'expiry_date'        => '',
+                'lot_number'         => '',
+                'serial_number'      => '',
+                'available_quantity' => 0,
+                // goods_delivery_id used as a reference in the transaction log
+                'goods_delivery_id'  => $invoice_id,
+                // goods_id (tblgoods_delivery_detail.id) — no real row; use 0
+                'id'                 => 0,
+                'note'               => 'Portal order invoice #' . $invoice_id,
+            ];
+
+            // Reduce inventory_manage and write the transaction history row.
+            try {
+                $this->warehouse_model->add_inventory_from_invoices($stockData);
+            } catch (Throwable $e) {
+                log_message('error', '[portal] inventory deduct failed for item "' . $description . '": ' . $e->getMessage());
+            }
+
+            // Record history in tblgoods_transaction_detail so the warehouse UI shows the movement.
+            // We avoid calling Warehouse_model::add_goods_transaction_detail() directly because the
+            // column set differs across installs (e.g. some DBs don't have serial_number).
+            try {
+                $txnTbl = db_prefix() . 'goods_transaction_detail';
+                if ($this->db->table_exists($txnTbl)) {
+                    $oldQtyRow = $this->db
+                        ->select('COALESCE(SUM(inventory_number),0) as qty', false)
+                        ->where('commodity_id', $commodityId)
+                        ->where('warehouse_id', $warehouseId)
+                        ->get(db_prefix() . 'inventory_manage')
+                        ->row();
+
+                    $oldQty = $oldQtyRow ? (float) $oldQtyRow->qty : null;
+
+                    $insert = [
+                        'goods_receipt_id' => $invoice_id,
+                        'goods_id'         => 0,
+                        'old_quantity'     => $oldQty,
+                        'quantity'         => $qty,
+                        'date_add'         => date('Y-m-d H:i:s'),
+                        'commodity_id'     => $commodityId,
+                        'warehouse_id'     => $warehouseId,
+                        'note'             => 'Portal order invoice #' . $invoice_id,
+                        'status'           => '2',
+                        'purchase_price'   => $purchasePrice,
+                        'price'            => $sellingPrice,
+                        'expiry_date'      => '',
+                        'lot_number'       => '',
+                    ];
+
+                    foreach (array_keys($insert) as $k) {
+                        if (!$this->db->field_exists($k, $txnTbl)) {
+                            unset($insert[$k]);
+                        }
+                    }
+
+                    $this->db->insert($txnTbl, $insert);
+                }
+            } catch (Throwable $e) {
+                log_message('error', '[portal] transaction log insert failed for item "' . $description . '": ' . $e->getMessage());
+            }
         }
     }
 

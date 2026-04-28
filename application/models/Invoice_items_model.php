@@ -157,12 +157,23 @@ class Invoice_items_model extends App_Model
                 foreach ($_items as $i) {
                     // Build image URL
                     if (!empty($i['image_file'])) {
-                        $image_path = 'modules/warehouse/uploads/item_img/' . $i['id'] . '/' . $i['image_file'];
-                        if (file_exists(FCPATH . $image_path)) {
-                            $i['image_url'] = base_url($image_path);
-                        } else {
-                            $i['image_url'] = $default_image;
+                        // Try the same lookup order as admin commodity list:
+                        // 1) warehouse module, 2) purchase module, 3) manufacturing module.
+                        $candidates = [
+                            'modules/warehouse/uploads/item_img/' . $i['id'] . '/' . $i['image_file'],
+                            'modules/purchase/uploads/item_img/' . $i['id'] . '/' . $i['image_file'],
+                            'modules/manufacturing/uploads/products/' . $i['id'] . '/' . $i['image_file'],
+                        ];
+
+                        $resolved = null;
+                        foreach ($candidates as $relPath) {
+                            if (file_exists(FCPATH . $relPath)) {
+                                $resolved = $relPath;
+                                break;
+                            }
                         }
+
+                        $i['image_url'] = $resolved ? base_url($resolved) : $default_image;
                     } else {
                         $i['image_url'] = $default_image;
                     }

@@ -6,6 +6,8 @@ $custom_fields = get_custom_fields('pur_order', [
     'show_on_table' => 1,
     ]);
 
+$po_hide_prices_tbl = function_exists('purchase_po_hides_prices') && purchase_po_hides_prices();
+
 $aColumns = [
     'pur_order_number',
     'vendor',
@@ -14,28 +16,36 @@ $aColumns = [
     'project',
     'department',
     'pur_order_name',
-    'subtotal',
-    'total_tax',
-    'total',
-    '(SELECT GROUP_CONCAT(name SEPARATOR ",") FROM ' . db_prefix() . 'taggables JOIN ' . db_prefix() . 'tags ON ' . db_prefix() . 'taggables.tag_id = ' . db_prefix() . 'tags.id WHERE rel_id = ' . db_prefix() . 'pur_orders.id and rel_type="pur_order" ORDER by tag_order ASC) as tags', 
-    'approve_status',
-    'delivery_date',
-    'delivery_status',
-    'number',
-    'expense_convert',
-    ];
+];
+
+if (!$po_hide_prices_tbl) {
+    $aColumns[] = 'subtotal';
+    $aColumns[] = 'total_tax';
+    $aColumns[] = 'total';
+}
+
+$aColumns[] = '(SELECT GROUP_CONCAT(name SEPARATOR ",") FROM ' . db_prefix() . 'taggables JOIN ' . db_prefix() . 'tags ON ' . db_prefix() . 'taggables.tag_id = ' . db_prefix() . 'tags.id WHERE rel_id = ' . db_prefix() . 'pur_orders.id and rel_type="pur_order" ORDER by tag_order ASC) as tags';
+$aColumns[] = 'approve_status';
+$aColumns[] = 'delivery_date';
+$aColumns[] = 'delivery_status';
+
+if (!$po_hide_prices_tbl) {
+    $aColumns[] = 'number';
+    $aColumns[] = 'expense_convert';
+}
 
 if(isset($vendor) || isset($project)){
-    $aColumns = [
-    'pur_order_number',
-    'total',
-    'total_tax',
-    'vendor', 
-    'order_date',
-    'number',
-    'approve_status',
-    
-    ];
+    $aColumns = ['pur_order_number'];
+    if (!$po_hide_prices_tbl) {
+        $aColumns[] = 'total';
+        $aColumns[] = 'total_tax';
+    }
+    $aColumns[] = 'vendor';
+    $aColumns[] = 'order_date';
+    if (!$po_hide_prices_tbl) {
+        $aColumns[] = 'number';
+    }
+    $aColumns[] = 'approve_status';
 }
 
 $sIndexColumn = 'id';

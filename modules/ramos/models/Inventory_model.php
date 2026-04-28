@@ -322,19 +322,52 @@ class Inventory_model extends App_Model
             return [];
         }
 
-        // Fetch all inventory items with maduracion (small table) and filter in PHP.
-        // Using where_in with a large array causes CodeIgniter's query-builder regex to fail.
+        $descSet = array_flip($descriptions);
+        $map = [];
+
+        // --- Source 1: tblramos_inventory_items.has_maduracion (legacy manual flag) ---
         $rows = $this->db
             ->select('item_name, has_maduracion')
             ->where('has_maduracion', 1)
             ->get($this->table)
             ->result_array();
 
-        $descSet = array_flip($descriptions);
-        $map = [];
         foreach ($rows as $row) {
             if (isset($descSet[$row['item_name']])) {
-                $map[$row['item_name']] = (int) $row['has_maduracion'];
+                $map[$row['item_name']] = 1;
+            }
+        }
+
+        // --- Source 2: tblcustomfieldsvalues for the 'maduracion' custom field on items ---
+        // This is the authoritative source shown on the admin commodity list (value = 'Sí').
+        $cfTable  = db_prefix() . 'customfieldsvalues';
+        $cfDef    = db_prefix() . 'customfields';
+        $itemsTbl = db_prefix() . 'items';
+
+        if ($this->db->table_exists($cfTable) && $this->db->table_exists($cfDef) && $this->db->table_exists($itemsTbl)) {
+            $cfRows = $this->db->query(
+                "SELECT i.description, cv.value
+                   FROM `{$cfTable}` cv
+                   JOIN `{$cfDef}` cf  ON cf.id = cv.fieldid
+                   JOIN `{$itemsTbl}` i ON i.id  = cv.relid
+                  WHERE cf.name = 'maduracion'
+                    AND cf.fieldto = 'items'"
+            )->result_array();
+
+            foreach ($cfRows as $row) {
+                $desc  = $row['description'];
+                $value = trim(strtolower((string) $row['value']));
+                if (!isset($descSet[$desc])) {
+                    continue;
+                }
+                // 'sí', 'si', 'yes', '1', 'true' → has maduracion
+                $isYes = in_array($value, ['sí', 'si', 'yes', '1', 'true', 's'], true);
+                if ($isYes) {
+                    $map[$desc] = 1;
+                } elseif (!isset($map[$desc])) {
+                    // Only set 0 when the legacy source didn't already mark it as 1.
+                    $map[$desc] = 0;
+                }
             }
         }
 

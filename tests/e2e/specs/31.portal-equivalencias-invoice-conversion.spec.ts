@@ -120,8 +120,14 @@ test.describe('Portal equivalencias → invoice conversion', () => {
     // Trigger save directly (some UI wrappers can swallow click events in tests).
     const hasSaveFn = await page.evaluate(() => typeof (window as any).saveNewOrder === 'function');
     expect(hasSaveFn).toBe(true);
-    // Wait for the reload that happens after successful save.
-    const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 });
+    // The portal save shows an alert and then calls window.location.reload().
+    // In headed mode, Playwright can miss the navigation event depending on timing,
+    // so wait for either the POST request/response or a navigation.
+    const saveUrlRe = /\/clients\/save_new_order/i;
+    const saveResponsePromise = page
+      .waitForResponse((r) => saveUrlRe.test(r.url()) && r.request().method() === 'POST', { timeout: 60000 })
+      .catch(() => null);
+    const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => null);
 
     const saveInvoke = await page.evaluate(() => {
       try {
@@ -132,7 +138,8 @@ test.describe('Portal equivalencias → invoice conversion', () => {
       }
     });
     console.log('saveNewOrder invoke result:', saveInvoke);
-    await navPromise;
+    await Promise.race([saveResponsePromise, navPromise]);
+    await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
     await expect(page).toHaveURL(/\/clients/);
 
     // Navigate to invoices list and open the invoice that matches our expected amount.

@@ -10,13 +10,16 @@
         </div>
 
         <div class="row">
-            <!-- Previous Order (Left Side) — full width until lg so tables are not squeezed -->
-            <div class="col-md-12 col-lg-6">
+            <!-- Previous Order — full width, collapsible -->
+            <div class="col-md-12">
                 <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h4 class="panel-title"><?php echo _l('previous_order'); ?></h4>
+                    <div class="panel-heading" style="cursor:pointer;" data-toggle="collapse" data-target="#prev-order-body" aria-expanded="true">
+                        <h4 class="panel-title">
+                            <?php echo _l('previous_order'); ?>
+                            <span class="pull-right"><i class="fa fa-chevron-up" id="prev-order-chevron"></i></span>
+                        </h4>
                     </div>
-                    <div class="panel-body">
+                    <div class="panel-body collapse in" id="prev-order-body">
                         <?php if (isset($latest_order) && $latest_order && !empty($latest_order_items)): ?>
                             <table class="table table-bordered table-striped">
                                 <thead>
@@ -70,8 +73,8 @@
                 </div>
             </div>
 
-            <!-- New Order (Right Side) -->
-            <div class="col-md-12 col-lg-6">
+            <!-- New Order — full width -->
+            <div class="col-md-12">
                 <div class="panel panel-default">
                     <div class="panel-heading">
                         <h4 class="panel-title"><?php echo _l('new_order'); ?></h4>
@@ -984,6 +987,22 @@
                 });
         }
 
+        // Chevron direction on previous-order collapse
+        document.addEventListener('DOMContentLoaded', function() {
+            var prevBody = document.getElementById('prev-order-body');
+            if (prevBody) {
+                if (typeof $ !== 'undefined') {
+                    $(prevBody).on('hide.bs.collapse', function() {
+                        var ic = document.getElementById('prev-order-chevron');
+                        if (ic) { ic.className = 'fa fa-chevron-down'; }
+                    }).on('show.bs.collapse', function() {
+                        var ic = document.getElementById('prev-order-chevron');
+                        if (ic) { ic.className = 'fa fa-chevron-up'; }
+                    });
+                }
+            }
+        });
+
         // Auto-populate with previous order on page load
         document.addEventListener('DOMContentLoaded', function() {
             if (previousOrderData && previousOrderData.length > 0) {
@@ -1250,16 +1269,16 @@
             table-layout: fixed;
             width: 100%;
             margin-bottom: 0;
-            min-width: 640px;
+            min-width: 720px;
         }
 
         #new-order-table col.new-order-col-image { width: 76px; }
-        #new-order-table col.new-order-col-product { width: 26%; }
-        #new-order-table col.new-order-col-unit { width: 9%; }
-        #new-order-table col.new-order-col-equivalencias { width: 11%; }
-        #new-order-table col.new-order-col-maduracion { width: 168px; }
-        #new-order-table col.new-order-col-qty { width: 72px; }
-        #new-order-table col.new-order-col-rate { width: 88px; }
+        #new-order-table col.new-order-col-product { width: 28%; }
+        #new-order-table col.new-order-col-unit { width: 8%; }
+        #new-order-table col.new-order-col-equivalencias { width: 13%; }
+        #new-order-table col.new-order-col-maduracion { width: 160px; }
+        #new-order-table col.new-order-col-qty { width: 80px; }
+        #new-order-table col.new-order-col-rate { width: 96px; }
         #new-order-table col.new-order-col-action { width: 44px; }
 
         #new-order-table th,

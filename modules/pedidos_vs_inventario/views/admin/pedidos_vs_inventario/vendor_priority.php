@@ -18,21 +18,21 @@
             <?php if (!empty($data['error'])) { ?>
               <div class="alert alert-danger"><?php echo html_escape($data['error']); ?></div>
             <?php } else { ?>
-              <p class="text-muted">Vista deduplicada por <b>Proveedor + Item code</b>. Guardar actualiza filas duplicadas.</p>
+              <p class="text-muted">Vista deduplicada por <b>Proveedor + Item code</b>. Guardar actualiza filas duplicadas y sincroniza el precio al inventario.</p>
 
               <form method="post" action="<?php echo admin_url('pedidos_vs_inventario/vendor_priority_save'); ?>">
                 <?php echo form_hidden($this->security->get_csrf_token_name(), $this->security->get_csrf_hash()); ?>
 
                 <div class="table-responsive">
-                  <table class="table table-bordered table-striped">
+                  <table class="table table-bordered table-striped" id="vendor-priority-table">
                     <thead>
                       <tr>
                         <th>Proveedor</th>
                         <th>Producto</th>
-                        <th style="width:120px;">Item code</th>
-                        <th style="width:120px;">Prioridad</th>
-                        <th style="width:140px;">Precio compra</th>
-                        <th style="width:90px;">Filas</th>
+                        <th style="width:100px;">Item ID</th>
+                        <th style="width:110px;">Prioridad</th>
+                        <th style="width:150px;">Precio compra <small class="text-muted">(sincroniza a inventario)</small></th>
+                        <th style="width:80px;">Filas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -42,11 +42,17 @@
                           <td><?php echo html_escape($r['product_name']); ?></td>
                           <td><?php echo html_escape((string)$r['item_code']); ?></td>
                           <td>
-                            <input type="number" class="form-control" style="max-width:120px;"
+                            <input type="number" class="form-control input-sm" style="max-width:110px;"
                                    name="priority[<?php echo html_escape($r['key']); ?>]"
                                    value="<?php echo html_escape((string)$r['priority']); ?>">
                           </td>
-                          <td><?php echo html_escape((string)($r['purchase_price'] ?? '')); ?></td>
+                          <td>
+                            <input type="number" class="form-control input-sm" style="max-width:140px;"
+                                   name="purchase_price[<?php echo html_escape($r['key']); ?>]"
+                                   value="<?php echo html_escape((string)($r['purchase_price'] ?? '')); ?>"
+                                   step="0.01" min="0"
+                                   placeholder="0.00">
+                          </td>
                           <td><?php echo html_escape((string)$r['row_count']); ?></td>
                         </tr>
                       <?php } ?>
@@ -54,8 +60,13 @@
                   </table>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Guardar prioridades</button>
+                <button type="submit" class="btn btn-primary">Guardar prioridades y precios</button>
               </form>
+              <script>
+              if (typeof $ !== 'undefined' && $.fn.DataTable) {
+                $('#vendor-priority-table').DataTable({ pageLength: 25, order: [[0,  'asc']], columnDefs: [{orderable: false, targets: [3,4]}] });
+              }
+              </script>
             <?php } ?>
           </div>
         </div>

@@ -108,7 +108,9 @@
 					<div class="panel_s">
 						<div class="panel-body">
 	                    <?php echo form_hidden('pur_orderid',$pur_orderid); ?>
-	                    <?php $table_data = array(
+	                    <?php
+                       $po_hide_prices_list = function_exists('purchase_po_hides_prices') && purchase_po_hides_prices();
+                       $table_data = array(
                            _l('purchase_order'),
                            _l('vendor'),
                            _l('order_date'),
@@ -116,16 +118,20 @@
                            _l('project'),
                            _l('department'),
                            _l('po_description'),
-                           _l('po_value'),
-                           _l('tax_value'),
-                           _l('po_value_included_tax'),
-                           _l('tags'),
-                           _l('approval_status'),
-                           _l('delivery_date'),
-                           _l('delivery_status'),
-                           _l('payment_status'),
-                           _l('convert_expense'),
-                           );
+                       );
+                       if (!$po_hide_prices_list) {
+                           $table_data[] = _l('po_value');
+                           $table_data[] = _l('tax_value');
+                           $table_data[] = _l('po_value_included_tax');
+                       }
+                       $table_data[] = _l('tags');
+                       $table_data[] = _l('approval_status');
+                       $table_data[] = _l('delivery_date');
+                       $table_data[] = _l('delivery_status');
+                       if (!$po_hide_prices_list) {
+                           $table_data[] = _l('payment_status');
+                           $table_data[] = _l('convert_expense');
+                       }
                        $custom_fields = get_custom_fields('pur_order',array('show_on_table'=>1));
                         foreach($custom_fields as $field){
                          array_push($table_data,$field['name']);

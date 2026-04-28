@@ -124,18 +124,30 @@ class Pedidos_vs_inventario_model extends App_Model
     public function save_vendor_item_purchase_price($vendorId, $itemCode, $price)
     {
         $this->ensure_vendor_items_columns();
-        $res = array('ok'=>false,'updated'=>0,'error'=>null);
+        $res = array('ok'=>false,'updated'=>0,'error'=>null,'synced_to_items'=>false);
 
         if (!$this->db->table_exists('tblpur_vendor_items')) { $res['error']='No existe tblpur_vendor_items'; return $res; }
         $cols = $this->detect_vendor_item_cols();
         if (!$cols['vendorIdCol'] || !$cols['itemCodeCol']) { $res['error']='No se detectaron columnas vendor/item_code'; return $res; }
         if ((int)$vendorId <= 0 || $itemCode === null || $itemCode === '') { $res['error']='vendor_id/item_code requeridos'; return $res; }
 
+        $price = (float)$price;
+
+        // Update the link table.
         $this->db->where($cols['vendorIdCol'], (int)$vendorId);
         $this->db->where($cols['itemCodeCol'], (string)$itemCode);
-        $this->db->update('tblpur_vendor_items', array('purchase_price'=>(float)$price));
-
+        $this->db->update('tblpur_vendor_items', array('purchase_price' => $price));
         $res['updated'] = (int)$this->db->affected_rows();
+
+        // Sync to tblitems.purchase_price (authoritative source for portal pricing).
+        // tblpur_vendor_items.items stores tblitems.id directly.
+        $itemId = (int)$itemCode;
+        if ($itemId > 0 && $this->db->table_exists(db_prefix().'items')) {
+            $this->db->where('id', $itemId);
+            $this->db->update(db_prefix().'items', array('purchase_price' => $price));
+            $res['synced_to_items'] = (int)$this->db->affected_rows() > 0;
+        }
+
         $res['ok'] = true;
         return $res;
     }
@@ -275,7 +287,13 @@ class Pedidos_vs_inventario_model extends App_Model
         return $out;
     }
 
-    public function save_vendor_item_priorities_deduped($posted)
+    /**
+     * Save priorities and optionally purchase prices for vendor-item pairs.
+     *
+     * @param array $posted  Map of "vendorId|itemCode" => priority value.
+     * @param array $prices  Map of "vendorId|itemCode" => purchase_price value (optional).
+     */
+    public function save_vendor_item_priorities_deduped($posted, array $prices = array())
     {
         $this->ensure_vendor_items_columns();
         $res = array('ok'=>false,'updated'=>0,'error'=>null);
@@ -291,10 +309,26 @@ class Pedidos_vs_inventario_model extends App_Model
             $vendorId = (int)$parts[0];
             $itemCode = $parts[1];
 
+            $updateData = array('priority' => (int)$prio);
+
+            // Include price if provided for this key.
+            if (isset($prices[$key]) && is_numeric($prices[$key])) {
+                $updateData['purchase_price'] = (float)$prices[$key];
+            }
+
             $this->db->where($cols['vendorIdCol'], $vendorId);
             $this->db->where($cols['itemCodeCol'], $itemCode);
-            $this->db->update('tblpur_vendor_items', array('priority'=>(int)$prio));
+            $this->db->update('tblpur_vendor_items', $updateData);
             $res['updated'] += (int)$this->db->affected_rows();
+
+            // Sync purchase price back to tblitems (authoritative source for portal pricing).
+            if (isset($updateData['purchase_price'])) {
+                $itemId = (int)$itemCode;
+                if ($itemId > 0 && $this->db->table_exists(db_prefix().'items')) {
+                    $this->db->where('id', $itemId);
+                    $this->db->update(db_prefix().'items', array('purchase_price' => $updateData['purchase_price']));
+                }
+            }
         }
         $res['ok'] = true;
         return $res;
