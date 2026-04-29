@@ -76,6 +76,10 @@ playwright-report/
 test-results/
 blob-report/
 
+# Local XLSX exports (scripts/export-commodities-without-images.cjs)
+exports/*
+!exports/commodities-without-images.xlsx
+
 # Local/production config (do not commit)
 # Keep the loader file tracked, ignore per-environment secrets:
 application/config/app-config.local.php

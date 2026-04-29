@@ -14,7 +14,8 @@
     "pw:test:headed": "playwright test --headed",
     "pw:staging:complete-picking": "playwright test tests/e2e/specs/picking-console-complete-all-staging.spec.ts --headed",
     "pw:test:ui": "playwright test --ui",
-    "pw:report": "playwright show-report"
+    "pw:report": "playwright show-report",
+    "export:commodities-no-image": "node scripts/export-commodities-without-images.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
