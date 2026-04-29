@@ -9,6 +9,9 @@
  *   BASE_URL=http://127.0.0.1:8080
  *   OUT=exports/commodities-without-images.xlsx (default; stable path in repo)
  *
+ * Pagination: uses the largest non-"All" page size (usually 100), then clicks Next
+ * until disabled so every server-side DataTables page is included (not only the first).
+ *
  * Requires: npm install (uses @playwright/test + xlsx from repo root).
  */
 
@@ -37,6 +40,99 @@ function isPlaceholderImage(src, alt) {
     return true;
   }
   return false;
+}
+
+/** Wait until server-side DataTables finishes the current draw. */
+async function waitForDrawComplete(page) {
+  await page.waitForFunction(
+    () => {
+      const wrap = document.querySelector('#table-table_commodity_list_wrapper');
+      if (!wrap) {
+        return false;
+      }
+      const proc =
+        wrap.querySelector('#table-table_commodity_list_processing') ||
+        wrap.querySelector('.dataTables_processing');
+      if (!proc) {
+        return true;
+      }
+      const st = window.getComputedStyle(proc);
+      return st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0';
+    },
+    { timeout: 120000 }
+  );
+  await new Promise((r) => setTimeout(r, 400));
+}
+
+/**
+ * Pick largest page size (not "All") so each request stays small enough for PHP,
+ * then walk every page with Next until disabled.
+ */
+async function collectAllWithoutImagesAcrossPages(page) {
+  const lengthSelect = page.locator('#table-table_commodity_list_wrapper .dataTables_length select');
+  await lengthSelect.waitFor({ state: 'visible', timeout: 60000 });
+  await waitForDrawComplete(page);
+
+  const bestLen = await lengthSelect.evaluate((sel) => {
+    let max = 25;
+    for (const opt of sel.querySelectorAll('option')) {
+      const v = parseInt(opt.value, 10);
+      if (v > 0 && v !== -1 && !Number.isNaN(v)) {
+        max = Math.max(max, v);
+      }
+    }
+    return String(max);
+  });
+  await lengthSelect.selectOption(bestLen);
+  await waitForDrawComplete(page);
+
+  const mergedById = new Map();
+
+  for (let guard = 0; guard < 600; guard++) {
+    await waitForDrawComplete(page);
+    const raw = await collectFromCurrentPage(page);
+    let added = 0;
+    for (const r of raw) {
+      if (!r.itemId || !isPlaceholderImage(r.imageSrc, r.imageAlt)) {
+        continue;
+      }
+      if (!mergedById.has(r.itemId)) {
+        mergedById.set(r.itemId, r);
+        added++;
+      }
+    }
+
+    const info = await page
+      .locator('#table-table_commodity_list_info')
+      .innerText()
+      .catch(() => '');
+    console.log(`Table page ${guard + 1} (${info.trim()}): +${added} without image (unique total ${mergedById.size})`);
+
+    const clicked = await page.evaluate(() => {
+      const wrap = document.querySelector('#table-table_commodity_list_wrapper');
+      if (!wrap) {
+        return false;
+      }
+      const li =
+        wrap.querySelector('li#table-table_commodity_list_next') ||
+        wrap.querySelector('li.paginate_button.next');
+      if (!li || li.classList.contains('disabled')) {
+        return false;
+      }
+      const a = li.querySelector('a');
+      if (!a) {
+        return false;
+      }
+      a.click();
+      return true;
+    });
+    if (!clicked) {
+      break;
+    }
+    await waitForDrawComplete(page);
+  }
+
+  return [...mergedById.values()];
 }
 
 async function collectFromCurrentPage(page) {
@@ -94,24 +190,10 @@ async function main() {
       page.locator('button[type="submit"]').click(),
     ]);
 
-    await page.goto('/admin/warehouse/commodity_list', { waitUntil: 'networkidle' });
+    await page.goto('/admin/warehouse/commodity_list', { waitUntil: 'domcontentloaded' });
+    await page.locator('#table-table_commodity_list_wrapper').waitFor({ state: 'visible', timeout: 120000 });
 
-    const lengthSelect = page.locator('#table-table_commodity_list_wrapper .dataTables_length select');
-    await lengthSelect.waitFor({ state: 'visible', timeout: 60000 });
-
-    const hasAll = await lengthSelect.locator('option[value="-1"]').count();
-    if (hasAll) {
-      await lengthSelect.selectOption('-1');
-      await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
-      await new Promise((r) => setTimeout(r, 1200));
-    }
-
-    const raw = await collectFromCurrentPage(page);
-    const withoutImage = raw.filter((r) => isPlaceholderImage(r.imageSrc, r.imageAlt));
-
-    if (!hasAll) {
-      console.warn('Could not select "All" rows; export may be incomplete. Increase rows per page in UI or extend script to paginate.');
-    }
+    const withoutImage = await collectAllWithoutImagesAcrossPages(page);
 
     const rows = withoutImage.map((r) => ({
       'Item ID': r.itemId,
