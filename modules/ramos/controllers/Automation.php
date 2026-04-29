@@ -115,6 +115,10 @@ class Automation extends AdminController
         $data['default_route_prefix']     = get_option('ramos_default_route_prefix', 'Route');
         $data['default_route_start_time'] = get_option('ramos_default_route_start_time', '08:00:00');
 
+        // Portal invoice auto-merge settings
+        $data['portal_invoice_auto_merge_enabled'] = get_option('ramos_portal_invoice_auto_merge_enabled', '1') === '1';
+        $data['portal_invoice_auto_merge_cancel']  = get_option('ramos_portal_invoice_auto_merge_cancel', '1') === '1';
+
         // Last run info
         $data['last_automation_run_date'] = get_option('ramos_last_automation_run_date') ?: _l('ramos_settings_never_run');
 
@@ -199,6 +203,12 @@ class Automation extends AdminController
             // Route generation settings
             $routeGenAuto = $this->input->post('route_generation_auto') === 'on' ? '1' : '0';
             update_option('ramos_route_generate_on_success', $routeGenAuto);
+
+            // Portal invoice auto-merge settings (affects customer portal order → invoice flow)
+            $portalMergeEnabled = $this->input->post('portal_invoice_auto_merge_enabled') === 'on' ? '1' : '0';
+            $portalMergeCancel  = $this->input->post('portal_invoice_auto_merge_cancel') === 'on' ? '1' : '0';
+            update_option('ramos_portal_invoice_auto_merge_enabled', $portalMergeEnabled);
+            update_option('ramos_portal_invoice_auto_merge_cancel', $portalMergeCancel);
 
             $maxStops = (int) $this->input->post('default_max_stops');
             $maxStops = max(1, min(100, $maxStops));

@@ -10,16 +10,13 @@
         </div>
 
         <div class="row">
-            <!-- Previous Order — full width, collapsible -->
-            <div class="col-md-12">
+            <!-- Previous Order (left) — same layout as original portal -->
+            <div class="col-md-6">
                 <div class="panel panel-default">
-                    <div class="panel-heading" style="cursor:pointer;" data-toggle="collapse" data-target="#prev-order-body" aria-expanded="true">
-                        <h4 class="panel-title">
-                            <?php echo _l('previous_order'); ?>
-                            <span class="pull-right"><i class="fa fa-chevron-up" id="prev-order-chevron"></i></span>
-                        </h4>
+                    <div class="panel-heading">
+                        <h4 class="panel-title"><?php echo _l('previous_order'); ?></h4>
                     </div>
-                    <div class="panel-body collapse in" id="prev-order-body">
+                    <div class="panel-body" id="prev-order-body">
                         <?php if (isset($latest_order) && $latest_order && !empty($latest_order_items)): ?>
                             <table class="table table-bordered table-striped">
                                 <thead>
@@ -73,8 +70,8 @@
                 </div>
             </div>
 
-            <!-- New Order — full width -->
-            <div class="col-md-12">
+            <!-- New Order (right) -->
+            <div class="col-md-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
                         <h4 class="panel-title"><?php echo _l('new_order'); ?></h4>
@@ -986,22 +983,6 @@
                     console.error('Error:', error);
                 });
         }
-
-        // Chevron direction on previous-order collapse
-        document.addEventListener('DOMContentLoaded', function() {
-            var prevBody = document.getElementById('prev-order-body');
-            if (prevBody) {
-                if (typeof $ !== 'undefined') {
-                    $(prevBody).on('hide.bs.collapse', function() {
-                        var ic = document.getElementById('prev-order-chevron');
-                        if (ic) { ic.className = 'fa fa-chevron-down'; }
-                    }).on('show.bs.collapse', function() {
-                        var ic = document.getElementById('prev-order-chevron');
-                        if (ic) { ic.className = 'fa fa-chevron-up'; }
-                    });
-                }
-            }
-        });
 
         // Auto-populate with previous order on page load
         document.addEventListener('DOMContentLoaded', function() {

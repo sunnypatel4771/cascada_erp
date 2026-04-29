@@ -4,7 +4,7 @@ import { creds } from '../utils/credentials';
 import { assertPageLoaded } from '../utils/guards';
 
 test.describe('Portal equivalencias → invoice conversion', () => {
-  test('requires equivalencia selection and converts qty to base unit', async ({ page }) => {
+  test('stores invoice qty/unit in order unit (equivalencia) and preserves totals', async ({ page }) => {
     test.setTimeout(120000);
 
     await loginCustomer(page, creds.customer);
@@ -99,7 +99,7 @@ test.describe('Portal equivalencias → invoice conversion', () => {
     const baseRate = parseFloat(rateStr || '0');
     expect(baseRate).toBeGreaterThanOrEqual(0);
 
-    // Total should be qty * factor * rate = 3 * 24 * baseRate
+    // Total should be qty * factor * baseRate = 3 * 24 * baseRate (UI uses baseRate and factor)
     const expectedTotal = (3 * 24 * baseRate).toFixed(2);
     await page.waitForTimeout(300);
     const calcDebug = await page.evaluate(() => {
@@ -150,11 +150,12 @@ test.describe('Portal equivalencias → invoice conversion', () => {
     await expect(invoiceLink).toBeVisible({ timeout: 20000 });
     await invoiceLink.click();
 
-    // Invoice page should show items table. Validate qty conversion and equivalencia note.
+    // Invoice page should show items table. Validate equivalencia note and that invoice shows the ordered unit.
     await expect(page.locator('body')).toContainText(/AGUA MINERAL/i);
     await expect(page.locator('body')).toContainText(/Equivalencia:\s*Caja\s*\(x24\)/i);
-    // Base qty should be 3 * 24 = 72 somewhere on the invoice.
-    await expect(page.locator('body')).toContainText(/\b72\b/);
+    // Invoice should show ordered qty (3) and the unit label (Caja).
+    await expect(page.locator('body')).toContainText(/\b3\b/);
+    await expect(page.locator('body')).toContainText(/\bCaja\b/i);
   });
 });
 

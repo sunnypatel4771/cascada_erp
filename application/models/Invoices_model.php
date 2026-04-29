@@ -956,6 +956,7 @@ class Invoices_model extends App_Model
 
     protected function merge_invoices($invoices, $id, $cancel)
     {
+        $mergedAny = false;
         foreach ($invoices as $mergeId) {
             $merged          = false;
             $originalInvoice = $this->get($mergeId);
@@ -980,6 +981,7 @@ class Invoices_model extends App_Model
                 }
             }
             if ($merged) {
+                $mergedAny = true;
                 $this->db->where('invoiceid', $originalInvoice->id);
                 $is_expense_invoice = $this->db->get('expenses')->row();
 
@@ -1004,12 +1006,186 @@ class Invoices_model extends App_Model
                     $this->db->where('invoice_id', $originalInvoice->id);
                     $proposal = $this->db->get('proposals')->row();
 
-                    $this->db->where('id', $proposal->id)->db->update('proposals', [
+                    $this->db->where('id', $proposal->id)->update('proposals', [
                         'invoice_id' => $id,
                     ]);
                 }
             }
         }
+
+        return $mergedAny;
+    }
+
+    /**
+     * Server-side merge used for automated flows (e.g. portal orders).
+     *
+     * Perfex's UI merge flow works by: (a) copying candidate invoice items into the current
+     * invoice form via AJAX, then (b) cancelling/deleting the merged invoices on save.
+     *
+     * For automated merging we must do both steps server-side: copy line items + taxes into
+     * the target invoice, then cancel/delete the merged invoices.
+     *
+     * @param int   $targetInvoiceId Invoice that will remain after merge.
+     * @param int   $clientId        Expected customer id (safety check).
+     * @param bool  $cancelMerged    When true, cancel merged invoices (recommended).
+     * @param array $mergeInvoiceIds Optional explicit list; if empty we auto-discover mergeable invoices for this customer.
+     * @return array Merged invoice IDs that were processed.
+     */
+    public function auto_merge_same_customer_invoices(int $targetInvoiceId, int $clientId, bool $cancelMerged = true, array $mergeInvoiceIds = []): array
+    {
+        $mergedIds = [];
+
+        $target = $this->db
+            ->select('id, clientid, status, currency, subtotal, total, discount_total, adjustment')
+            ->where('id', $targetInvoiceId)
+            ->limit(1)
+            ->get(db_prefix() . 'invoices')
+            ->row_array();
+
+        if (!$target) {
+            return [];
+        }
+
+        // Only merge into eligible invoices.
+        $blocked = [self::STATUS_PAID, self::STATUS_PARTIALLY, self::STATUS_CANCELLED];
+        if (in_array((int) $target['status'], $blocked, true)) {
+            return [];
+        }
+
+        if ((int) $target['clientid'] !== (int) $clientId) {
+            return [];
+        }
+
+        $allowedStatuses = [self::STATUS_UNPAID, self::STATUS_OVERDUE, self::STATUS_DRAFT];
+
+        // Discover candidates if not explicitly provided.
+        if (empty($mergeInvoiceIds)) {
+            $rows = $this->db
+                ->select('id')
+                ->where('clientid', (int) $clientId)
+                ->where_in('status', $allowedStatuses)
+                ->where('id !=', (int) $targetInvoiceId)
+                ->get(db_prefix() . 'invoices')
+                ->result_array();
+            $mergeInvoiceIds = array_map(static fn ($r) => (int) $r['id'], $rows);
+        }
+
+        $mergeInvoiceIds = array_values(array_unique(array_filter(array_map('intval', $mergeInvoiceIds))));
+        $mergeInvoiceIds = array_values(array_diff($mergeInvoiceIds, [(int) $targetInvoiceId]));
+
+        if (empty($mergeInvoiceIds)) {
+            return [];
+        }
+
+        // Only merge invoices of the same currency as the target invoice.
+        $targetCurrency = (int) ($target['currency'] ?? 0);
+
+        // Determine the next item order for the target invoice.
+        $maxOrderRow = $this->db
+            ->select('COALESCE(MAX(item_order),0) as max_order', false)
+            ->where('rel_id', (int) $targetInvoiceId)
+            ->where('rel_type', 'invoice')
+            ->get(db_prefix() . 'itemable')
+            ->row_array();
+        $nextOrder = (int) ($maxOrderRow['max_order'] ?? 0) + 1;
+
+        $validToCancel = [];
+
+        foreach ($mergeInvoiceIds as $mergeId) {
+            $row = $this->db
+                ->select('id, clientid, status, currency')
+                ->where('id', (int) $mergeId)
+                ->limit(1)
+                ->get(db_prefix() . 'invoices')
+                ->row_array();
+
+            if (!$row) {
+                continue;
+            }
+            if ((int) $row['clientid'] !== (int) $clientId) {
+                continue;
+            }
+            if (!in_array((int) $row['status'], $allowedStatuses, true)) {
+                continue;
+            }
+            if ((int) $row['currency'] !== $targetCurrency) {
+                continue;
+            }
+
+            $inv = $this->get((int) $mergeId);
+            if (!$inv || empty($inv->items)) {
+                continue;
+            }
+
+            foreach ($inv->items as $it) {
+                $taxname = [];
+                $taxes   = get_invoice_item_taxes($it['id']);
+                foreach ($taxes as $tax) {
+                    $taxname[] = $tax['taxname'];
+                }
+
+                $postItem = [
+                    'description'      => $it['description'],
+                    'long_description' => clear_textarea_breaks($it['long_description']),
+                    'qty'              => $it['qty'],
+                    'rate'             => $it['rate'],
+                    'unit'             => $it['unit'],
+                    'order'            => $nextOrder++,
+                    'taxname'          => $taxname,
+                ];
+
+                $newItemId = add_new_sales_item_post($postItem, $targetInvoiceId, 'invoice');
+                if ($newItemId) {
+                    _maybe_insert_post_item_tax($newItemId, $postItem, $targetInvoiceId, 'invoice');
+                }
+            }
+
+            $mergedIds[]     = (int) $mergeId;
+            $validToCancel[] = (int) $mergeId;
+        }
+
+        if (empty($validToCancel)) {
+            return [];
+        }
+
+        // Cancel/delete merged invoices and update related entities.
+        $this->merge_invoices($validToCancel, $targetInvoiceId, $cancelMerged);
+
+        // Recalculate subtotal from itemable and update totals.
+        $sumRow = $this->db
+            ->select('COALESCE(SUM(qty * rate),0) as subtotal', false)
+            ->where('rel_id', (int) $targetInvoiceId)
+            ->where('rel_type', 'invoice')
+            ->get(db_prefix() . 'itemable')
+            ->row_array();
+
+        $subtotal = (float) ($sumRow['subtotal'] ?? 0);
+
+        $this->db->where('id', (int) $targetInvoiceId)->update(db_prefix() . 'invoices', [
+            'subtotal' => $subtotal,
+        ]);
+
+        update_sales_total_tax_column($targetInvoiceId, 'invoice', db_prefix() . 'invoices');
+
+        $after = $this->db
+            ->select('total_tax, discount_total, adjustment')
+            ->where('id', (int) $targetInvoiceId)
+            ->limit(1)
+            ->get(db_prefix() . 'invoices')
+            ->row_array();
+
+        $totalTax      = (float) ($after['total_tax'] ?? 0);
+        $discountTotal = (float) ($after['discount_total'] ?? 0);
+        $adjustment    = (float) ($after['adjustment'] ?? 0);
+        $total         = $subtotal + $totalTax + $adjustment - $discountTotal;
+
+        $this->db->where('id', (int) $targetInvoiceId)->update(db_prefix() . 'invoices', [
+            'total' => $total,
+        ]);
+
+        update_invoice_status($targetInvoiceId, true);
+
+        return array_values(array_unique($mergedIds));
     }
 
     protected function add_new_items($items, $billed_tasks, $billed_expenses, $id)

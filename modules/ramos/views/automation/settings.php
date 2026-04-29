@@ -322,6 +322,59 @@
                     </div>
                 </div>
 
+                <!-- Portal invoice merge card -->
+                <div class="col-lg-8 tw-mt-6">
+                    <div class="panel_s tw-shadow-sm hover:tw-shadow-md tw-transition-shadow">
+                        <div class="panel-heading tw-bg-gradient-to-r tw-from-indigo-50 tw-to-indigo-25 tw-border-b tw-border-indigo-100">
+                            <h4 class="tw-mb-0 tw-text-slate-900">
+                                <i class="fa-solid fa-file-invoice tw-mr-2 tw-text-indigo-600"></i>
+                                <span class="tw-font-semibold">Portal invoices</span>
+                                <span class="tw-text-xs tw-font-normal tw-text-slate-500 tw-ml-2">
+                                    (<?php echo $portal_invoice_auto_merge_enabled ? '<span class="tw-text-green-600"><i class="fa-solid fa-check-circle tw-mr-1"></i>Auto-merge ON</span>' : '<span class="tw-text-slate-400"><i class="fa-solid fa-circle tw-mr-1"></i>Auto-merge OFF</span>'; ?>)
+                                </span>
+                            </h4>
+                        </div>
+                        <div class="panel-body tw-space-y-5">
+                            <div class="tw-relative tw-p-4 tw-bg-slate-50 tw-rounded-lg tw-border tw-border-slate-200 <?php echo $can_edit ? 'hover:tw-bg-slate-75 tw-cursor-pointer tw-transition-colors' : ''; ?>">
+                                <label class="tw-flex tw-items-center tw-gap-4 tw-cursor-pointer <?php echo !$can_edit ? 'tw-opacity-75' : ''; ?>">
+                                    <div class="tw-relative tw-flex tw-items-center">
+                                        <input
+                                            type="checkbox"
+                                            name="portal_invoice_auto_merge_enabled"
+                                            id="portal_invoice_auto_merge_enabled"
+                                            <?php echo $portal_invoice_auto_merge_enabled ? 'checked' : ''; ?>
+                                            <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                            class="tw-rounded tw-w-5 tw-h-5 tw-cursor-pointer tw-accent-indigo-600"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span class="tw-text-slate-900 tw-font-semibold tw-block">Auto-merge invoices for same customer</span>
+                                        <small class="tw-text-slate-500 tw-block tw-mt-1">
+                                            When enabled, each new portal order invoice will merge other eligible invoices for the same customer (same currency).
+                                        </small>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="tw-relative tw-p-4 tw-bg-white tw-rounded-lg tw-border tw-border-indigo-100">
+                                <label class="tw-flex tw-items-center tw-gap-3 tw-cursor-pointer <?php echo !$can_edit ? 'tw-opacity-60' : ''; ?>">
+                                    <input
+                                        type="checkbox"
+                                        name="portal_invoice_auto_merge_cancel"
+                                        id="portal_invoice_auto_merge_cancel"
+                                        <?php echo $portal_invoice_auto_merge_cancel ? 'checked' : ''; ?>
+                                        <?php echo !$can_edit ? 'disabled' : ''; ?>
+                                        class="tw-rounded tw-w-4 tw-h-4 tw-cursor-pointer tw-accent-indigo-600"
+                                    />
+                                    <span class="tw-text-slate-800 tw-text-sm">
+                                        Cancel merged invoices (recommended). If unchecked, merged invoices will be deleted.
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Sidebar - Quick Stats & Info -->
                 <div class="col-lg-4">
                     <!-- Status Card -->

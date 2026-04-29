@@ -256,8 +256,11 @@ class Clients extends ClientsController
             'status' => 1, // Unpaid
         ];
 
-        // Prepare items array
+        // Prepare items array for invoice + a parallel array for inventory deduction.
+        // Invoice line items should reflect the unit the customer ordered (equivalencia unit),
+        // while inventory deduction must always happen in the base unit.
         $newitems = [];
+        $deduct_items = [];
         $subtotal = 0;
 
         foreach ($items as $index => $item) {
@@ -311,26 +314,31 @@ class Clients extends ClientsController
                 $rate = round($expected_rate, 4);
             }
 
-            // Apply equivalencia conversion: user entered qty in selected unit,
-            // invoice must store qty in base unit (base_qty = qty * factor).
+            // Equivalencias:
+            // - Customer orders in an order unit (e.g. caja) with an equivalencia_factor converting to base units (e.g. KG).
+            // - Invoice should show qty in the ORDER unit, and rate should be per ORDER unit.
+            // - Inventory deduction must use base_qty (order_qty * factor).
             $equiv_factor = isset($item['equivalencia_factor']) ? (float) $item['equivalencia_factor'] : 1.0;
             if ($equiv_factor <= 0) {
                 $equiv_factor = 1.0;
             }
-            $base_qty = (float) $item['qty'] * $equiv_factor;
+            $order_qty = (float) $item['qty'];
+            $base_qty  = $order_qty * $equiv_factor;
 
-            // Use the selected equivalencia unit name for the invoice line unit,
-            // falling back to the item's own unit field.
-            $line_unit = (!empty($item['equivalencia_unit']) && $equiv_factor != 1.0)
-                ? trim($item['equivalencia_unit'])
-                : (isset($item['unit']) ? $item['unit'] : '');
+            $has_equiv = (!empty($item['equivalencia_unit']) && $equiv_factor != 1.0);
 
-            $item_total = $base_qty * $rate;
+            // Invoice line unit + rate: display/order unit with per-order-unit price.
+            // (Totals remain identical: order_qty * (base_rate*factor) == base_qty * base_rate)
+            $invoice_qty  = $order_qty;
+            $invoice_unit = $has_equiv ? trim($item['equivalencia_unit']) : (isset($item['unit']) ? $item['unit'] : '');
+            $invoice_rate = $has_equiv ? ($rate * $equiv_factor) : $rate;
+
+            $item_total = $invoice_qty * $invoice_rate;
             $subtotal += $item_total;
 
             // Build long description: append equivalencia info when a non-base unit was selected.
             $long_desc = isset($item['long_description']) ? $item['long_description'] : '';
-            if (!empty($item['equivalencia_unit']) && $equiv_factor != 1.0) {
+            if ($has_equiv) {
                 $equiv_note = 'Equivalencia: ' . trim($item['equivalencia_unit']) . ' (x' . $equiv_factor . ')';
                 $long_desc = $long_desc ? $long_desc . ' | ' . $equiv_note : $equiv_note;
             }
@@ -338,11 +346,18 @@ class Clients extends ClientsController
             $newitems[] = [
                 'description' => $item['description'],
                 'long_description' => $long_desc,
-                'qty' => $base_qty,
-                'rate' => $rate,
-                'unit' => $line_unit,
+                'qty' => $invoice_qty,
+                'rate' => $invoice_rate,
+                'unit' => $invoice_unit,
                 'order' => isset($item['order']) ? $item['order'] : ($index + 1),
                 'ripeness' => isset($item['maduracion']) ? trim($item['maduracion']) : '',
+            ];
+
+            // Inventory/warehouse deduction items (base unit quantities + base-unit selling price).
+            $deduct_items[] = [
+                'description' => $item['description'],
+                'qty'         => $base_qty,
+                'rate'        => $rate,
             ];
         }
 
@@ -360,7 +375,22 @@ class Clients extends ClientsController
             $this->_update_items_ripeness($invoice_id, $newitems);
 
             // Deduct inventory and record transaction history for warehouse visibility.
-            $this->_deduct_inventory_for_order($invoice_id, $newitems);
+            $this->_deduct_inventory_for_order($invoice_id, $deduct_items);
+
+            // Auto-merge same-customer invoices into this new invoice (optional, configurable).
+            // This is server-side: copy items + cancel/delete merged invoices.
+            try {
+                $enabled = (get_option('ramos_portal_invoice_auto_merge_enabled', '1') === '1');
+                if ($enabled) {
+                    $cancelMerged = (get_option('ramos_portal_invoice_auto_merge_cancel', '1') === '1');
+                    $mergedIds = $this->invoices_model->auto_merge_same_customer_invoices((int) $invoice_id, (int) $client_id, $cancelMerged);
+                    if (!empty($mergedIds)) {
+                        log_message('info', '[portal] auto-merged invoices into #' . $invoice_id . ': ' . implode(',', $mergedIds));
+                    }
+                }
+            } catch (Throwable $e) {
+                log_message('error', '[portal] auto-merge failed for invoice #' . $invoice_id . ': ' . $e->getMessage());
+            }
 
             echo json_encode([
                 'success' => true,
