@@ -58,7 +58,7 @@ foreach ($suppliers as $supplier) {
                         </form>
 
                         <div class="table-responsive">
-                            <table class="table table-bordered table-hover">
+                            <table class="table table-bordered table-hover" id="ramos-inventory-table">
                                 <thead>
                                     <tr>
                                         <th style="width:56px"><?php echo _l('ramos_inventory_table_image'); ?></th>
@@ -363,6 +363,26 @@ foreach ($suppliers as $supplier) {
 <script>
     (function() {
         "use strict";
+
+        // Client-side DataTables pagination/search (same pattern as equivalencias/report pages).
+        $(function () {
+            if ($.fn.DataTable && $('#ramos-inventory-table tbody tr').length > 0) {
+                $('#ramos-inventory-table').DataTable({
+                    serverSide:  false,
+                    processing:  false,
+                    order: [[1, 'asc']],
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, '<?php echo _l('all'); ?>']],
+                    autoWidth: false,
+                    initComplete: function() {
+                        // DataTables wrapper may carry Perfex's skeleton class; ensure it's removed
+                        // so the table doesn't stay invisible (opacity:0) after init.
+                        $(this.api().table().container()).removeClass('table-loading');
+                        mainWrapperHeightFix();
+                    },
+                });
+            }
+        });
 
         var baseUrl = <?php echo json_encode(admin_url()); ?>;
         var $editModal = $('#ramosInventoryEditModal');
