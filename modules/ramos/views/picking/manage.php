@@ -262,7 +262,9 @@ $staffMembers         = isset($staff_members) ? $staff_members : [];
     // This avoids rendering the full commodity list on initial page load.
     init_ajax_search(
       "ramos_warehouse_item",
-      "select.ramos-ajax-items",
+      // render_select outputs class="selectpicker" for these controls; use id prefix
+      // to reliably target the module product pickers.
+      "select[id^='product_ids_module_']",
       {},
       admin_url + "ramos/picking/ajax_search_items"
     );

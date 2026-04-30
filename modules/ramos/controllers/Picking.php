@@ -71,21 +71,25 @@ class Picking extends AdminController
 
         $this->db->select('i.id');
         $this->db->select('i.description');
+        $this->db->select('i.commodity_name');
         $this->db->select('i.commodity_code');
         $this->db->select('u.unit_name');
         $this->db->from(db_prefix() . 'items i');
         $this->db->join(db_prefix() . 'ware_unit_type u', 'u.unit_type_id = i.unit_id', 'left');
         $this->db->where('i.id IS NOT NULL', null, false);
         $this->db->where('i.id > 0', null, false);
+        $this->db->where('i.active', 1);
 
         if ($q !== '') {
             $this->db->group_start()
                 ->like('i.description', $q)
+                ->or_like('i.commodity_name', $q)
                 ->or_like('i.commodity_code', $q)
                 ->group_end();
         }
 
-        $this->db->order_by('i.description', 'ASC');
+        // Sort by visible label (description preferred, fallback to commodity_name).
+        $this->db->order_by("CASE WHEN i.description IS NULL OR i.description = '' THEN i.commodity_name ELSE i.description END", 'ASC', false);
         $this->db->limit($limit);
 
         $rows = $this->db->get()->result_array();
@@ -93,6 +97,9 @@ class Picking extends AdminController
         $out = [];
         foreach ($rows as $row) {
             $name = trim((string) ($row['description'] ?? ''));
+            if ($name === '') {
+                $name = trim((string) ($row['commodity_name'] ?? ''));
+            }
             $unit = trim((string) ($row['unit_name'] ?? ''));
             $code = trim((string) ($row['commodity_code'] ?? ''));
 
