@@ -15,15 +15,20 @@
     "pw:staging:complete-picking": "playwright test tests/e2e/specs/picking-console-complete-all-staging.spec.ts --headed",
     "pw:test:ui": "playwright test --ui",
     "pw:report": "playwright show-report",
-    "export:commodities-no-image": "node scripts/export-commodities-without-images.cjs"
+    "export:commodities-no-image": "node scripts/export-commodities-without-images.cjs",
+    "import:commodity-images": "node scripts/import-commodity-images.cjs",
+    "export:items-no-image-now": "node scripts/export-items-without-images-now.cjs",
+    "annotate:client-missing-images-xlsx": "node scripts/annotate-client-missing-images-xlsx.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@tailwindcss/nesting": "^0.0.0-insiders.565cd3e",
+    "adm-zip": "^0.5.17",
     "autoprefixer": "^10.4.12",
     "del": "^7.0.0",
     "laravel-mix": "^6.0.49",
     "less": "^4.1.3",
+    "mysql2": "^3.22.3",
     "postcss": "^8.4.17",
     "postcss-import": "^15.0.0",
     "postcss-nesting": "^10.2.0",

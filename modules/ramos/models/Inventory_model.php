@@ -325,16 +325,19 @@ class Inventory_model extends App_Model
         $descSet = array_flip($descriptions);
         $map = [];
 
-        // --- Source 1: tblramos_inventory_items.has_maduracion (legacy manual flag) ---
-        $rows = $this->db
+        // --- Source 1: tblramos_inventory_items.has_maduracion (inventory toggle) ---
+        // IMPORTANT: We must load BOTH 0 and 1 here.
+        // If we only load rows where has_maduracion=1, then turning OFF in inventory cannot override
+        // a previously-set "maduracion" custom field value (e.g. "Sí") and the portal would still show it.
+        $invRows = $this->db
             ->select('item_name, has_maduracion')
-            ->where('has_maduracion', 1)
             ->get($this->table)
             ->result_array();
 
-        foreach ($rows as $row) {
-            if (isset($descSet[$row['item_name']])) {
-                $map[$row['item_name']] = 1;
+        foreach ($invRows as $row) {
+            $name = $row['item_name'];
+            if (isset($descSet[$name])) {
+                $map[$name] = (int) (bool) ($row['has_maduracion'] ?? 0);
             }
         }
 
@@ -358,6 +361,10 @@ class Inventory_model extends App_Model
                 $desc  = $row['description'];
                 $value = trim(strtolower((string) $row['value']));
                 if (!isset($descSet[$desc])) {
+                    continue;
+                }
+                // If inventory has an explicit row for this product name, it is the source of truth.
+                if (isset($map[$desc])) {
                     continue;
                 }
                 // 'sí', 'si', 'yes', '1', 'true' → has maduracion

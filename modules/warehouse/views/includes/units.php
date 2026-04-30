@@ -37,12 +37,12 @@
 
         <td>
             <?php if (has_permission('warehouse', '', 'edit') || is_admin()) { ?>
-              <a href="#" onclick="edit_unit_type(this,<?php echo html_entity_decode($unit_type['unit_type_id']); ?>); return false;" data-unit_code="<?php echo html_entity_decode($unit_type['unit_code']); ?>" data-unit_name="<?php echo html_entity_decode($unit_type['unit_name']); ?>" data-unit_symbol="<?php echo html_entity_decode($unit_type['unit_symbol']); ?>" data-order="<?php echo html_entity_decode($unit_type['order']); ?>" data-display="<?php echo html_entity_decode($unit_type['display']); ?>" data-note="<?php echo html_entity_decode($unit_type['note']); ?>" class="btn btn-default btn-icon"><i class="fa fa-pencil-square-o"></i>
+              <a href="#" onclick="edit_unit_type(this,<?php echo html_entity_decode((string)($unit_type['unit_type_id'] ?? '')); ?>); return false;" data-unit_code="<?php echo html_entity_decode((string)($unit_type['unit_code'] ?? '')); ?>" data-unit_name="<?php echo html_entity_decode((string)($unit_type['unit_name'] ?? '')); ?>" data-unit_symbol="<?php echo html_entity_decode((string)($unit_type['unit_symbol'] ?? '')); ?>" data-order="<?php echo html_entity_decode((string)($unit_type['order'] ?? '')); ?>" data-display="<?php echo html_entity_decode((string)($unit_type['display'] ?? '')); ?>" data-note="<?php echo html_entity_decode((string)($unit_type['note'] ?? '')); ?>" class="btn btn-default btn-icon"><i class="fa-regular fa-pen-to-square"></i>
             </a>
             <?php } ?>
 
             <?php if (has_permission('warehouse', '', 'delete') || is_admin()) { ?> 
-            <a href="<?php echo admin_url('warehouse/delete_unit_type/'.$unit_type['unit_type_id']); ?>" class="btn btn-danger btn-icon _delete"><i class="fa fa-remove"></i></a>
+            <a href="<?php echo admin_url('warehouse/delete_unit_type/'.$unit_type['unit_type_id']); ?>" class="btn btn-danger btn-icon _delete"><i class="fa-solid fa-xmark"></i></a>
              <?php } ?>
         </td>
     </tr>

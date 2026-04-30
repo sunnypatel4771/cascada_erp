@@ -152,12 +152,19 @@ async function collectFromCurrentPage(page) {
       const src = img ? img.getAttribute('src') || '' : '';
       const alt = img ? img.getAttribute('alt') || '' : '';
       const textCol = (i) => (tds[i] ? tds[i].innerText.replace(/\s+/g, ' ').trim() : '');
+      // Column 2 (commodity_code) contains a <div class="row-options"> with action links;
+      // read only the first <a> (the code link) to get the bare code.
+      const codeCell = tds[2];
+      const codeLink = codeCell ? codeCell.querySelector('a') : null;
+      const commodityCode = codeLink
+        ? codeLink.innerText.replace(/\s+/g, ' ').trim()
+        : textCol(2).split(/View\s*\|/)[0].trim();
       // Columns: 0 checkbox, 1 image, 2 code, 3 name, 4 sku, 5 group, 6 warehouse, 7 tags, 8 inventory, 9 unit, ...
       out.push({
         itemId,
         imageSrc: src,
         imageAlt: alt,
-        commodityCode: textCol(2),
+        commodityCode,
         commodityName: textCol(3),
         skuCode: textCol(4),
         groupName: textCol(5),
