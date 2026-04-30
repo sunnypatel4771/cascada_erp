@@ -8,7 +8,7 @@
                     <div class="panel-body">               
                         <div class="clearfix"></div>
                            <h4>
-                              <?php echo html_entity_decode($commodity_item->description); ?>
+                              <?php echo html_entity_decode((string) ($commodity_item->description ?? '')); ?>
                            </h4>
 
 
@@ -29,31 +29,31 @@
 
                                       <tr class="project-overview">
                                         <td class="bold" width="30%"><?php echo _l('commodity_code'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->commodity_code) ; ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->commodity_code ?? '')); ?></td>
                                      </tr>
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('commodity_name'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->description) ; ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->description ?? '')); ?></td>
                                      </tr>
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('commodity_group'); ?></td>
-                                        <td><?php echo get_wh_group_name(html_entity_decode($commodity_item->group_id)) != null ? get_wh_group_name(html_entity_decode($commodity_item->group_id))->name : '' ; ?></td>
+                                        <td><?php echo get_wh_group_name(html_entity_decode((string) ($commodity_item->group_id ?? ''))) != null ? get_wh_group_name(html_entity_decode((string) ($commodity_item->group_id ?? '')))->name : '' ; ?></td>
                                      </tr>
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('commodity_barcode'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->commodity_barcode) ; ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->commodity_barcode ?? '')); ?></td>
                                      </tr>
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('sku_code'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->sku_code) ; ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->sku_code ?? '')); ?></td>
                                      </tr>
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('sku_name'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->sku_name) ; ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->sku_name ?? '')); ?></td>
                                      </tr>
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('tax_1'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->tax) != '' && get_tax_rate($commodity_item->tax) != null ? get_tax_rate($commodity_item->tax)->name : '';  ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->tax ?? '')) != '' && get_tax_rate($commodity_item->tax) != null ? get_tax_rate($commodity_item->tax)->name : '';  ?></td>
                                      </tr> 
                                      <tr class="project-overview">
                                         <td class="bold"><?php echo _l('tax_2'); ?></td>
@@ -121,7 +121,7 @@
                                 <tbody>
                                    <tr class="project-overview">
                                       <td class="bold td-width"><?php echo _l('origin'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->origin) ; ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->origin ?? '')); ?></td>
                                    </tr>
                                    <tr class="project-overview">
                                       <td class="bold"><?php echo _l('colors'); ?></td>
@@ -138,7 +138,7 @@
                                    </tr>
                                    <tr class="project-overview">
                                       <td class="bold"><?php echo _l('styles'); ?></td>
-                                    <td><?php  if($commodity_item->style_id != null){ echo get_style_name(html_entity_decode($commodity_item->style_id)) != null ? get_style_name(html_entity_decode($commodity_item->style_id))->style_name : '';}else{echo '';} ?></td>
+                                    <td><?php  if($commodity_item->style_id != null){ echo get_style_name(html_entity_decode((string) ($commodity_item->style_id ?? ''))) != null ? get_style_name(html_entity_decode((string) ($commodity_item->style_id ?? '')))->style_name : '';}else{echo '';} ?></td>
                                    </tr>
 
                                     <tr class="project-overview">
@@ -148,7 +148,7 @@
 
                                    <tr class="project-overview">
                                       <td class="bold"><?php echo _l('_profit_rate_p'); ?></td>
-                                      <td><?php echo html_entity_decode($commodity_item->profif_ratio) ; ?></td>
+                                      <td><?php echo html_entity_decode((string) ($commodity_item->profif_ratio ?? '')); ?></td>
                                    </tr>
                                    
 
@@ -161,12 +161,12 @@
                                 <tbody>
                                    <tr class="project-overview">
                                       <td class="bold" width="40%"><?php echo _l('model_id'); ?></td>
-                                       <td><?php if($commodity_item->style_id != null){ echo get_model_name(html_entity_decode($commodity_item->model_id)) != null ? get_model_name(html_entity_decode($commodity_item->model_id))->body_name : ''; }else{echo '';}?></td>
+                                       <td><?php if($commodity_item->style_id != null){ echo get_model_name(html_entity_decode((string) ($commodity_item->model_id ?? ''))) != null ? get_model_name(html_entity_decode((string) ($commodity_item->model_id ?? '')))->body_name : ''; }else{echo '';}?></td>
                                    </tr>
                                    <tr class="project-overview">
                                       <td class="bold"><?php echo _l('size_id'); ?></td>
 
-                                      <td><?php if($commodity_item->style_id != null){ echo get_size_name(html_entity_decode($commodity_item->size_id)) != null ? get_size_name(html_entity_decode($commodity_item->size_id))->size_name : ''; }else{ echo '';}?></td>
+                                      <td><?php if($commodity_item->style_id != null){ echo get_size_name(html_entity_decode((string) ($commodity_item->size_id ?? ''))) != null ? get_size_name(html_entity_decode((string) ($commodity_item->size_id ?? '')))->size_name : ''; }else{ echo '';}?></td>
                                    </tr>
                                    
                                      <tr class="project-overview">
@@ -181,7 +181,7 @@
 
                                       <tr class="project-overview">
                                         <td class="bold"><?php echo _l('guarantee'); ?></td>
-                                        <td><?php echo html_entity_decode($commodity_item->guarantee) ._l('month_label'); ?></td>
+                                        <td><?php echo html_entity_decode((string) ($commodity_item->guarantee ?? '')) . _l('month_label'); ?></td>
                                       </tr>
                                      
                                   
@@ -193,7 +193,7 @@
                             <div class="col-md-12">
                              <h4 class="h4-color"><?php echo _l('description'); ?></h4>
                             <hr class="hr-color">
-                            <h5><?php echo html_entity_decode($commodity_item->long_description) ; ?></h5>
+                            <h5><?php echo html_entity_decode((string) ($commodity_item->long_description ?? '')); ?></h5>
                               
                             </div>
                               
@@ -203,7 +203,7 @@
                             <div class="col-md-12">
                              <h4 class="h4-color"><?php echo _l('long_description'); ?></h4>
                             <hr class="hr-color">
-                            <h5><?php echo html_entity_decode($commodity_item->long_descriptions) ; ?></h5>
+                            <h5><?php echo html_entity_decode((string) ($commodity_item->long_descriptions ?? '')); ?></h5>
                               
                             </div>
                               
